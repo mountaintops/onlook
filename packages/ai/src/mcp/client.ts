@@ -1,16 +1,19 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { tool as aiTool } from 'ai';
 import { z } from 'zod';
 import { convertJsonSchemaToZod } from 'zod-from-json-schema';
 
 export class OnlookMCPClient {
     private client: Client | null = null;
-    private transport: StdioClientTransport | null = null;
+    private transport: StdioClientTransport | StreamableHTTPClientTransport | SSEClientTransport | null = null;
+    private transportType: 'stdio' | 'sse' = 'stdio';
 
     constructor(private serverName: string, private serverVersion: string = '1.0.0') { }
 
-    async connect(command: string, args: string[] = [], env?: Record<string, string>) {
+    async connectViaStdio(command: string, args: string[] = [], env?: Record<string, string>) {
         const rawEnv = { ...process.env, ...env };
         const filteredEnv = Object.fromEntries(
             Object.entries(rawEnv).filter(([_, v]) => v !== undefined)
@@ -21,6 +24,40 @@ export class OnlookMCPClient {
             args,
             env: filteredEnv,
         });
+
+        this.transportType = 'stdio';
+        await this.initializeClient();
+    }
+
+    async connectViaSSE(url: string, headers?: Record<string, string>) {
+        const serverUrl = new URL(url);
+
+        // Try StreamableHTTP first, fall back to legacy SSE
+        try {
+            const requestInit: RequestInit | undefined = headers ? { headers } : undefined;
+            this.transport = new StreamableHTTPClientTransport(
+                serverUrl,
+                requestInit ? { requestInit } : undefined
+            );
+            this.transportType = 'sse';
+            await this.initializeClient();
+            console.log(`[MCP] Connected to ${this.serverName} via StreamableHTTP`);
+        } catch (error) {
+            console.log(`[MCP] StreamableHTTP failed for ${this.serverName}, trying legacy SSE...`);
+            // Fall back to legacy SSE transport
+            this.transport = new SSEClientTransport(serverUrl, {
+                requestInit: headers ? { headers } : undefined,
+            });
+            this.transportType = 'sse';
+            await this.initializeClient();
+            console.log(`[MCP] Connected to ${this.serverName} via legacy SSE`);
+        }
+    }
+
+    private async initializeClient() {
+        if (!this.transport) {
+            throw new Error('Transport not initialized');
+        }
 
         this.client = new Client(
             {
@@ -46,7 +83,6 @@ export class OnlookMCPClient {
         for (const tool of mcpTools) {
             aiTools[tool.name] = aiTool({
                 description: tool.description,
-                // Using inputSchema as per BaseTool implementation in this codebase
                 inputSchema: convertJsonSchemaToZod(tool.inputSchema as any) as z.ZodType<any>,
                 execute: async (args: any) => {
                     if (!this.client) {
@@ -80,5 +116,6 @@ export class OnlookMCPClient {
             await this.client.close();
             this.client = null;
         }
+        this.transport = null;
     }
 }

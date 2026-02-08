@@ -11,7 +11,18 @@ export const createDefaultUserSettings = (userId: string): DbUserSettings => {
         showSuggestions: DefaultSettings.CHAT_SETTINGS.showSuggestions,
         showMiniChat: DefaultSettings.CHAT_SETTINGS.showMiniChat,
         shouldWarnDelete: DefaultSettings.EDITOR_SETTINGS.shouldWarnDelete,
-        enableMcp: false,
-        mcpServers: [],
+        enableMcp: true,
+        mcpServers: [
+            {
+                id: 'default-context7',
+                name: 'Context7',
+                transport: 'sse',
+                url: 'https://mcp.context7.com/mcp',
+                headers: {
+                    'CONTEXT7_API_KEY': 'ctx7sk-21946970-904d-423f-ba48-75cd53ee468e',
+                },
+                enabled: true,
+            },
+        ],
     };
 };

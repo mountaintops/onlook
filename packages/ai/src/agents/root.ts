@@ -64,7 +64,7 @@ export const createRootAgentStream = async ({
     if (process.env.MCP_SERVER_COMMAND) {
         try {
             const mcpClient = new OnlookMCPClient('onlook-agent-env');
-            await mcpClient.connect(
+            await mcpClient.connectViaStdio(
                 process.env.MCP_SERVER_COMMAND,
                 process.env.MCP_SERVER_ARGS ? JSON.parse(process.env.MCP_SERVER_ARGS) : []
             );
@@ -82,11 +82,20 @@ export const createRootAgentStream = async ({
             if (!server.enabled) continue;
             try {
                 const mcpClient = new OnlookMCPClient(server.name);
-                await mcpClient.connect(server.command, server.args, server.env);
+
+                if (server.transport === 'sse' && server.url) {
+                    await mcpClient.connectViaSSE(server.url, server.headers);
+                } else if (server.transport === 'stdio' && server.command) {
+                    await mcpClient.connectViaStdio(server.command, server.args || [], server.env);
+                } else {
+                    console.warn(`[MCP] Skipping ${server.name}: invalid configuration`);
+                    continue;
+                }
+
                 const mcpTools = await mcpClient.getTools();
                 toolSet = { ...toolSet, ...mcpTools };
                 mcpClients.push(mcpClient);
-                console.log(`[MCP] Connected to ${server.name} and loaded ${Object.keys(mcpTools).length} tools`);
+                console.log(`[MCP] Connected to ${server.name} (${server.transport}) and loaded ${Object.keys(mcpTools).length} tools`);
             } catch (error) {
                 console.error(`[MCP] Failed to connect to ${server.name}:`, error);
             }

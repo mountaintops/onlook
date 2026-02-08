@@ -24,8 +24,13 @@ export interface MCPSettings {
 export interface MCPServerConfig {
     id: string;
     name: string;
-    command: string;
-    args: string[];
+    transport: 'stdio' | 'sse';
+    // For stdio transport
+    command?: string;
+    args?: string[];
     env?: Record<string, string>;
+    // For SSE transport
+    url?: string;
+    headers?: Record<string, string>;
     enabled: boolean;
 }
