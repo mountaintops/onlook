@@ -1,6 +1,6 @@
 import { createClient as createTRPCClient } from '@/trpc/request-server';
 import { createClient as createSupabaseClient } from '@/utils/supabase/request-server';
-import { UsageType, type Usage } from '@onlook/models';
+import { GOOGLE_MODELS, UsageType, type Usage } from '@onlook/models';
 import { type NextRequest } from 'next/server';
 
 export const checkMessageLimit = async (req: NextRequest): Promise<{
@@ -40,11 +40,15 @@ export const getSupabaseUser = async (request: NextRequest) => {
     return user;
 }
 
-export const incrementUsage = async (req: NextRequest, traceId?: string): Promise<{
+export const incrementUsage = async (req: NextRequest, traceId?: string, modelName?: string): Promise<{
     usageRecordId: string | undefined,
     rateLimitId: string | undefined,
 } | null> => {
     try {
+        if (modelName === GOOGLE_MODELS.GEMINI_3_0_FLASH_PREVIEW) {
+            return null;
+        }
+
         const user = await getSupabaseUser(req);
         if (!user) {
             throw new Error('User not found');

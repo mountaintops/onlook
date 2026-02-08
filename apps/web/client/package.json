@@ -33,7 +33,7 @@
   },
   "dependencies": {
     "@ai-sdk/provider-utils": "^3.0.10",
-    "@ai-sdk/react": "2.0.60",
+    "@ai-sdk/react": "^3.0.71",
     "@codemirror/lang-css": "^6.2.0",
     "@codemirror/lang-html": "^6.4.7",
     "@codemirror/lang-javascript": "^6.2.3",
@@ -71,7 +71,7 @@
     "@xterm/xterm": "^5.5.0",
     "@zenfs/core": "2.4.0",
     "@zenfs/dom": "1.2.5",
-    "ai": "5.0.26",
+    "ai": "^6.0.69",
     "blob-util": "^2.0.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

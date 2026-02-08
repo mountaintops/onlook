@@ -305,8 +305,11 @@ export class ChatContext {
                 })
             )).filter((context) => context !== null);
             return agentRuleContexts
-        } catch (error) {
-            console.error('Error getting agent rule context', error);
+        } catch (error: any) {
+            // Ignore if file not found, as this is expected
+            if (error?.code !== 'ENOENT') {
+                console.error('Error getting agent rule context', error);
+            }
             return [];
         }
     }

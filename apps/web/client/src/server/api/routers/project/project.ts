@@ -30,7 +30,7 @@ import {
     type UserCanvas
 } from '@onlook/db';
 import { compressImageServer } from '@onlook/image-server';
-import { LLMProvider, OPENROUTER_MODELS, ProjectCreateRequestStatus, ProjectRole } from '@onlook/models';
+import { GOOGLE_MODELS, LLMProvider, ProjectCreateRequestStatus, ProjectRole } from '@onlook/models';
 import { getScreenshotPath } from '@onlook/utility';
 import { generateText } from 'ai';
 import { and, eq, ne } from 'drizzle-orm';
@@ -316,8 +316,8 @@ export const projectRouter = createTRPCRouter({
         .mutation(async ({ ctx, input }): Promise<string> => {
             try {
                 const { model, providerOptions, headers } = initModel({
-                    provider: LLMProvider.OPENROUTER,
-                    model: OPENROUTER_MODELS.OPEN_AI_GPT_5_NANO,
+                    provider: LLMProvider.GOOGLE,
+                    model: GOOGLE_MODELS.GEMINI_3_0_PRO_PREVIEW,
                 });
 
                 const MAX_NAME_LENGTH = 50;

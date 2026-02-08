@@ -10,7 +10,7 @@ I am looking at this specific part of the file in the browser UI. Line numbers a
 ```
 test
 ```
-</highlight></file></context><errors>You are helping debug a Next.js React app, likely being set up for the first time. Common issues:
+</highlight></file></context><errors>You are helping debug a React app, likely being set up for the first time. Common issues:
 - Missing dependencies ("command not found" errors) → Suggest "bun install" to install the dependencies for the first time (this project uses Bun, not npm)
 - Missing closing tags in JSX/TSX files. Make sure all the tags are closed.
 

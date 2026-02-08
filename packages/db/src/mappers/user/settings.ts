@@ -16,6 +16,10 @@ export const fromDbUserSettings = (settings: DbUserSettings): UserSettings => {
         editor: {
             shouldWarnDelete: settings.shouldWarnDelete ?? DefaultSettings.EDITOR_SETTINGS.shouldWarnDelete,
         },
+        mcp: {
+            enabled: settings.enableMcp ?? false,
+            servers: settings.mcpServers ?? [],
+        },
     };
 };
 
@@ -28,5 +32,7 @@ export const toDbUserSettings = (userId: string, settings: UserSettings): DbUser
         showSuggestions: settings.chat.showSuggestions,
         showMiniChat: settings.chat.showMiniChat,
         shouldWarnDelete: settings.editor.shouldWarnDelete,
+        enableMcp: settings.mcp.enabled,
+        mcpServers: settings.mcp.servers,
     };
 };

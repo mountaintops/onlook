@@ -1,15 +1,17 @@
 import type { ToolCall } from '@ai-sdk/provider-utils';
-import { ChatType, LLMProvider, OPENROUTER_MODELS, type ChatMessage, type ModelConfig } from '@onlook/models';
+import { ChatType, GOOGLE_MODELS, LLMProvider, OPENROUTER_MODELS, type ChatMessage, type MCPServerConfig, type ModelConfig } from '@onlook/models';
 import { NoSuchToolError, generateObject, smoothStream, stepCountIs, streamText, type ToolSet } from 'ai';
 import { convertToStreamMessages, getAskModeSystemPrompt, getCreatePageSystemPrompt, getSystemPrompt, getToolSetFromType, initModel } from '../index';
+import type { OnlookMCPClient } from '../mcp/client';
 
-export const createRootAgentStream = ({
+export const createRootAgentStream = async ({
     chatType,
     conversationId,
     projectId,
     userId,
     traceId,
     messages,
+    mcpServers,
 }: {
     chatType: ChatType;
     conversationId: string;
@@ -17,13 +19,83 @@ export const createRootAgentStream = ({
     userId: string;
     traceId: string;
     messages: ChatMessage[];
+    mcpServers?: MCPServerConfig[];
 }) => {
     const modelConfig = getModelFromType(chatType);
     const systemPrompt = getSystemPromptFromType(chatType);
-    const toolSet = getToolSetFromType(chatType);
+    let toolSet = getToolSetFromType(chatType);
+
+    // MCP Integration
+    const mcpClients: OnlookMCPClient[] = [];
+
+    // Dynamically import OnlookMCPClient to avoid bundling issues
+    let OnlookMCPClient: typeof import('../mcp/client').OnlookMCPClient;
+    try {
+        const module = await import('../mcp/client');
+        OnlookMCPClient = module.OnlookMCPClient;
+    } catch (e) {
+        console.error('Failed to import OnlookMCPClient', e);
+        return streamText({
+            providerOptions: modelConfig.providerOptions,
+            messages: await convertToStreamMessages(messages),
+            model: modelConfig.model,
+            system: systemPrompt,
+            tools: toolSet,
+            headers: modelConfig.headers,
+            stopWhen: stepCountIs(20),
+            experimental_repairToolCall: repairToolCall,
+            experimental_transform: smoothStream(),
+            experimental_telemetry: {
+                isEnabled: true,
+                metadata: {
+                    conversationId,
+                    projectId,
+                    userId,
+                    chatType,
+                    tags: ['chat'],
+                    langfuseTraceId: traceId,
+                    sessionId: conversationId,
+                },
+            },
+        });
+    }
+
+
+    if (process.env.MCP_SERVER_COMMAND) {
+        try {
+            const mcpClient = new OnlookMCPClient('onlook-agent-env');
+            await mcpClient.connect(
+                process.env.MCP_SERVER_COMMAND,
+                process.env.MCP_SERVER_ARGS ? JSON.parse(process.env.MCP_SERVER_ARGS) : []
+            );
+            const mcpTools = await mcpClient.getTools();
+            toolSet = { ...toolSet, ...mcpTools };
+            mcpClients.push(mcpClient);
+            console.log(`[MCP] Connected to env server and loaded ${Object.keys(mcpTools).length} tools`);
+        } catch (error) {
+            console.error('[MCP] Failed to connect to env server:', error);
+        }
+    }
+
+    if (mcpServers && mcpServers.length > 0) {
+        for (const server of mcpServers) {
+            if (!server.enabled) continue;
+            try {
+                const mcpClient = new OnlookMCPClient(server.name);
+                await mcpClient.connect(server.command, server.args, server.env);
+                const mcpTools = await mcpClient.getTools();
+                toolSet = { ...toolSet, ...mcpTools };
+                mcpClients.push(mcpClient);
+                console.log(`[MCP] Connected to ${server.name} and loaded ${Object.keys(mcpTools).length} tools`);
+            } catch (error) {
+                console.error(`[MCP] Failed to connect to ${server.name}:`, error);
+            }
+        }
+    }
+
     return streamText({
         providerOptions: modelConfig.providerOptions,
-        messages: convertToStreamMessages(messages),
+        messages: await convertToStreamMessages(messages),
         model: modelConfig.model,
         system: systemPrompt,
         tools: toolSet,
@@ -31,6 +103,11 @@ export const createRootAgentStream = ({
         stopWhen: stepCountIs(20),
         experimental_repairToolCall: repairToolCall,
         experimental_transform: smoothStream(),
+        onFinish: async () => {
+            for (const client of mcpClients) {
+                await client.disconnect();
+            }
+        },
         experimental_telemetry: {
             isEnabled: true,
             metadata: {
@@ -58,20 +135,20 @@ const getSystemPromptFromType = (chatType: ChatType): string => {
     }
 }
 
-const getModelFromType = (chatType: ChatType): ModelConfig => {
+export const getModelFromType = (chatType: ChatType): ModelConfig => {
     switch (chatType) {
         case ChatType.CREATE:
         case ChatType.FIX:
             return initModel({
-                provider: LLMProvider.OPENROUTER,
-                model: OPENROUTER_MODELS.OPEN_AI_GPT_5,
+                provider: LLMProvider.GOOGLE,
+                model: GOOGLE_MODELS.GEMINI_3_0_PRO_PREVIEW,
             });
         case ChatType.ASK:
         case ChatType.EDIT:
         default:
             return initModel({
-                provider: LLMProvider.OPENROUTER,
-                model: OPENROUTER_MODELS.CLAUDE_4_5_SONNET,
+                provider: LLMProvider.GOOGLE,
+                model: GOOGLE_MODELS.GEMINI_3_0_PRO_PREVIEW,
             });
     }
 }
@@ -92,8 +169,8 @@ export const repairToolCall = async ({ toolCall, tools, error }: { toolCall: Too
     );
 
     const { model } = initModel({
-        provider: LLMProvider.OPENROUTER,
-        model: OPENROUTER_MODELS.OPEN_AI_GPT_5_NANO,
+        provider: LLMProvider.GOOGLE,
+        model: GOOGLE_MODELS.GEMINI_3_0_PRO_PREVIEW,
     });
 
     const { object: repairedArgs } = await generateObject({

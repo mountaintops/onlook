@@ -7,6 +7,7 @@ import { capitalizeFirstLetter } from '@onlook/utility';
 import { observer } from 'mobx-react-lite';
 import { AnimatePresence, motion } from 'motion/react';
 import { SettingsTabValue, type SettingTab } from './helpers';
+import { MCPTab } from './mcp-tab';
 import { PreferencesTab } from './preferences-tab';
 import { SubscriptionTab } from './subscription-tab';
 
@@ -23,6 +24,11 @@ export const NonProjectSettingsModal = observer(() => {
             label: SettingsTabValue.SUBSCRIPTION,
             icon: <Icons.CreditCard className="mr-2 h-4 w-4" />,
             component: <SubscriptionTab />,
+        },
+        {
+            label: SettingsTabValue.MCP,
+            icon: <Icons.Code className="mr-2 h-4 w-4" />,
+            component: <MCPTab />,
         },
     ]
 

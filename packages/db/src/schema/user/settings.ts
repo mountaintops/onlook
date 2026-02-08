@@ -1,5 +1,6 @@
+import type { MCPServerConfig } from '@onlook/models';
 import { relations } from 'drizzle-orm';
-import { boolean, pgTable, uuid } from 'drizzle-orm/pg-core';
+import { boolean, jsonb, pgTable, uuid } from 'drizzle-orm/pg-core';
 import { createInsertSchema, createUpdateSchema } from 'drizzle-zod';
 import { users } from './user';
 
@@ -15,6 +16,8 @@ export const userSettings = pgTable("user_settings", {
     showSuggestions: boolean("show_suggestions").notNull().default(true),
     showMiniChat: boolean("show_mini_chat").notNull().default(false),
     shouldWarnDelete: boolean("should_warn_delete").notNull().default(true),
+    enableMcp: boolean("enable_mcp").notNull().default(false),
+    mcpServers: jsonb("mcp_servers").$type<MCPServerConfig[]>().default([]),
 }).enableRLS();
 
 export const userSettingsRelations = relations(userSettings, ({ one }) => ({

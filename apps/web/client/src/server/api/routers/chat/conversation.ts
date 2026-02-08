@@ -5,7 +5,7 @@ import {
     conversationUpdateSchema,
     fromDbConversation
 } from '@onlook/db';
-import { LLMProvider, OPENROUTER_MODELS } from '@onlook/models';
+import { GOOGLE_MODELS, LLMProvider } from '@onlook/models';
 import { generateText } from 'ai';
 import { eq } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
@@ -45,10 +45,10 @@ export const conversationRouter = createTRPCRouter({
     update: protectedProcedure
         .input(conversationUpdateSchema)
         .mutation(async ({ ctx, input }) => {
-            const [conversation] = await ctx.db.update({
-                ...conversations,
+            const [conversation] = await ctx.db.update(conversations).set({
+                ...input,
                 updatedAt: new Date(),
-            }).set(input)
+            })
                 .where(eq(conversations.id, input.id)).returning();
             if (!conversation) {
                 throw new Error('Conversation not updated');
@@ -69,8 +69,8 @@ export const conversationRouter = createTRPCRouter({
         }))
         .mutation(async ({ ctx, input }) => {
             const { model, providerOptions, headers } = initModel({
-                provider: LLMProvider.OPENROUTER,
-                model: OPENROUTER_MODELS.CLAUDE_3_5_HAIKU,
+                provider: LLMProvider.GOOGLE,
+                model: GOOGLE_MODELS.GEMINI_3_0_PRO_PREVIEW,
             });
 
             const MAX_NAME_LENGTH = 50;

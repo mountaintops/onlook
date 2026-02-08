@@ -37,6 +37,8 @@
         "@codesandbox/sdk": "^1.1.6",
         "@onlook/models": "*",
         "@onlook/parser": "*",
-        "@onlook/utility": "*"
+        "@onlook/utility": "*",
+        "isomorphic-git": "^1.36.3",
+        "memfs": "^4.56.10"
     }
 }

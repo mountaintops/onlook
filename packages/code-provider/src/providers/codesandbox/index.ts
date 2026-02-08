@@ -76,10 +76,10 @@ export interface CodesandboxProviderOptions {
     getSession?: (sandboxId: string, userId?: string) => Promise<SandboxBrowserSession | null>;
 }
 
-export interface CodesandboxCreateSessionInput extends CreateSessionInput {}
+export interface CodesandboxCreateSessionInput extends CreateSessionInput { }
 export interface CodesandboxCreateSessionOutput
     extends CreateSessionOutput,
-        SandboxBrowserSession {}
+    SandboxBrowserSession { }
 
 export class CodesandboxProvider extends Provider {
     private readonly options: CodesandboxProviderOptions;

@@ -20,6 +20,11 @@ const API_KEYS: Record<string, ApiKeyConfig> = {
         message: 'Enter your OpenRouter API key:',
         required: true,
     },
+    GOOGLE_GENERATIVE_AI_API_KEY: {
+        name: 'GOOGLE_GENERATIVE_AI_API_KEY',
+        message: 'Enter your Google Generative AI API key:',
+        required: true,
+    },
 };
 
 /**

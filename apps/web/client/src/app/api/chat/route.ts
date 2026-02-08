@@ -1,6 +1,6 @@
 import { api } from '@/trpc/server';
 import { trackEvent } from '@/utils/analytics/server';
-import { createRootAgentStream } from '@onlook/ai';
+import { createRootAgentStream, getModelFromType } from '@onlook/ai/src/agents/root';
 import { toDbMessage } from '@onlook/db';
 import { ChatType, type ChatMessage, type ChatMetadata } from '@onlook/models';
 import { type NextRequest } from 'next/server';
@@ -72,15 +72,21 @@ export const streamResponse = async (req: NextRequest, userId: string) => {
         const traceId = lastUserMessage?.id ?? uuidv4();
 
         if (chatType === ChatType.EDIT) {
-            usageRecord = await incrementUsage(req, traceId);
+            const { modelName } = getModelFromType(chatType);
+            usageRecord = await incrementUsage(req, traceId, modelName);
         }
-        const stream = createRootAgentStream({
+
+        const settings = await api.user.settings.get();
+        const mcpServers = settings.mcp?.enabled ? settings.mcp.servers : [];
+
+        const stream = await createRootAgentStream({
             chatType,
             conversationId,
             projectId,
             userId,
             traceId,
             messages,
+            mcpServers,
         });
         return stream.toUIMessageStreamResponse<ChatMessage>(
             {

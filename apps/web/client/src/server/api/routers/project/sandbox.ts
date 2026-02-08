@@ -97,7 +97,7 @@ export const sandboxRouter = createTRPCRouter({
             try {
                 await provider.pauseProject({});
             } finally {
-                await provider.destroy().catch(() => {});
+                await provider.destroy().catch(() => { });
             }
         }),
     list: protectedProcedure.input(z.object({ sandboxId: z.string() })).query(async ({ input }) => {
@@ -176,7 +176,7 @@ export const sandboxRouter = createTRPCRouter({
             try {
                 await provider.stopProject({});
             } finally {
-                await provider.destroy().catch(() => {});
+                await provider.destroy().catch(() => { });
             }
         }),
     createFromGitHub: protectedProcedure

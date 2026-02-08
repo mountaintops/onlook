@@ -1,7 +1,7 @@
 import { initModel, SUGGESTION_SYSTEM_PROMPT } from '@onlook/ai';
 import { conversations } from '@onlook/db';
 import type { ChatSuggestion } from '@onlook/models';
-import { LLMProvider, OPENROUTER_MODELS } from '@onlook/models';
+import { GOOGLE_MODELS, LLMProvider } from '@onlook/models';
 import { ChatSuggestionsSchema } from '@onlook/models/chat';
 import { convertToModelMessages, generateObject } from 'ai';
 import { eq } from 'drizzle-orm';
@@ -19,8 +19,8 @@ export const suggestionsRouter = createTRPCRouter({
         }))
         .mutation(async ({ ctx, input }) => {
             const { model, headers } = initModel({
-                provider: LLMProvider.OPENROUTER,
-                model: OPENROUTER_MODELS.OPEN_AI_GPT_5_NANO,
+                provider: LLMProvider.GOOGLE,
+                model: GOOGLE_MODELS.GEMINI_3_0_PRO_PREVIEW,
             });
             const { object } = await generateObject({
                 model,
@@ -31,10 +31,10 @@ export const suggestionsRouter = createTRPCRouter({
                         role: 'system',
                         content: SUGGESTION_SYSTEM_PROMPT,
                     },
-                    ...convertToModelMessages(input.messages.map((m) => ({
+                    ...(await convertToModelMessages(input.messages.map((m) => ({
                         role: m.role,
                         parts: [{ type: 'text', text: m.content }],
-                    }))),
+                    })))),
                     {
                         role: 'user',
                         content: 'Based on our conversation, what should I work on next to improve this page? Provide 3 specific, actionable suggestions. These should be realistic and achievable. Return the suggestions as a JSON object. DO NOT include any other text.',
