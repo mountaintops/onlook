@@ -4,7 +4,7 @@
  * On initial start, it pulls all files from the provider and stores them in the local file system.
  * After this, it watches for changes either in the local file system or the provider and syncs the changes back and forth.
  */
-import { type Provider, type ProviderFileWatcher } from '@onlook/code-provider';
+import { type ISandboxAdapter, type ProviderFileWatcher } from '@onlook/code-provider';
 
 import { normalizePath } from '@/components/store/editor/sandbox/helpers';
 import type { CodeFileSystem } from '@onlook/file-system';
@@ -42,7 +42,7 @@ export class CodeProviderSync {
     private instanceKey: string | null = null;
 
     private constructor(
-        private provider: Provider,
+        private adapter: ISandboxAdapter,
         private fs: CodeFileSystem,
         private config: SyncConfig = { include: [], exclude: [] },
     ) {
@@ -60,7 +60,7 @@ export class CodeProviderSync {
      * (EXCLUDED_SYNC_PATHS) so this shouldn't cause issues, but a warning is logged if detected.
      */
     static getInstance(
-        provider: Provider,
+        adapter: ISandboxAdapter,
         fs: CodeFileSystem,
         sandboxId: string,
         config: SyncConfig = { include: [], exclude: [] },
@@ -82,7 +82,7 @@ export class CodeProviderSync {
             return existing.sync;
         }
 
-        const sync = new CodeProviderSync(provider, fs, config);
+        const sync = new CodeProviderSync(adapter, fs, config);
         sync.instanceKey = key;
         CodeProviderSync.instances.set(key, { sync, refCount: 1 });
         console.log(`[Sync] Created new sync instance for ${key} (refCount: 1)`);
@@ -224,12 +224,8 @@ export class CodeProviderSync {
                 directoriesToCreate.push(entry.path);
             } else {
                 try {
-                    const result = await this.provider.readFile({ args: { path: entry.path } });
-                    const { file } = result;
-
-                    if ((file.type === 'text' || file.type === 'binary') && file.content) {
-                        filesToWrite.push({ path: entry.path, content: file.content });
-                    }
+                    const content = await this.adapter.readFile(entry.path);
+                    filesToWrite.push({ path: entry.path, content });
                 } catch (error) {
                     console.debug(`[Sync] Skipping ${entry.path}:`, error);
                 }
@@ -267,8 +263,7 @@ export class CodeProviderSync {
         const files: Array<{ path: string; type: 'file' | 'directory' }> = [];
 
         try {
-            const result = await this.provider.listFiles({ args: { path: dir } });
-            const entries = result.files;
+            const entries = await this.adapter.listFiles(dir);
 
             for (const entry of entries) {
                 // Build path - when dir is './', just use entry.name
@@ -315,13 +310,10 @@ export class CodeProviderSync {
                         const content = await this.fs.readFile(filePath);
                         if (typeof content === 'string') {
                             // Push to sandbox
-                            await this.provider.writeFile({
-                                args: {
-                                    path: filePath.startsWith('/') ? filePath.substring(1) : filePath,
-                                    content,
-                                    overwrite: true
-                                }
-                            });
+                            await this.adapter.writeFile(
+                                filePath.startsWith('/') ? filePath.substring(1) : filePath,
+                                content
+                            );
                             console.log(`[Sync] Pushed ${filePath} to sandbox`);
                         }
                     } catch (error) {
@@ -360,7 +352,7 @@ export class CodeProviderSync {
     private async setupWatching(): Promise<void> {
         try {
             // Watch the current directory (relative to workspace)
-            const watchResult = await this.provider.watchFiles({
+            const result = await this.adapter.watchFiles({
                 args: {
                     path: './',
                     recursive: true,
@@ -403,19 +395,10 @@ export class CodeProviderSync {
                                         // Old file doesn't exist, just create the new one
 
                                         try {
-                                            const result = await this.provider.readFile({
-                                                args: { path: newPath },
-                                            });
-                                            const { file } = result;
-
-                                            if (
-                                                (file.type === 'text' || file.type === 'binary') &&
-                                                file.content
-                                            ) {
-                                                await this.fs.writeFile(newPath, file.content);
-                                                const hash = await hashContent(file.content);
-                                                this.fileHashes.set(newPath, hash);
-                                            }
+                                            const content = await this.adapter.readFile(newPath);
+                                            await this.fs.writeFile(newPath, content);
+                                            const hash = await hashContent(content);
+                                            this.fileHashes.set(newPath, hash);
                                         } catch (error) {
                                             console.error(
                                                 `[Sync] Error creating ${newPath}:`,
@@ -440,9 +423,7 @@ export class CodeProviderSync {
 
                                 try {
                                     // First check if it's a directory or file
-                                    const stat = await this.provider.statFile({
-                                        args: { path: normalizedPath },
-                                    });
+                                    const stat = await this.adapter.statFile(normalizedPath);
 
                                     if (stat.type === 'directory') {
                                         // It's a directory, create it locally
@@ -457,13 +438,11 @@ export class CodeProviderSync {
                                             // Recursive function to sync directory contents
                                             const syncDirectoryContents = async (sandboxPath: string, localDirPath: string) => {
                                                 try {
-                                                    const dirContents = await this.provider.listFiles({
-                                                        args: { path: sandboxPath },
-                                                    });
+                                                    const dirContents = await this.adapter.listFiles(sandboxPath);
 
-                                                    if (dirContents.files && dirContents.files.length > 0) {
+                                                    if (dirContents && dirContents.length > 0) {
 
-                                                        for (const item of dirContents.files) {
+                                                        for (const item of dirContents) {
                                                             const itemSandboxPath = `${sandboxPath}/${item.name}`;
                                                             const itemLocalPath = `${localDirPath}/${item.name}`;
 
@@ -476,18 +455,14 @@ export class CodeProviderSync {
                                                             } else if (item.type === 'file') {
                                                                 // Sync all files including .gitkeep
                                                                 try {
-                                                                    const fileResult = await this.provider.readFile({
-                                                                        args: { path: itemSandboxPath },
-                                                                    });
-                                                                    if (fileResult.file.content !== undefined) {
-                                                                        // Write file even if content is empty (like .gitkeep)
-                                                                        await this.fs.writeFile(itemLocalPath, fileResult.file.content || '');
-                                                                        // Update hash tracking
-                                                                        const hash = await hashContent(fileResult.file.content || '');
-                                                                        this.fileHashes.set(itemLocalPath, hash);
-                                                                    } else {
-                                                                        console.log(`[Sync] File ${itemSandboxPath} has undefined content, skipping`);
-                                                                    }
+                                                                    const content = await this.adapter.readFile(itemSandboxPath);
+
+                                                                    // Write file even if content is empty (like .gitkeep)
+                                                                    await this.fs.writeFile(itemLocalPath, content || '');
+                                                                    // Update hash tracking
+                                                                    const hash = await hashContent(content || '');
+                                                                    this.fileHashes.set(itemLocalPath, hash);
+
                                                                 } catch (fileError) {
                                                                     console.error(`[Sync] Error syncing file ${itemSandboxPath}:`, fileError);
                                                                 }
@@ -508,29 +483,20 @@ export class CodeProviderSync {
                                         }
                                     } else {
                                         // It's a file, read and sync it
-                                        const result = await this.provider.readFile({
-                                            args: { path: normalizedPath },
-                                        });
-                                        const { file } = result;
+                                        const content = await this.adapter.readFile(normalizedPath);
+                                        const localPath = normalizedPath;
 
-                                        if (
-                                            (file.type === 'text' || file.type === 'binary') &&
-                                            file.content
-                                        ) {
-                                            const localPath = normalizedPath;
+                                        // Check if content has changed
+                                        const newHash = await hashContent(content);
+                                        const existingHash = this.fileHashes.get(localPath);
 
-                                            // Check if content has changed
-                                            const newHash = await hashContent(file.content);
-                                            const existingHash = this.fileHashes.get(localPath);
-
-                                            if (newHash !== existingHash) {
-                                                await this.fs.writeFile(localPath, file.content);
-                                                this.fileHashes.set(localPath, newHash);
-                                            } else {
-                                                console.debug(
-                                                    `[Sync] Skipping ${localPath} - content unchanged`,
-                                                );
-                                            }
+                                        if (newHash !== existingHash) {
+                                            await this.fs.writeFile(localPath, content);
+                                            this.fileHashes.set(localPath, newHash);
+                                        } else {
+                                            console.debug(
+                                                `[Sync] Skipping ${localPath} - content unchanged`,
+                                            );
                                         }
                                     }
                                 } catch (error) {
@@ -578,7 +544,7 @@ export class CodeProviderSync {
                 },
             });
 
-            this.watcher = watchResult.watcher;
+            this.watcher = result.watcher;
 
             // Setup local file system watching for bidirectional sync
             await this.setupLocalWatching();
@@ -618,11 +584,7 @@ export class CodeProviderSync {
 
                         if (fileInfo.isDirectory) {
                             // Create directory in provider
-                            await this.provider.createDirectory({
-                                args: {
-                                    path: sandboxPath,
-                                },
-                            });
+                            await this.adapter.createDirectory(sandboxPath);
                         } else {
                             // Read from local and write to provider
                             const content = await this.fs.readFile(path);
@@ -635,13 +597,7 @@ export class CodeProviderSync {
 
                             // Update hash and sync to provider
                             this.fileHashes.set(path, currentHash);
-                            await this.provider.writeFile({
-                                args: {
-                                    path: sandboxPath,
-                                    content,
-                                    overwrite: true,
-                                },
-                            });
+                            await this.adapter.writeFile(sandboxPath, content);
                         }
                         break;
                     }
@@ -650,12 +606,7 @@ export class CodeProviderSync {
                         // The user initiated this deletion locally, so it should be reflected in the sandbox
 
                         try {
-                            await this.provider.deleteFiles({
-                                args: {
-                                    path: sandboxPath,
-                                    recursive: true,
-                                },
-                            });
+                            await this.adapter.deleteFiles(sandboxPath);
                         } catch (error) {
                             console.debug(
                                 `[Sync] Failed to delete ${sandboxPath} from sandbox:`,
@@ -678,12 +629,7 @@ export class CodeProviderSync {
                                 : event.oldPath;
 
                             try {
-                                await this.provider.renameFile({
-                                    args: {
-                                        oldPath: oldSandboxPath,
-                                        newPath: sandboxPath,
-                                    },
-                                });
+                                await this.adapter.renameFile(oldSandboxPath, sandboxPath);
 
                                 // Update hash tracking for renamed files
                                 const oldHash = this.fileHashes.get(event.oldPath);

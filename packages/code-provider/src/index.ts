@@ -5,6 +5,9 @@ export * from './providers';
 export { CodesandboxProvider } from './providers/codesandbox';
 export { NodeFsProvider } from './providers/nodefs';
 export * from './types';
+export * from './interfaces/ISandboxAdapter';
+export * from './adapters/LegacySandboxAdapter';
+export * from './adapters/SandpackAdapter';
 
 export interface CreateClientOptions {
     providerOptions: ProviderInstanceOptions;

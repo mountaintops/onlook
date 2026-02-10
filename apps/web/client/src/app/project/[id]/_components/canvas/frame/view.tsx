@@ -15,6 +15,7 @@ import { PENPAL_PARENT_CHANNEL } from '@onlook/penpal';
 import { WebPreview, WebPreviewBody } from '@onlook/ui/ai-elements';
 import { cn } from '@onlook/ui/utils';
 
+import { SandpackRoot } from '@/components/sandpack/SandpackRoot';
 import { useEditorEngine } from '@/components/store/editor';
 
 export type IFrameView = HTMLIFrameElement & {
@@ -57,7 +58,9 @@ interface FrameViewProps extends IframeHTMLAttributes<HTMLIFrameElement> {
     onConnectionFailed: () => void;
     onConnectionSuccess: () => void;
     penpalTimeoutMs?: number;
+    penpalTimeoutMs?: number;
     isInDragSelection?: boolean;
+    files?: Record<string, string>;
 }
 
 export const FrameComponent = observer(
@@ -70,6 +73,7 @@ export const FrameComponent = observer(
                 onConnectionSuccess,
                 penpalTimeoutMs = 5000,
                 isInDragSelection = false,
+                files,
                 ...restProps
             },
             ref,
@@ -133,6 +137,13 @@ export const FrameComponent = observer(
 
                     connectionRef.current = connection;
 
+                    // Skip connection if using Sandpack
+                    if (files) {
+                        isConnecting.current = false;
+                        onConnectionSuccess();
+                        return;
+                    }
+
                     // Create a timeout promise that rejects after specified timeout
                     const timeoutPromise = new Promise<never>((_, reject) => {
                         setTimeout(() => {
@@ -141,8 +152,6 @@ export const FrameComponent = observer(
                             );
                         }, penpalTimeoutMs);
                     });
-
-                    // Race the connection promise against the timeout
                     Promise.race([connection.promise, timeoutPromise])
                         .then((child) => {
                             isConnecting.current = false;
@@ -324,6 +333,11 @@ export const FrameComponent = observer(
                         onLoad={setupPenpalConnection}
                         {...props}
                     />
+                    {files && (
+                        <div className="absolute inset-0 bg-white" style={{ pointerEvents: 'auto' }}>
+                            <SandpackRoot files={files} />
+                        </div>
+                    )}
                 </WebPreview>
             );
         },

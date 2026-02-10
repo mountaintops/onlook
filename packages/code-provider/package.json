@@ -34,6 +34,7 @@
         "typescript": "^5.5.4"
     },
     "dependencies": {
+        "@codesandbox/sandpack-client": "^2.19.8",
         "@codesandbox/sdk": "^1.1.6",
         "@onlook/models": "*",
         "@onlook/parser": "*",

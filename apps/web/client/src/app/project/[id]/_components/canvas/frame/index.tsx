@@ -58,8 +58,9 @@ export const FrameView = observer(({ frame, isInDragSelection = false }: { frame
 
     const isSelected = editorEngine.frames.isSelected(frame.id);
     const branchData = editorEngine.branches.getBranchDataById(frame.branchId);
+    const hasFiles = Object.keys(editorEngine.activeSandbox.files).length > 0;
     const preloadScriptReady = branchData?.sandbox?.preloadScriptState === PreloadScriptState.INJECTED;
-    const isFrameReady = preloadScriptReady && !(isConnecting && !hasTimedOut);
+    const isFrameReady = hasFiles || (preloadScriptReady && !(isConnecting && !hasTimedOut));
 
     useEffect(() => {
         if (isFrameReady) {
@@ -103,6 +104,7 @@ export const FrameView = observer(({ frame, isInDragSelection = false }: { frame
                     penpalTimeoutMs={getPenpalTimeout()}
                     isInDragSelection={isInDragSelection}
                     ref={iFrameRef}
+                    files={editorEngine.activeSandbox.files}
                 />
                 <GestureScreen frame={frame} isResizing={isResizing} />
 

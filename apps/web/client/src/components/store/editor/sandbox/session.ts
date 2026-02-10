@@ -1,5 +1,5 @@
 import { api } from '@/trpc/client';
-import { CodeProvider, createCodeProviderClient, type Provider } from '@onlook/code-provider';
+import { CodeProvider, createCodeProviderClient, type ISandboxAdapter, LegacySandboxAdapter, type Provider } from '@onlook/code-provider';
 import type { Branch } from '@onlook/models';
 import { makeAutoObservable } from 'mobx';
 import type { ErrorManager } from '../error';
@@ -7,6 +7,7 @@ import { CLISessionImpl, CLISessionType, type CLISession, type TerminalSession }
 
 export class SessionManager {
     provider: Provider | null = null;
+    adapter: ISandboxAdapter | null = null;
     isConnecting = false;
     terminalSessions = new Map<string, CLISession>();
     activeTerminalSessionId = 'cli';
@@ -43,6 +44,7 @@ export class SessionManager {
             });
 
             this.provider = provider;
+            this.adapter = new LegacySandboxAdapter(provider);
             await this.createTerminalSessions(provider);
         };
 
@@ -178,13 +180,14 @@ export class SessionManager {
         }
         await this.provider.destroy();
         this.provider = null;
+        this.adapter = null;
         await this.start(sandboxId, userId);
     }
 
     async ping() {
         if (!this.provider) return false;
         try {
-            await this.provider.runCommand({ args: { command: 'echo "ping"' } });
+            await this.adapter?.runCommand('echo "ping"');
             return true;
         } catch (error) {
             console.error('Failed to connect to sandbox', error);
@@ -210,7 +213,7 @@ export class SessionManager {
             const finalCommand = ignoreError ? `${command} 2>/dev/null || true` : command;
 
             streamCallback?.(finalCommand + '\n');
-            const { output } = await this.provider.runCommand({ args: { command: finalCommand } });
+            const { output } = await this.adapter!.runCommand(finalCommand);
             streamCallback?.(output);
             return {
                 output,
@@ -241,6 +244,7 @@ export class SessionManager {
             await this.provider.destroy();
         }
         this.provider = null;
+        this.adapter = null;
         this.isConnecting = false;
         this.terminalSessions.clear();
     }

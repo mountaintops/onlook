@@ -1,16 +1,17 @@
 import { CodeProviderSync } from '@/services/sync-engine/sync-engine';
-import type { Provider } from '@onlook/code-provider';
+import type { ISandboxAdapter } from '@onlook/code-provider';
 import { EXCLUDED_SYNC_PATHS } from '@onlook/constants';
 import type { CodeFileSystem } from '@onlook/file-system';
 import { type FileEntry } from '@onlook/file-system';
 import type { Branch, RouterConfig } from '@onlook/models';
-import { makeAutoObservable, reaction } from 'mobx';
+import { makeAutoObservable, reaction, runInAction } from 'mobx';
 import type { EditorEngine } from '../engine';
 import type { ErrorManager } from '../error';
 import { GitManager } from '../git';
 import { detectRouterConfig } from '../pages/helper';
 import { copyPreloadScriptToPublic, getLayoutPath as detectLayoutPath } from './preload-script';
 import { SessionManager } from './session';
+import { DEFAULT_FILES } from './fallback';
 
 export enum PreloadScriptState {
     NOT_INJECTED = 'not-injected',
@@ -24,6 +25,8 @@ export class SandboxManager {
     private sync: CodeProviderSync | null = null;
     preloadScriptState: PreloadScriptState = PreloadScriptState.NOT_INJECTED
     routerConfig: RouterConfig | null = null;
+    files: Record<string, string> = { ...DEFAULT_FILES };
+    private watchDisposer: (() => void) | null = null;
 
     constructor(
         private branch: Branch,
@@ -49,8 +52,8 @@ export class SandboxManager {
         this.providerReactionDisposer = reaction(
             () => this.session.provider,
             async (provider) => {
-                if (provider) {
-                    await this.initializeSyncEngine(provider);
+                if (provider && this.session.adapter) {
+                    await this.initializeSyncEngine(this.session.adapter);
                     await this.gitManager.init();
                 } else if (this.sync) {
                     // If the provider is null, release the sync engine reference
@@ -60,6 +63,10 @@ export class SandboxManager {
             },
             { fireImmediately: true },
         );
+
+        // Initialize file watching
+        this.loadFiles();
+        this.watchFiles();
     }
 
     async getRouterConfig(): Promise<RouterConfig | null> {
@@ -73,13 +80,13 @@ export class SandboxManager {
         return this.routerConfig;
     }
 
-    async initializeSyncEngine(provider: Provider) {
+    async initializeSyncEngine(adapter: ISandboxAdapter) {
         if (this.sync) {
             this.sync.release();
             this.sync = null;
         }
 
-        this.sync = CodeProviderSync.getInstance(provider, this.fs, this.branch.sandbox.id, {
+        this.sync = CodeProviderSync.getInstance(adapter, this.fs, this.branch.sandbox.id, {
             exclude: EXCLUDED_SYNC_PATHS,
         });
 
@@ -196,11 +203,7 @@ export class SandboxManager {
             return null;
         }
         try {
-            const { url } = await this.session.provider.downloadFiles({
-                args: {
-                    path: './',
-                },
-            });
+            const { url } = await this.session.adapter!.downloadFiles('./');
             return {
                 // in case there is no URL provided then the code must be updated
                 // to handle this case
@@ -218,7 +221,65 @@ export class SandboxManager {
         this.providerReactionDisposer = undefined;
         this.sync?.release();
         this.sync = null;
+        this.watchDisposer?.();
+        this.watchDisposer = null;
+        this.files = {};
         this.preloadScriptState = PreloadScriptState.NOT_INJECTED
         this.session.clear();
+    }
+
+    private async loadFiles() {
+        if (!this.fs) return;
+        try {
+            const files = await this.fs.listAll();
+            for (const file of files) {
+                if (file.type === 'file' && !this.shouldExclude(file.path)) {
+                    const content = await this.fs.readFile(file.path);
+                    if (typeof content === 'string') {
+                        runInAction(() => {
+                            this.files[file.path] = content;
+                        });
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Failed to load files:', error);
+        }
+    }
+
+    private watchFiles() {
+        if (!this.fs) return;
+        this.watchDisposer = this.fs.watchDirectory('/', async (event) => {
+            const { type, path } = event;
+            if (this.shouldExclude(path)) return;
+
+            try {
+                if (type === 'delete') {
+                    runInAction(() => {
+                        delete this.files[path];
+                    });
+                } else {
+                    // create, update, rename (new path)
+                    const content = await this.fs.readFile(path);
+                    if (typeof content === 'string') {
+                        runInAction(() => {
+                            this.files[path] = content;
+                        });
+                    }
+                }
+
+                if (type === 'rename' && event.oldPath) {
+                    runInAction(() => {
+                        delete this.files[event.oldPath!];
+                    });
+                }
+            } catch (error) {
+                console.error(`Error handling file event ${type} for ${path}:`, error);
+            }
+        });
+    }
+
+    private shouldExclude(path: string): boolean {
+        return EXCLUDED_SYNC_PATHS.some(exclude => path.includes(exclude));
     }
 }
