@@ -317,26 +317,33 @@ export const FrameComponent = observer(
 
             return (
                 <WebPreview>
-                    <WebPreviewBody
-                        ref={iframeRef}
-                        id={frame.id}
-                        className={cn(
-                            'outline outline-4 backdrop-blur-sm transition',
-                            isActiveBranch && 'outline-teal-400',
-                            isActiveBranch && !isSelected && 'outline-dashed',
-                            !isActiveBranch && isInDragSelection && 'outline-teal-500',
-                        )}
-                        src={frame.url}
-                        sandbox="allow-modals allow-forms allow-same-origin allow-scripts allow-popups allow-downloads"
-                        allow="geolocation; microphone; camera; midi; encrypted-media"
-                        style={{ width: frame.dimension.width, height: frame.dimension.height }}
-                        onLoad={setupPenpalConnection}
-                        {...props}
-                    />
-                    {files && (
-                        <div className="absolute inset-0 bg-white" style={{ pointerEvents: 'auto' }}>
+                    {files ? (
+                        <div
+                            className="bg-white overflow-hidden rounded"
+                            style={{
+                                width: frame.dimension.width,
+                                height: frame.dimension.height,
+                            }}
+                        >
                             <SandpackRoot files={files} />
                         </div>
+                    ) : (
+                        <WebPreviewBody
+                            ref={iframeRef}
+                            id={frame.id}
+                            className={cn(
+                                'outline outline-4 backdrop-blur-sm transition',
+                                isActiveBranch && 'outline-teal-400',
+                                isActiveBranch && !isSelected && 'outline-dashed',
+                                !isActiveBranch && isInDragSelection && 'outline-teal-500',
+                            )}
+                            src={frame.url}
+                            sandbox="allow-modals allow-forms allow-same-origin allow-scripts allow-popups allow-downloads"
+                            allow="geolocation; microphone; camera; midi; encrypted-media"
+                            style={{ width: frame.dimension.width, height: frame.dimension.height }}
+                            onLoad={setupPenpalConnection}
+                            {...props}
+                        />
                     )}
                 </WebPreview>
             );

@@ -1,5 +1,5 @@
 export const DEFAULT_FILES = {
-    "/App.js": `import React from "react";
+  "/App.js": `import React from "react";
 
 export default function App() {
   return (
@@ -17,7 +17,7 @@ export default function App() {
   );
 }
 `,
-    "/index.js": `import React, { StrictMode } from "react";
+  "/index.js": `import React, { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
 
@@ -29,7 +29,7 @@ root.render(
     <App />
   </StrictMode>
 );`,
-    "/styles.css": `body {
+  "/styles.css": `body {
   font-family: sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

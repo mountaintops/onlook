@@ -56,6 +56,11 @@ export async function devLogin() {
 
     if (error) {
         console.error('Error signing in with password:', error);
+        if (error.message.includes('JSON Parse error') || error.message.includes('Unexpected EOF')) {
+            throw new Error(
+                'Failed to connect to Supabase Auth. Please ensure your local Supabase instance is running and NEXT_PUBLIC_SUPABASE_URL is correct.',
+            );
+        }
         throw new Error(error.message);
     }
     redirect(Routes.AUTH_REDIRECT);
