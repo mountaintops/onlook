@@ -8,6 +8,9 @@ export * from './types';
 export * from './interfaces/ISandboxAdapter';
 export * from './adapters/LegacySandboxAdapter';
 export * from './adapters/SandpackAdapter';
+export * from './adapters/SandpackFileWatcher';
+export * from './adapters/DependencyPolyfill';
+export * from './adapters/PseudoTerminal';
 
 export interface CreateClientOptions {
     providerOptions: ProviderInstanceOptions;

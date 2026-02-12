@@ -1,5 +1,6 @@
 import { CodeProviderSync } from '@/services/sync-engine/sync-engine';
 import type { ISandboxAdapter } from '@onlook/code-provider';
+import { parseDependencies } from '@onlook/code-provider';
 import { EXCLUDED_SYNC_PATHS } from '@onlook/constants';
 import type { CodeFileSystem } from '@onlook/file-system';
 import { type FileEntry } from '@onlook/file-system';
@@ -26,6 +27,8 @@ export class SandboxManager {
     preloadScriptState: PreloadScriptState = PreloadScriptState.NOT_INJECTED
     routerConfig: RouterConfig | null = null;
     files: Record<string, string> = { ...DEFAULT_FILES };
+    dependencies: Record<string, string> = {};
+    isSandpackMode = false;
     private watchDisposer: (() => void) | null = null;
 
     constructor(
@@ -40,6 +43,16 @@ export class SandboxManager {
     }
 
     async init() {
+        // Use Sandpack (browser) mode by default
+        // This seeds files into ZenFS so the file manager can discover them
+        await this.initSandpackMode();
+    }
+
+    /**
+     * Legacy VM-based init — connects to CodeSandbox Devbox via provider.
+     * Kept for rollback purposes; call this explicitly if needed.
+     */
+    async initLegacy() {
         // Start connection asynchronously (don't wait)
         if (!this.session.provider) {
             this.session.start(this.branch.sandbox.id).catch(err => {
@@ -67,6 +80,96 @@ export class SandboxManager {
         // Initialize file watching
         this.loadFiles();
         this.watchFiles();
+    }
+
+    /**
+     * Initialize in Sandpack (browser) mode — no VM provider needed.
+     * The adapter operates entirely against the in-memory files map.
+     * Files are also written into ZenFS so the file manager (useDirectory) can discover them.
+     */
+    async initSandpackMode() {
+        this.isSandpackMode = true;
+
+        await this.session.startSandpackSession({
+            getFiles: () => this.files,
+            onFileUpdate: (path: string, content: string) => {
+                runInAction(() => {
+                    this.files[path] = content;
+                    // Auto-sync dependencies when package.json changes
+                    if (path === '/package.json' || path === 'package.json') {
+                        this.dependencies = parseDependencies(content);
+                    }
+                });
+                // Write-through to ZenFS so file manager stays in sync (raw to bypass JSX processing)
+                this.fs?.writeFileRaw(path, content).catch((err: Error) =>
+                    console.error('[SandboxManager] Failed to sync file to ZenFS:', path, err),
+                );
+            },
+            onFileDelete: (path: string) => {
+                runInAction(() => {
+                    delete this.files[path];
+                });
+                // Remove from ZenFS so file manager stays in sync
+                this.fs?.deleteFile(path).catch((err: Error) =>
+                    console.error('[SandboxManager] Failed to delete file from ZenFS:', path, err),
+                );
+            },
+            onDependenciesChanged: (deps: Record<string, string>) => {
+                runInAction(() => {
+                    this.dependencies = deps;
+                });
+            },
+        });
+
+        // Extract initial dependencies from package.json if present
+        const pkgJson = this.files['/package.json'] ?? this.files['package.json'];
+        if (pkgJson) {
+            this.dependencies = parseDependencies(pkgJson);
+        }
+
+        // Seed ZenFS with all current files so useDirectory / FileTree can discover them
+        await this.seedFilesToZenFS();
+
+        // Register write/delete hooks on CodeFileSystem to intercept ALL file writes
+        // (code panel, AI chat, theme editor, etc.) and sync them to this.files → SandpackProvider
+        this.fs.onWriteHook = (path: string, content: string | Uint8Array) => {
+            // Only sync string content (not binary) and skip internal cache paths
+            if (typeof content !== 'string') return;
+            if (path.startsWith('.onlook') || path.includes('/node_modules/')) return;
+
+            runInAction(() => {
+                this.files[path] = content;
+                if (path === '/package.json' || path === 'package.json') {
+                    this.dependencies = parseDependencies(content);
+                }
+            });
+        };
+
+        this.fs.onDeleteHook = (path: string) => {
+            runInAction(() => {
+                delete this.files[path];
+            });
+        };
+    }
+
+    /**
+     * Write all entries from this.files into ZenFS (CodeFileSystem).
+     * Uses writeFileRaw to bypass JSX processing (OID injection / index saves).
+     * This makes them visible to useDirectory / FileTree.
+     */
+    private async seedFilesToZenFS() {
+        if (!this.fs) return;
+
+        const paths = Object.keys(this.files);
+        for (const filePath of paths) {
+            const content = this.files[filePath];
+            if (content === undefined) continue;
+            try {
+                await this.fs.writeFileRaw(filePath, content);
+            } catch (err) {
+                console.error('[SandboxManager] Failed to seed file to ZenFS:', filePath, err);
+            }
+        }
     }
 
     async getRouterConfig(): Promise<RouterConfig | null> {
@@ -146,7 +249,17 @@ export class SandboxManager {
 
     async writeFile(path: string, content: string | Uint8Array): Promise<void> {
         if (!this.fs) throw new Error('File system not initialized');
-        return this.fs.writeFile(path, content);
+        await this.fs.writeFile(path, content);
+
+        // In Sandpack mode, also update the in-memory files map so SandpackProvider picks up changes
+        if (this.isSandpackMode && typeof content === 'string') {
+            runInAction(() => {
+                this.files[path] = content;
+                if (path === '/package.json' || path === 'package.json') {
+                    this.dependencies = parseDependencies(content);
+                }
+            });
+        }
     }
 
     listAllFiles() {

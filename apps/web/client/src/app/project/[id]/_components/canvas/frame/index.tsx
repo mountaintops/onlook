@@ -104,7 +104,7 @@ export const FrameView = observer(({ frame, isInDragSelection = false }: { frame
                     penpalTimeoutMs={getPenpalTimeout()}
                     isInDragSelection={isInDragSelection}
                     ref={iFrameRef}
-                    files={editorEngine.activeSandbox.files}
+                    files={{ ...editorEngine.activeSandbox.files }}
                 />
                 <GestureScreen frame={frame} isResizing={isResizing} />
 

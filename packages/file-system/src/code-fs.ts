@@ -34,6 +34,11 @@ export class CodeFileSystem extends FileSystem {
     private options: Required<CodeEditorOptions>;
     private indexPath = `${ONLOOK_CACHE_DIRECTORY}/index.json`;
 
+    /** Optional hook called after any file write (path, content). */
+    onWriteHook: ((path: string, content: string | Uint8Array) => void) | null = null;
+    /** Optional hook called after any file delete (path). */
+    onDeleteHook: ((path: string) => void) | null = null;
+
     constructor(projectId: string, branchId: string, options: CodeEditorOptions = {}) {
         super(`/${projectId}/${branchId}`);
         this.projectId = projectId;
@@ -47,8 +52,10 @@ export class CodeFileSystem extends FileSystem {
         if (this.isJsxFile(path) && typeof content === 'string') {
             const processedContent = await this.processJsxFile(path, content);
             await super.writeFile(path, processedContent);
+            this.onWriteHook?.(path, processedContent);
         } else {
             await super.writeFile(path, content);
+            this.onWriteHook?.(path, content);
         }
     }
 
@@ -57,6 +64,16 @@ export class CodeFileSystem extends FileSystem {
         for (const { path, content } of files) {
             await this.writeFile(path, content);
         }
+    }
+
+    /**
+     * Write a file without JSX processing (no OID injection, formatting, or index updates).
+     * Useful for seeding files into ZenFS where raw content should be preserved.
+     */
+    async writeFileRaw(path: string, content: string | Uint8Array): Promise<void> {
+        await super.writeFile(path, content);
+        // NOTE: writeFileRaw does NOT fire onWriteHook — it's used for seeding
+        // and we don't want to trigger Sandpack updates during initial seeding.
     }
 
     private async processJsxFile(path: string, content: string): Promise<string> {
@@ -192,6 +209,7 @@ export class CodeFileSystem extends FileSystem {
 
     async deleteFile(path: string): Promise<void> {
         await super.deleteFile(path);
+        this.onDeleteHook?.(path);
 
         if (this.isJsxFile(path)) {
             const index = await this.loadIndex();

@@ -1,5 +1,14 @@
 import { api } from '@/trpc/client';
-import { CodeProvider, createCodeProviderClient, type ISandboxAdapter, LegacySandboxAdapter, type Provider } from '@onlook/code-provider';
+import {
+    CodeProvider,
+    createCodeProviderClient,
+    type ISandboxAdapter,
+    LegacySandboxAdapter,
+    SandpackAdapter,
+    type SandpackAdapterCallbacks,
+    PseudoTerminal,
+    type Provider,
+} from '@onlook/code-provider';
 import type { Branch } from '@onlook/models';
 import { makeAutoObservable } from 'mobx';
 import type { ErrorManager } from '../error';
@@ -72,9 +81,36 @@ export class SessionManager {
         throw lastError;
     }
 
+    /**
+     * Start a Sandpack-mode session that uses in-memory file map polyfills
+     * instead of connecting to a CodeSandbox VM.
+     */
+    async startSandpackSession(callbacks: SandpackAdapterCallbacks): Promise<void> {
+        if (this.adapter) return; // already initialized
+
+        this.isConnecting = true;
+
+        // No VM provider — everything is browser-based
+        this.provider = null;
+        this.adapter = new SandpackAdapter(callbacks);
+
+        // Create a pseudo-terminal for the terminal UI
+        const pseudoTerminal = new PseudoTerminal(
+            'sandpack-terminal',
+            'Browser Terminal',
+            callbacks.getFiles,
+        );
+
+        // Store the pseudo-terminal reference for console log forwarding
+        (this as any)._pseudoTerminal = pseudoTerminal;
+
+        this.isConnecting = false;
+    }
+
     async restartDevServer(): Promise<boolean> {
         if (!this.provider) {
-            console.error('No provider found in restartDevServer');
+            // In Sandpack mode there's no VM dev server to restart.
+            // Sandpack manages its own bundler internally.
             return false;
         }
         const { task } = await this.provider.getTask({
@@ -150,7 +186,8 @@ export class SessionManager {
     async reconnect(sandboxId: string, userId?: string) {
         try {
             if (!this.provider) {
-                console.error('No provider found in reconnect');
+                // In Sandpack (browser) mode there is no VM provider to reconnect.
+                // This is a no-op — the browser sandbox is always "connected".
                 return;
             }
 
@@ -205,15 +242,15 @@ export class SessionManager {
         error: string | null;
     }> {
         try {
-            if (!this.provider) {
-                throw new Error('No provider found in runCommand');
+            if (!this.adapter) {
+                throw new Error('No adapter found in runCommand');
             }
 
             // Append error suppression if ignoreError is true
-            const finalCommand = ignoreError ? `${command} 2>/dev/null || true` : command;
+            const finalCommand = ignoreError && this.provider ? `${command} 2>/dev/null || true` : command;
 
             streamCallback?.(finalCommand + '\n');
-            const { output } = await this.adapter!.runCommand(finalCommand);
+            const { output } = await this.adapter.runCommand(finalCommand);
             streamCallback?.(output);
             return {
                 output,

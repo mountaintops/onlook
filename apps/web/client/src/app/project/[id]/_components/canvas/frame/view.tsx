@@ -25,31 +25,58 @@ export type IFrameView = HTMLIFrameElement & {
     isLoading: () => boolean;
 } & PromisifiedPendpalChildMethods;
 
-// Creates a proxy that provides safe fallback methods for any property access
+// Creates a plain object with safe no-op fallback methods for all Penpal child methods.
+// IMPORTANT: This must be a plain object (not a Proxy) so that Object.assign/spread
+// can copy the methods onto the iframe element.
 const createSafeFallbackMethods = (): PromisifiedPendpalChildMethods => {
-    return new Proxy({} as PromisifiedPendpalChildMethods, {
-        get(_target, prop: string | symbol) {
-            if (typeof prop === 'symbol') return undefined;
+    const noopNull = async () => null;
+    const noopVoid = async () => undefined;
+    const noopFalse = async () => false;
+    const noopZero = async () => 0;
 
-            return async (..._args: any[]) => {
-                const method = String(prop);
-                if (
-                    method.startsWith('get') ||
-                    method.includes('capture') ||
-                    method.includes('build')
-                ) {
-                    return null;
-                }
-                if (method.includes('Count')) {
-                    return 0;
-                }
-                if (method.includes('Editable') || method.includes('supports')) {
-                    return false;
-                }
-                return undefined;
-            };
-        },
-    });
+    return {
+        processDom: noopVoid,
+        getElementAtLoc: noopNull,
+        getElementByDomId: noopNull,
+        setFrameId: noopVoid,
+        setBranchId: noopVoid,
+        getElementIndex: noopNull,
+        getComputedStyleByDomId: noopNull,
+        updateElementInstance: noopVoid,
+        getFirstOnlookElement: noopNull,
+        setElementType: noopVoid,
+        getElementType: noopNull,
+        getParentElement: noopNull,
+        getChildrenCount: noopZero,
+        getOffsetParent: noopNull,
+        getActionLocation: noopNull,
+        getActionElement: noopNull,
+        getInsertLocation: noopNull,
+        getRemoveAction: noopNull,
+        getTheme: noopNull,
+        setTheme: noopVoid,
+        startDrag: noopVoid,
+        drag: noopVoid,
+        dragAbsolute: noopVoid,
+        endDragAbsolute: noopVoid,
+        endDrag: noopVoid,
+        endAllDrag: noopVoid,
+        startEditingText: noopVoid,
+        editText: noopVoid,
+        stopEditingText: noopVoid,
+        updateStyle: noopVoid,
+        insertElement: noopVoid,
+        removeElement: noopVoid,
+        moveElement: noopVoid,
+        groupElements: noopVoid,
+        ungroupElements: noopVoid,
+        insertImage: noopVoid,
+        removeImage: noopVoid,
+        isChildTextEditable: noopFalse,
+        handleBodyReady: noopVoid,
+        captureScreenshot: noopNull,
+        buildLayerTree: noopNull,
+    } as PromisifiedPendpalChildMethods;
 };
 
 interface FrameViewProps extends IframeHTMLAttributes<HTMLIFrameElement> {
@@ -58,9 +85,9 @@ interface FrameViewProps extends IframeHTMLAttributes<HTMLIFrameElement> {
     onConnectionFailed: () => void;
     onConnectionSuccess: () => void;
     penpalTimeoutMs?: number;
-    penpalTimeoutMs?: number;
     isInDragSelection?: boolean;
     files?: Record<string, string>;
+    dependencies?: Record<string, string>;
 }
 
 export const FrameComponent = observer(
@@ -74,6 +101,7 @@ export const FrameComponent = observer(
                 penpalTimeoutMs = 5000,
                 isInDragSelection = false,
                 files,
+                dependencies,
                 ...restProps
             },
             ref,
@@ -81,10 +109,12 @@ export const FrameComponent = observer(
             const { popover, ...props } = restProps;
             const editorEngine = useEditorEngine();
             const iframeRef = useRef<HTMLIFrameElement>(null);
+            const sandpackContainerRef = useRef<HTMLDivElement>(null);
             const zoomLevel = useRef(1);
             const isConnecting = useRef(false);
             const connectionRef = useRef<ReturnType<typeof connect> | null>(null);
             const [penpalChild, setPenpalChild] = useState<PenpalChildMethods | null>(null);
+            const [sandpackIframeReady, setSandpackIframeReady] = useState(false);
             const isSelected = editorEngine.frames.isSelected(frame.id);
             const isActiveBranch = editorEngine.branches.activeBranch.id === frame.branchId;
 
@@ -261,7 +291,11 @@ export const FrameComponent = observer(
             useImperativeHandle(ref, (): IFrameView => {
                 const iframe = iframeRef.current;
                 if (!iframe) {
-                    console.error(`${PENPAL_PARENT_CHANNEL} (${frame.id}) - Iframe - Not found`);
+                    // In Sandpack mode, the iframe is discovered asynchronously via MutationObserver.
+                    // Suppress the error until sandpackIframeReady — this is an expected initial state.
+                    if (!files || sandpackIframeReady) {
+                        console.error(`${PENPAL_PARENT_CHANNEL} (${frame.id}) - Iframe - Not found`);
+                    }
                     // Return safe fallback with no-op methods and safe defaults
                     const fallbackElement = document.createElement('iframe');
                     const safeFallback: IFrameView = Object.assign(fallbackElement, {
@@ -302,7 +336,7 @@ export const FrameComponent = observer(
                     ...syncMethods,
                     ...remoteMethods,
                 });
-            }, [penpalChild, frame, iframeRef]);
+            }, [penpalChild, frame, iframeRef, sandpackIframeReady]);
 
             useEffect(() => {
                 return () => {
@@ -315,17 +349,48 @@ export const FrameComponent = observer(
                 };
             }, []);
 
+            // Discover Sandpack's internal iframe via MutationObserver
+            useEffect(() => {
+                if (!files || !sandpackContainerRef.current) return;
+
+                const container = sandpackContainerRef.current;
+
+                const findAndSetIframe = () => {
+                    const sandpackIframe = container.querySelector<HTMLIFrameElement>('.sp-preview-iframe');
+                    if (sandpackIframe && iframeRef.current !== sandpackIframe) {
+                        (iframeRef as React.MutableRefObject<HTMLIFrameElement>).current = sandpackIframe;
+                        setSandpackIframeReady(true);
+                        // Setup penpal once the iframe finishes loading
+                        sandpackIframe.addEventListener('load', setupPenpalConnection, { once: true });
+                        // If it's already loaded, connect immediately
+                        if (sandpackIframe.contentWindow) {
+                            setupPenpalConnection();
+                        }
+                    }
+                };
+
+                // Try immediately (may already be rendered)
+                findAndSetIframe();
+
+                // Also observe for async rendering by SandpackProvider
+                const observer = new MutationObserver(() => findAndSetIframe());
+                observer.observe(container, { childList: true, subtree: true });
+
+                return () => observer.disconnect();
+            }, [files, setupPenpalConnection]);
+
             return (
                 <WebPreview>
                     {files ? (
                         <div
+                            ref={sandpackContainerRef}
                             className="bg-white overflow-hidden rounded"
                             style={{
                                 width: frame.dimension.width,
                                 height: frame.dimension.height,
                             }}
                         >
-                            <SandpackRoot files={files} />
+                            <SandpackRoot files={files} dependencies={dependencies} />
                         </div>
                     ) : (
                         <WebPreviewBody

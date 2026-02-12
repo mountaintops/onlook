@@ -67,8 +67,13 @@ export class FramesManager {
     registerView(frame: Frame, view: IFrameView) {
         const isSelected = this.isSelected(frame.id);
         this._frameIdToData.set(frame.id, { frame, view, selected: isSelected });
-        const framePathname = new URL(view.src).pathname;
-        this._navigation.registerFrame(frame.id, framePathname);
+        try {
+            const framePathname = new URL(view.src).pathname;
+            this._navigation.registerFrame(frame.id, framePathname);
+        } catch {
+            // Sandpack iframes may have empty or blob: URLs — default to root
+            this._navigation.registerFrame(frame.id, '/');
+        }
     }
 
     deregister(frame: Frame) {
