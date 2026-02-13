@@ -13,6 +13,8 @@ import { detectRouterConfig } from '../pages/helper';
 import { copyPreloadScriptToPublic, getLayoutPath as detectLayoutPath } from './preload-script';
 import { SessionManager } from './session';
 import { DEFAULT_FILES } from './fallback';
+import { type AutomergeSchema, initPersistence } from './persistence';
+import type { DocHandle } from '@automerge/automerge-repo';
 
 export enum PreloadScriptState {
     NOT_INJECTED = 'not-injected',
@@ -30,6 +32,7 @@ export class SandboxManager {
     dependencies: Record<string, string> = {};
     isSandpackMode = false;
     private watchDisposer: (() => void) | null = null;
+    private handle: DocHandle<AutomergeSchema> | null = null;
 
     constructor(
         private branch: Branch,
@@ -90,9 +93,53 @@ export class SandboxManager {
     async initSandpackMode() {
         this.isSandpackMode = true;
 
+        // Initialize Automerge Persistence
+        try {
+            this.handle = await initPersistence();
+            const doc = await this.handle.doc();
+
+            runInAction(() => {
+                // If Automerge has files, load them. Otherwise, seed Automerge with current defaults.
+                if (doc && Object.keys(doc.files).length > 0) {
+                    this.files = { ...doc.files };
+                    // Parse dependencies from loaded package.json
+                    const pkgJson = this.files['/package.json'] ?? this.files['package.json'];
+                    if (pkgJson) {
+                        this.dependencies = parseDependencies(pkgJson);
+                    }
+                } else {
+                    // Seed Automerge with default files
+                    this.handle?.change((d) => {
+                        d.files = { ...this.files };
+                    });
+                }
+            });
+
+            // Listen for changes from other tabs/clients
+            this.handle.on('change', ({ doc }) => {
+                runInAction(() => {
+                    this.files = { ...doc.files };
+                    const pkgJson = this.files['/package.json'] ?? this.files['package.json'];
+                    if (pkgJson) {
+                        this.dependencies = parseDependencies(pkgJson);
+                    }
+                });
+                // Sync external changes to ZenFS so the file tree updates
+                this.seedFilesToZenFS();
+            });
+
+        } catch (error) {
+            console.error('[SandboxManager] Failed to initialize persistence:', error);
+        }
+
         await this.session.startSandpackSession({
             getFiles: () => this.files,
             onFileUpdate: (path: string, content: string) => {
+                // Sync to Automerge
+                this.handle?.change(d => {
+                    d.files[path] = content;
+                });
+
                 runInAction(() => {
                     this.files[path] = content;
                     // Auto-sync dependencies when package.json changes
@@ -106,6 +153,11 @@ export class SandboxManager {
                 );
             },
             onFileDelete: (path: string) => {
+                // Sync to Automerge
+                this.handle?.change(d => {
+                    delete d.files[path];
+                });
+
                 runInAction(() => {
                     delete this.files[path];
                 });
@@ -137,6 +189,11 @@ export class SandboxManager {
             if (typeof content !== 'string') return;
             if (path.startsWith('.onlook') || path.includes('/node_modules/')) return;
 
+            // Sync to Automerge
+            this.handle?.change(d => {
+                d.files[path] = content;
+            });
+
             runInAction(() => {
                 this.files[path] = content;
                 if (path === '/package.json' || path === 'package.json') {
@@ -146,6 +203,11 @@ export class SandboxManager {
         };
 
         this.fs.onDeleteHook = (path: string) => {
+            // Sync to Automerge
+            this.handle?.change(d => {
+                delete d.files[path];
+            });
+
             runInAction(() => {
                 delete this.files[path];
             });
@@ -253,6 +315,10 @@ export class SandboxManager {
 
         // In Sandpack mode, also update the in-memory files map so SandpackProvider picks up changes
         if (this.isSandpackMode && typeof content === 'string') {
+            this.handle?.change(d => {
+                d.files[path] = content;
+            });
+
             runInAction(() => {
                 this.files[path] = content;
                 if (path === '/package.json' || path === 'package.json') {

@@ -14,6 +14,14 @@ const nextConfig: NextConfig = {
         // Don't run ESLint during builds - handle it separately in CI
         ignoreDuringBuilds: true,
     },
+    webpack: (config) => {
+        config.resolve.alias = {
+            ...config.resolve.alias,
+            "@automerge/automerge": "automerge/dist/mjs/entrypoints/fullfat_base64.js",
+            "@automerge/automerge-wasm": false,
+        };
+        return config;
+    },
 };
 
 if (process.env.NODE_ENV === 'development') {
