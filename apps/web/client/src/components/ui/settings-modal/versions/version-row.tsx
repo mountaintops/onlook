@@ -155,6 +155,10 @@ export const VersionRow = observer(
             }
         };
 
+        if (!commit) {
+            return null;
+        }
+
         return (
             <div
                 key={commit.oid}

@@ -143,7 +143,7 @@ export class GitManager {
         try {
             const status = await this.sandbox.session.provider?.gitStatus({});
             if (!status) {
-                console.error('Failed to get git status');
+                // console.warn('Failed to get git status');
                 return null;
             }
 

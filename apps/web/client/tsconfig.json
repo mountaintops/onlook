@@ -12,6 +12,9 @@
             ],
             "~/*": [
                 "./src/*"
+            ],
+            "@automerge/automerge": [
+                "../../../node_modules/@automerge/automerge/dist/mjs/entrypoints/slim.js"
             ]
         }
     },

@@ -71,7 +71,17 @@ export class CodeFileSystem extends FileSystem {
      * Useful for seeding files into ZenFS where raw content should be preserved.
      */
     async writeFileRaw(path: string, content: string | Uint8Array): Promise<void> {
-        await super.writeFile(path, content);
+        try {
+            await super.writeFile(path, content);
+        } catch (error: any) {
+            if (error?.code === 'EEXIST' || error?.message?.includes('File exists')) {
+                // If file exists, delete it and try again
+                await super.deleteFile(path);
+                await super.writeFile(path, content);
+            } else {
+                throw error;
+            }
+        }
         // NOTE: writeFileRaw does NOT fire onWriteHook — it's used for seeding
         // and we don't want to trigger Sandpack updates during initial seeding.
     }

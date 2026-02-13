@@ -135,8 +135,15 @@ export class TextEditingManager {
             }
         }
         this.targetDomEl = null;
+
+        // Overlay might be cleared even if no branch, that's fine
         this.editorEngine.overlay.state.removeTextEditor();
-        await this.editorEngine.history.commitTransaction();
+
+        // Only commit transaction if we have an active branch
+        if (this.editorEngine.branches.hasActiveBranch) {
+            await this.editorEngine.history.commitTransaction();
+        }
+
         this.shouldNotStartEditing = false;
     }
 

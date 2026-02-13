@@ -1,6 +1,6 @@
 import { CodeProvider, getStaticCodeProvider } from '@onlook/code-provider';
 import { getSandboxPreviewUrl, SandboxTemplates, Templates } from '@onlook/constants';
-import { branches, branchInsertSchema, branchUpdateSchema, canvases, createDefaultFrame, frames, fromDbBranch, fromDbFrame } from '@onlook/db';
+import { branches, branchInsertSchema, branchUpdateSchema, canvases, createDefaultBranch, createDefaultFrame, frames, fromDbBranch, fromDbFrame, projects } from '@onlook/db';
 import type { Frame } from '@onlook/models';
 import { calculateNonOverlappingPosition, generateUniqueBranchName } from '@onlook/utility';
 import { TRPCError } from '@trpc/server';
@@ -32,15 +32,38 @@ export const branchRouter = createTRPCRouter({
                     and(eq(branches.isDefault, true), eq(branches.projectId, input.projectId)) :
                     eq(branches.projectId, input.projectId),
             });
-            // TODO: Create a default branch if none exists for backwards compatibility
 
-            if (!dbBranches || dbBranches.length === 0) {
+            if (dbBranches && dbBranches.length > 0) {
+                return dbBranches.map(fromDbBranch);
+            }
+
+            // Create a default branch if none exists for backwards compatibility
+            // 1. Get project to find sandboxId
+            const project = await ctx.db.query.projects.findFirst({
+                where: eq(projects.id, input.projectId),
+            });
+
+            if (!project) {
                 throw new TRPCError({
                     code: 'NOT_FOUND',
-                    message: 'Branches not found',
+                    message: 'Project not found',
                 });
             }
-            return dbBranches.map(fromDbBranch);
+
+            if (!project.sandboxId) {
+                throw new TRPCError({
+                    code: 'NOT_FOUND',
+                    message: 'Branches not found and project has no sandboxId',
+                });
+            }
+
+            // 2. Create default branch
+            const newBranch = createDefaultBranch({
+                projectId: project.id,
+                sandboxId: project.sandboxId,
+            });
+            await ctx.db.insert(branches).values(newBranch);
+            return [fromDbBranch(newBranch)];
         }),
     create: protectedProcedure
         .input(branchInsertSchema)

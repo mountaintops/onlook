@@ -72,7 +72,7 @@ export const Versions = observer(() => {
 
             const latestCommit = gitManager.commits?.[0];
             if (!latestCommit) {
-                console.error('No latest commit found');
+                // console.warn('No latest commit found');
                 return;
             }
             setCommitToRename(latestCommit.oid);

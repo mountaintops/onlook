@@ -77,6 +77,10 @@ export class BranchManager {
         );
     }
 
+    get hasActiveBranch(): boolean {
+        return !!this.currentBranchId && this.branchMap.has(this.currentBranchId);
+    }
+
     get activeBranchData(): BranchData {
         if (!this.currentBranchId) {
             throw new Error('No branch selected. This should not happen after proper initialization.');

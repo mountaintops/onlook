@@ -45,7 +45,7 @@ export const GestureScreen = observer(({ frame, isResizing }: { frame: Frame, is
                     shouldGetStyle,
                 );
                 if (!el) {
-                    throw new Error('No element found');
+                    return;
                 }
 
                 switch (action) {

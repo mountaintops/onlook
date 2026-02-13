@@ -14,15 +14,30 @@ const nextConfig: NextConfig = {
         // Don't run ESLint during builds - handle it separately in CI
         ignoreDuringBuilds: true,
     },
+    webpack: (config) => {
+        config.resolve.alias = {
+            ...config.resolve.alias,
+            '@automerge/automerge': '@automerge/automerge/slim',
+        };
+        config.experiments = {
+            ...config.experiments,
+            asyncWebAssembly: true,
+            layers: true,
+        };
+        return config;
+    },
+    experimental: {
+        turbo: {
+            resolveAlias: {
+                '@automerge/automerge': '@automerge/automerge/slim',
+            },
+        },
+    },
 };
 
 if (process.env.NODE_ENV === 'development') {
     nextConfig.outputFileTracingRoot = path.join(__dirname, '../../..');
 }
 
-const withNextIntl = createNextIntlPlugin({
-    experimental: {
-        createMessagesDeclaration: './messages/en.json'
-    }
-});
+const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 export default withNextIntl(nextConfig);

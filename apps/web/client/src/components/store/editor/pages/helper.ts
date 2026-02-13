@@ -486,6 +486,57 @@ export const detectRouterConfig = async (
     return null;
 };
 
+export const detectRouterConfigFromManager = async (
+    sandboxManager: SandboxManager,
+): Promise<RouterConfig | null> => {
+    // Check for App Router
+    for (const appPath of APP_ROUTER_PATHS) {
+        try {
+            const entries = await sandboxManager.readDir(appPath);
+            if (entries && entries.length > 0) {
+                // Check for layout file (required for App Router)
+                const hasLayout = entries.some(
+                    (entry) =>
+                        !entry.isDirectory &&
+                        entry.name.startsWith('layout.') &&
+                        ALLOWED_EXTENSIONS.includes(getFileExtension(entry.name)),
+                );
+
+                if (hasLayout) {
+                    return { type: RouterType.APP, basePath: appPath };
+                }
+            }
+        } catch (error) {
+            // Directory doesn't exist, continue checking
+        }
+    }
+
+    // Check for Pages Router if App Router not found
+    for (const pagesPath of PAGES_ROUTER_PATHS) {
+        try {
+            const entries = await sandboxManager.readDir(pagesPath);
+            if (entries && entries.length > 0) {
+                // Check for index file (common in Pages Router)
+                const hasIndex = entries.some(
+                    (entry) =>
+                        !entry.isDirectory &&
+                        entry.name.startsWith('index.') &&
+                        ALLOWED_EXTENSIONS.includes(getFileExtension(entry.name)),
+                );
+
+                if (hasIndex) {
+                    console.log(`Found Pages Router at: ${pagesPath}`);
+                    return { type: RouterType.PAGES, basePath: pagesPath };
+                }
+            }
+        } catch (error) {
+            // Directory doesn't exist, continue checking
+        }
+    }
+
+    return null;
+};
+
 // checks if file/directory exists
 const pathExists = async (sandboxManager: SandboxManager, filePath: string): Promise<boolean> => {
     try {

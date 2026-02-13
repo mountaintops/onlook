@@ -1,5 +1,5 @@
 import { Routes } from '@/utils/constants';
-import { legacySubscriptions, prices, subscriptions, fromDbSubscription, users } from '@onlook/db';
+import { legacySubscriptions, prices, subscriptions, fromDbSubscription, users, SEED_USER } from '@onlook/db';
 import { createBillingPortalSession, createCheckoutSession, createCustomer, isTierUpgrade, PriceKey, releaseSubscriptionSchedule, SubscriptionStatus, updateSubscription, updateSubscriptionNextPeriod } from '@onlook/stripe';
 import { and, eq, isNull } from 'drizzle-orm';
 import { headers } from 'next/headers';
@@ -19,6 +19,41 @@ export const subscriptionRouter = createTRPCRouter({
     }),
     get: protectedProcedure.query(async ({ ctx }) => {
         const user = ctx.user;
+        // Log to a file for debugging
+        const fs = await import('fs');
+        const path = await import('path');
+        const logPath = path.join(process.cwd(), 'subscription-debug.log');
+        fs.appendFile(logPath, `Subscription check for user: ${JSON.stringify(user)}\nSeed user email: ${SEED_USER.EMAIL}\n`, (err) => {
+            if (err) console.error('Failed to write log', err);
+        });
+
+        // If the user is the seed user, return a mock subscription
+        if (user.email === SEED_USER.EMAIL) {
+            fs.appendFile(logPath, 'Returning mock subscription for seed user\n', () => { });
+            return {
+                id: 'sub_mock_seed_user',
+                status: SubscriptionStatus.ACTIVE,
+                startedAt: new Date(),
+                endedAt: null,
+                product: {
+                    name: 'Pro',
+                    type: 'service',
+                    stripeProductId: 'prod_mock_seed_user',
+                },
+                price: {
+                    id: 'price_mock_seed_user',
+                    productId: 'prod_mock_seed_user',
+                    monthlyMessageLimit: 1000,
+                    stripePriceId: 'price_mock_seed_user',
+                    key: PriceKey.PRO_MONTHLY_TIER_1,
+                },
+                scheduledChange: null,
+                stripeSubscriptionId: 'sub_mock_seed_user',
+                stripeCustomerId: 'cus_mock_seed_user',
+                stripeSubscriptionItemId: 'si_mock_seed_user',
+            };
+        }
+
         const subscription = await ctx.db.query.subscriptions.findFirst({
             where: and(
                 eq(subscriptions.userId, user.id),

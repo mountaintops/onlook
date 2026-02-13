@@ -198,7 +198,7 @@ export const projectRouter = createTRPCRouter({
                 where: eq(projects.id, input.projectId),
             });
             if (!project) {
-                console.error('project not found');
+
                 return null;
             }
             return fromDbProject(project)
