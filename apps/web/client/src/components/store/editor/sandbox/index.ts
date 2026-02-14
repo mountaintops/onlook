@@ -8,13 +8,13 @@ import type { Branch, RouterConfig } from '@onlook/models';
 import { makeAutoObservable, reaction, runInAction } from 'mobx';
 import type { EditorEngine } from '../engine';
 import type { ErrorManager } from '../error';
-import { GitManager } from '../git';
 import { detectRouterConfig } from '../pages/helper';
 import { copyPreloadScriptToPublic, getLayoutPath as detectLayoutPath } from './preload-script';
 import { SessionManager } from './session';
 import { DEFAULT_FILES } from './fallback';
 import { type AutomergeSchema, initPersistence } from './persistence';
 import type { DocHandle } from '@automerge/automerge-repo';
+import { next as Automerge } from '@automerge/automerge';
 
 export enum PreloadScriptState {
     NOT_INJECTED = 'not-injected',
@@ -23,7 +23,7 @@ export enum PreloadScriptState {
 }
 export class SandboxManager {
     readonly session: SessionManager;
-    readonly gitManager: GitManager;
+    // readonly gitManager: GitManager; // Removed GitManager
     private providerReactionDisposer?: () => void;
     private sync: CodeProviderSync | null = null;
     preloadScriptState: PreloadScriptState = PreloadScriptState.NOT_INJECTED
@@ -41,7 +41,7 @@ export class SandboxManager {
         private readonly fs: CodeFileSystem,
     ) {
         this.session = new SessionManager(this.branch, this.errorManager);
-        this.gitManager = new GitManager(this);
+        // this.gitManager = new GitManager(this); // Removed GitManager
         makeAutoObservable(this);
     }
 
@@ -70,7 +70,7 @@ export class SandboxManager {
             async (provider) => {
                 if (provider && this.session.adapter) {
                     await this.initializeSyncEngine(this.session.adapter);
-                    await this.gitManager.init();
+                    // await this.gitManager.init(); // Removed GitManager
                 } else if (this.sync) {
                     // If the provider is null, release the sync engine reference
                     this.sync.release();
@@ -460,5 +460,98 @@ export class SandboxManager {
 
     private shouldExclude(path: string): boolean {
         return EXCLUDED_SYNC_PATHS.some(exclude => path.includes(exclude));
+    }
+
+    async save(): Promise<void> {
+        // No-op for now as Automerge saves automatically,
+        // but can be used for explicit flush if needed
+    }
+
+    async createSnapshot(message: string): Promise<void> {
+        if (!this.handle) {
+            console.error('Persistence handle not initialized');
+            return;
+        }
+        console.log('Creating snapshot with message:', message);
+        this.handle.change((d) => {
+            if (!d.metadata) d.metadata = {};
+            d.metadata.lastSnapshot = Date.now();
+        }, { message });
+    }
+
+    async restoreSnapshot(hash: string): Promise<void> {
+        if (!this.handle) {
+            console.error('Persistence handle not initialized');
+            return;
+        }
+
+        const doc = await this.handle.doc();
+        if (!doc) return;
+
+        // Get history to find the snapshot state
+        const history = Automerge.getHistory(doc);
+        const snapshot = history.find(h => h.change.hash === hash);
+
+        if (!snapshot) {
+            console.error('Snapshot not found:', hash);
+            return;
+        }
+
+        // Apply the snapshot state to the current document
+        // We do this by updating the `files` map to match the snapshot
+        const snapshotFiles = snapshot.snapshot.files;
+
+        this.handle.change(d => {
+            // 1. Remove files not in snapshot
+            for (const path of Object.keys(d.files)) {
+                if (!snapshotFiles[path]) {
+                    delete d.files[path];
+                }
+            }
+
+            // 2. Update/Add files from snapshot
+            for (const [path, content] of Object.entries(snapshotFiles)) {
+                if (d.files[path] !== content) {
+                    d.files[path] = content;
+                }
+            }
+        }, { message: `Revert to ${hash}` });
+
+        // Update in-memory files and ZenFS
+        runInAction(() => {
+            this.files = { ...snapshotFiles };
+            const pkgJson = this.files['/package.json'] ?? this.files['package.json'];
+            if (pkgJson) {
+                this.dependencies = parseDependencies(pkgJson);
+            }
+        });
+
+        // Sync to ZenFS
+        await this.seedFilesToZenFS();
+    }
+
+    async getHistory() {
+        if (!this.handle) {
+            console.warn('getHistory: Handle not initialized');
+            return [];
+        }
+        const doc = await this.handle.doc();
+        if (!doc) {
+            console.warn('getHistory: Document not found');
+            return [];
+        }
+        const history = Automerge.getHistory(doc);
+        console.log('getHistory: Changes found:', history.length);
+        if (history.length > 0) {
+            console.log('First change:', history[0]);
+            console.log('Last change:', history[history.length - 1]);
+        }
+        return history.map(state => ({
+            oid: state.change.hash,
+            message: state.change.message || 'No message',
+            timestamp: state.change.time,
+            author: { name: 'Onlook User' }, // Placeholder as we don't have actor names yet
+            files: state.snapshot.files
+        }));
     }
 }

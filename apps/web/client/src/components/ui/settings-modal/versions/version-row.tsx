@@ -1,8 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState } from 'react';
 
-import type { GitCommit } from '@onlook/git';
-import { MessageCheckpointType } from '@onlook/models';
 import { Button } from '@onlook/ui/button';
 import { Icons } from '@onlook/ui/icons';
 import { Input } from '@onlook/ui/input';
@@ -12,8 +10,17 @@ import { cn } from '@onlook/ui/utils';
 import { formatCommitDate, timeAgo } from '@onlook/utility';
 
 import { useEditorEngine } from '@/components/store/editor';
-import { restoreCheckpoint } from '@/components/store/editor/git';
 import { useStateManager } from '@/components/store/state';
+
+export interface Version {
+    oid: string;
+    message: string;
+    timestamp: number;
+    author: {
+        name: string;
+        email?: string;
+    };
+}
 
 export enum VersionRowType {
     SAVED = 'saved',
@@ -28,7 +35,7 @@ export const VersionRow = observer(
         autoRename = false,
         onRename,
     }: {
-        commit: GitCommit;
+        commit: Version;
         type: VersionRowType;
         autoRename?: boolean;
         onRename?: () => void;
@@ -68,32 +75,9 @@ export const VersionRow = observer(
         };
 
         const updateCommitDisplayName = async (name: string) => {
-            const branchData = editorEngine.branches.activeBranchData;
-            if (!branchData) {
-                toast.error('No active branch');
-                return;
-            }
-
-            const result = await branchData.sandbox.gitManager.addCommitNote(commit.oid, name);
-
-            if (!result.success) {
-                toast.error('Failed to rename backup');
-                editorEngine.posthog.capture('versions_rename_commit_failed', {
-                    commit: commit.oid,
-                    newName: name,
-                    error: result.error,
-                });
-                return;
-            }
-
-            toast.success('Backup renamed successfully!', {
-                description: `Renamed to: "${name}"`,
-            });
-
-            editorEngine.posthog.capture('versions_rename_commit_success', {
-                commit: commit.oid,
-                newName: name,
-            });
+            // Renaming not supported in Automerge for now
+            console.warn('Renaming not supported yet');
+            onRename?.();
         };
 
         const startRenaming = () => {
@@ -118,28 +102,20 @@ export const VersionRow = observer(
                     commit: commit.displayName ?? commit.message,
                 });
 
-                const checkpoint = {
-                    type: MessageCheckpointType.GIT,
-                    oid: commit.oid,
-                    branchId: editorEngine.branches.activeBranch.id,
-                    createdAt: new Date(),
-                };
-
-                const result = await restoreCheckpoint(checkpoint, editorEngine);
-
-                setIsCheckingOut(false);
-
-                if (!result.success) {
-                    editorEngine.posthog.capture('versions_checkout_commit_failed', {
-                        commit: commit.displayName || commit.message,
-                        error: result.error,
-                    });
-                    setIsCheckoutSuccess(false);
-                    return;
+                const branchData = editorEngine.branches.activeBranchData;
+                if (!branchData) {
+                    throw new Error('No active branch');
                 }
 
-                editorEngine.posthog.capture('versions_checkout_commit_success', {
-                    commit: commit.displayName || commit.message,
+                await branchData.sandbox.restoreSnapshot(commit.oid);
+
+                setIsCheckoutSuccess(true);
+                setTimeout(() => {
+                    stateManager.isSettingsModalOpen = false;
+                }, 1000);
+
+                editorEngine.posthog.capture('versions_checkout_snapshot_success', {
+                    snapshot: commit.message,
                 });
 
                 setIsCheckoutSuccess(true);

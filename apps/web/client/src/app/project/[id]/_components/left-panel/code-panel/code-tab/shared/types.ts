@@ -3,6 +3,7 @@ export interface EditorFile {
     type: 'text' | 'binary';
     content: string | Uint8Array;
     originalHash: string | null;
+    ignoreHash?: string | null;
 }
 
 export interface TextEditorFile extends EditorFile {

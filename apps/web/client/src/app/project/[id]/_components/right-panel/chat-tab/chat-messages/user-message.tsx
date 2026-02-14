@@ -20,7 +20,6 @@ import { cn } from '@onlook/ui/utils';
 
 import type { EditMessage } from '@/app/project/[id]/_hooks/use-chat';
 import { useEditorEngine } from '@/components/store/editor';
-import { restoreCheckpoint } from '@/components/store/editor/git';
 import { observer } from 'mobx-react-lite';
 import { SentContextPill } from '../context-pills/sent-context-pill';
 import { MessageContent } from './message-content';
@@ -116,7 +115,10 @@ const UserMessageComponent = ({ onEditMessage, message }: UserMessageProps) => {
 
     const handleRestoreSingleBranch = async (checkpoint: GitMessageCheckpoint) => {
         setIsRestoring(true);
-        await restoreCheckpoint(checkpoint, editorEngine);
+        if (checkpoint.branchId) {
+            const branchData = editorEngine.branches.getBranchDataById(checkpoint.branchId);
+            await branchData?.sandbox.restoreSnapshot(checkpoint.oid);
+        }
         setIsRestoring(false);
     };
 
@@ -125,7 +127,8 @@ const UserMessageComponent = ({ onEditMessage, message }: UserMessageProps) => {
         const firstCheckpoint = gitCheckpoints[0];
         if (firstCheckpoint) {
             setIsRestoring(true);
-            await restoreCheckpoint(firstCheckpoint, editorEngine);
+            const branchData = editorEngine.branches.activeBranchData;
+            await branchData?.sandbox.restoreSnapshot(firstCheckpoint.oid);
             setIsRestoring(false);
         }
     };

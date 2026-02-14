@@ -83,6 +83,10 @@ export class SandpackAdapter implements ISandboxAdapter {
 
     async writeFile(path: string, content: string | Uint8Array): Promise<void> {
         const normalized = normalizePath(path);
+        console.log('[SandpackAdapter] Writing file:', normalized);
+        if (typeof content === 'string') {
+            console.log('[SandpackAdapter] Content start:', content.substring(0, 50));
+        }
 
         // Reject binary content — browser sandboxes are text-optimized
         if (content instanceof Uint8Array) {

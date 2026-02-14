@@ -17,7 +17,6 @@ import { toast } from '@onlook/ui/sonner';
 import { cn } from '@onlook/ui/utils';
 
 import { useEditorEngine } from '@/components/store/editor';
-import { restoreCheckpoint } from '@/components/store/editor/git';
 
 interface MultiBranchRevertModalProps {
     open: boolean;
@@ -62,11 +61,18 @@ export const MultiBranchRevertModal = ({
             setIsRestoring(true);
 
             const restorePromises = selectedBranchIds.map(async (branchId) => {
-                const checkpoint = checkpoints.find((cp) => cp.branchId === branchId);
-                if (!checkpoint) {
+                const branchData = editorEngine.branches.getBranchDataById(branchId);
+                if (!checkpoint || !branchData) {
                     return { success: false };
                 }
-                return restoreCheckpoint(checkpoint, editorEngine);
+
+                try {
+                    await branchData.sandbox.restoreSnapshot(checkpoint.oid);
+                    return { success: true };
+                } catch (error) {
+                    console.error('Failed to restore snapshot', error);
+                    return { success: false };
+                }
             });
 
             const results = await Promise.all(restorePromises);

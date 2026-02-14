@@ -16,12 +16,39 @@ export const Versions = observer(() => {
     const [isCreatingBackup, setIsCreatingBackup] = useState(false);
     const selectedBranchId = editorEngine.branches.activeBranch.id;
     const branchData = editorEngine.branches.getBranchDataById(selectedBranchId);
-    const gitManager = branchData?.sandbox.gitManager;
-    const commits = gitManager?.commits;
-    const isLoadingCommits = gitManager?.isLoadingCommits;
+    const sandbox = branchData?.sandbox;
 
-    // Group commits by date
-    const groupedCommits = commits?.reduce(
+    // Local state for history
+    const [versions, setVersions] = useState<any[]>([]);
+    const [isLoadingVersions, setIsLoadingVersions] = useState(false);
+
+    React.useEffect(() => {
+        if (sandbox) {
+            loadVersions();
+        }
+    }, [sandbox]);
+
+    const loadVersions = async () => {
+        if (!sandbox) {
+            console.warn('Sandbox not initialized in Versions component');
+            return;
+        }
+        setIsLoadingVersions(true);
+        try {
+            console.log('Fetching history from sandbox...');
+            const history = await sandbox.getHistory();
+            console.log('History fetched:', history);
+            // Sort by new to old
+            setVersions(history.reverse());
+        } catch (error) {
+            console.error('Failed to load versions:', error);
+        } finally {
+            setIsLoadingVersions(false);
+        }
+    };
+
+    // Group versions by date
+    const groupedVersions = versions?.reduce(
         (acc, commit) => {
             const date = new Date(commit.timestamp * 1000);
             const today = new Date();
@@ -48,34 +75,22 @@ export const Versions = observer(() => {
             acc[dateKey]?.push(commit);
             return acc;
         },
-        {} as Record<string, typeof commits>,
+        {} as Record<string, typeof versions>,
     );
 
     const handleNewBackup = async () => {
         try {
             setIsCreatingBackup(true);
-            if (!gitManager) {
-                toast.error('Git not initialized');
+            if (!sandbox) {
+                toast.error('Sandbox not initialized');
                 return;
             }
 
-            const result = await gitManager.createCommit();
-            if (!result.success) {
-                toast.error('Failed to create backup', {
-                    description: result.error || 'Unknown error',
-                });
-                return;
-            }
+            await sandbox.createSnapshot('New Onlook backup');
+            await loadVersions();
 
             toast.success('Backup created successfully!');
-            editorEngine.posthog.capture('versions_create_commit_success');
-
-            const latestCommit = gitManager.commits?.[0];
-            if (!latestCommit) {
-                console.error('No latest commit found');
-                return;
-            }
-            setCommitToRename(latestCommit.oid);
+            editorEngine.posthog.capture('versions_create_snapshot_success');
         } catch (error) {
             toast.error('Failed to create backup', {
                 description: error instanceof Error ? error.message : 'Unknown error',
@@ -90,7 +105,7 @@ export const Versions = observer(() => {
             <div className="flex flex-row justify-center items-center gap-3 px-6 py-6">
                 <h2 className="text-lg">Backup Versions</h2>
 
-                {isLoadingCommits && (
+                {isLoadingVersions && (
                     <Icons.LoadingSpinner className="h-4 w-4 animate-spin" />
                 )}
 
@@ -107,12 +122,12 @@ export const Versions = observer(() => {
                         ))}
                     </SelectContent>
                 </Select>
-                {gitManager && (
+                {sandbox && (
                     <Button
                         variant="outline"
                         className="bg-background-secondary rounded text-sm font-normal "
                         onClick={handleNewBackup}
-                        disabled={isLoadingCommits || isCreatingBackup}
+                        disabled={isLoadingVersions || isCreatingBackup}
                     >
                         {isCreatingBackup ? (
                             <Icons.LoadingSpinner className="h-4 w-4 animate-spin mr-2" />
@@ -125,30 +140,30 @@ export const Versions = observer(() => {
             </div>
             <Separator />
 
-            {commits && commits.length > 0 ? (
+            {versions && versions.length > 0 ? (
                 <div className="flex flex-col gap-2">
-                    <Accordion type="multiple" defaultValue={Object.keys(groupedCommits || {})}>
-                        {groupedCommits &&
-                            Object.entries(groupedCommits).map(([date, dateCommits]) => (
+                    <Accordion type="multiple" defaultValue={Object.keys(groupedVersions || {})}>
+                        {groupedVersions &&
+                            Object.entries(groupedVersions).map(([date, dateVersions]) => (
                                 <AccordionItem key={date} value={date}>
                                     <AccordionTrigger className="text-muted-foreground px-6 py-4 text-base font-normal">
                                         {date}
                                     </AccordionTrigger>
                                     <AccordionContent>
                                         <div className="flex flex-col">
-                                            {dateCommits.map((commit, index) => (
-                                                <React.Fragment key={commit.oid}>
+                                            {dateVersions.map((version, index) => (
+                                                <React.Fragment key={version.oid}>
                                                     <VersionRow
-                                                        commit={commit}
+                                                        commit={version}
                                                         type={
                                                             date === 'Today'
                                                                 ? VersionRowType.TODAY
                                                                 : VersionRowType.PREVIOUS_DAYS
                                                         }
-                                                        autoRename={commit.oid === commitToRename}
+                                                        autoRename={version.oid === commitToRename}
                                                         onRename={() => setCommitToRename(null)}
                                                     />
-                                                    {index < dateCommits.length - 1 && (
+                                                    {index < dateVersions.length - 1 && (
                                                         <Separator className="bg-border mx-6 w-[calc(100%-theme(spacing.12))]" />
                                                     )}
                                                 </React.Fragment>

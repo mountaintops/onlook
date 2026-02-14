@@ -138,12 +138,23 @@ export const CodeTab = memo(forwardRef<CodeTabRef, CodeTabProps>(({ projectId, b
 
             const existingText = existing as TextEditorFile;
             const newText = newFile as TextEditorFile;
+
+            // If the new content matches the hash we want to ignore, skip the update
+            if (existing.ignoreHash && existing.ignoreHash === newText.originalHash) {
+                console.log('[CodeTab] Ignoring stale update:', newText.path);
+                return existing;
+            }
+
             const diskContentChanged = existingText.originalHash !== newText.originalHash;
 
             return {
                 ...existingText,
                 content: diskContentChanged ? newText.content : existingText.content,
                 originalHash: diskContentChanged ? newText.originalHash : existingText.originalHash,
+                // Clear the ignore hash if we receive a valid new update (or if we don't update)
+                // Actually, we should keep ignoreHash until we get a non-ignored update? 
+                // No, if we get a DIFFERENT hash, we should process it.
+                ignoreHash: diskContentChanged ? null : existingText.ignoreHash
             };
         };
 
@@ -230,6 +241,12 @@ export const CodeTab = memo(forwardRef<CodeTabRef, CodeTabProps>(({ projectId, b
 
             await saveFileWithHash(selectedFilePath, activeEditorFile);
 
+            console.log('[Debug] Saving file:', selectedFilePath);
+            console.log('[Debug] Content length:', activeEditorFile.content.length);
+            if (typeof activeEditorFile.content === 'string') {
+                console.log('[Debug] First 100 chars:', activeEditorFile.content.substring(0, 100));
+            }
+
             // Read back the formatted content from disk
             const formattedContent = await branchData.codeEditor.readFile(selectedFilePath);
             if (typeof formattedContent === 'string') {
@@ -237,7 +254,9 @@ export const CodeTab = memo(forwardRef<CodeTabRef, CodeTabProps>(({ projectId, b
                 const formattedFile: TextEditorFile = {
                     ...activeEditorFile as TextEditorFile,
                     content: formattedContent,
-                    originalHash: newHash
+                    originalHash: newHash,
+                    // Ignore updates that match the previous state to prevent race conditions
+                    ignoreHash: activeEditorFile.originalHash
                 };
 
                 // Update in opened files list
