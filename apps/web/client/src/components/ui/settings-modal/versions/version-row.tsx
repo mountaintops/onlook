@@ -2,6 +2,12 @@ import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState } from 'react';
 
 import { Button } from '@onlook/ui/button';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@onlook/ui/dropdown-menu';
 import { Icons } from '@onlook/ui/icons';
 import { Input } from '@onlook/ui/input';
 import { toast } from '@onlook/ui/sonner';
@@ -94,6 +100,35 @@ export const VersionRow = observer(
             onRename?.();
         };
 
+        const handleCheckoutAndSave = async () => {
+            try {
+                setIsCheckingOut(true);
+                const branchData = editorEngine.branches.activeBranchData;
+                if (!branchData) throw new Error('No active branch');
+
+                const message = prompt('Enter a message for the backup:', 'Backup before checkout');
+                if (message === null) return; // User cancelled
+
+                await branchData.sandbox.checkoutAndSave(commit.oid, message);
+
+                setIsCheckoutSuccess(true);
+                setTimeout(() => {
+                    stateManager.isSettingsModalOpen = false;
+                }, 1000);
+            } catch (error) {
+                toast.error('Failed to checkout and save', {
+                    description: error instanceof Error ? error.message : 'Unknown error',
+                });
+            } finally {
+                setIsCheckingOut(false);
+            }
+        };
+
+        const handleCheckoutAndDiscard = async () => {
+            // Same as original restore
+            await handleCheckout();
+        };
+
         const handleCheckout = async () => {
             try {
                 setIsCheckingOut(true);
@@ -183,34 +218,41 @@ export const VersionRow = observer(
                                 <TooltipTrigger asChild>
                                     <Button
                                         variant="ghost"
-                                        size="sm"
+                                        size="icon"
                                         className="bg-background-tertiary/70 hover:bg-background-tertiary"
                                         onClick={startRenaming}
                                         disabled={isRenaming || isCheckingOut}
                                     >
-                                        <Icons.Pencil className="mr-2 h-4 w-4" />
-                                        Rename
+                                        <Icons.Pencil className="h-4 w-4" />
                                     </Button>
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                    Rename backup for easier identification
+                                    Rename backup
                                 </TooltipContent>
                             </Tooltip>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
+
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
                                     <Button
                                         variant="ghost"
                                         size="sm"
                                         className="bg-background-tertiary/70 hover:bg-background-tertiary"
-                                        onClick={handleCheckout}
                                         disabled={isCheckingOut}
                                     >
                                         <Icons.CounterClockwiseClock className="mr-2 h-4 w-4" />
                                         {isCheckingOut ? 'Restoring...' : 'Restore'}
+                                        <Icons.ChevronDown className="ml-2 h-3 w-3 opacity-50" />
                                     </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Restore project to this version</TooltipContent>
-                            </Tooltip>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={handleCheckoutAndSave}>
+                                        Checkout & Save Changes
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={handleCheckoutAndDiscard} className="text-red-500">
+                                        Checkout & Discard Changes
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         </div>
                     )}
                 </div>

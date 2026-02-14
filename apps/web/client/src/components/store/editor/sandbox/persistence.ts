@@ -21,9 +21,10 @@ const repo = new Repo({
 
 export { repo };
 
-export async function initPersistence(): Promise<import('@automerge/automerge-repo').DocHandle<AutomergeSchema>> {
-    // Check if we have a stored document URL
-    let docUrl = localStorage.getItem(DOC_URL_KEY);
+export async function initPersistence(projectId: string): Promise<import('@automerge/automerge-repo').DocHandle<AutomergeSchema>> {
+    // Check if we have a stored document URL for this project
+    const key = `${DOC_URL_KEY}-${projectId}`;
+    let docUrl = localStorage.getItem(key);
 
     let handle: import('@automerge/automerge-repo').DocHandle<AutomergeSchema>;
 
@@ -38,7 +39,7 @@ export async function initPersistence(): Promise<import('@automerge/automerge-re
         handle.change((d) => {
             d.files = {};
         });
-        localStorage.setItem(DOC_URL_KEY, handle.url);
+        localStorage.setItem(key, handle.url);
     }
 
     // Wait for the document to be ready (loaded from storage)

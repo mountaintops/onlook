@@ -7,6 +7,7 @@ import { useDirectory, useFile } from '@onlook/file-system/hooks';
 import { MessageContextType } from '@onlook/models';
 import { toast } from '@onlook/ui/sonner';
 import { pathsEqual } from '@onlook/utility';
+import { debounce } from 'lodash';
 import { motion } from 'motion/react';
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { CodeEditorArea } from './file-content';
@@ -348,6 +349,44 @@ export const CodeTab = memo(forwardRef<CodeTabRef, CodeTabProps>(({ projectId, b
         setSelectedFilePath(file.path);
     };
 
+    const lastSubmittedContentRef = useRef<Map<string, string>>(new Map());
+
+    // Sync lastSubmittedContent with loadedContent to handle Undos and external changes
+    useEffect(() => {
+        if (!selectedFilePath || !loadedContent) return;
+
+        // If the file is not dirty (content matches loaded), we can safely update the base reference
+        // This handles cases like Undo/Redo where the disk content changes, and we want 
+        // subsequent edits to diff against this new state.
+        if (typeof loadedContent === 'string') {
+            lastSubmittedContentRef.current.set(selectedFilePath, loadedContent);
+        }
+    }, [selectedFilePath, loadedContent]);
+
+    const pushToHistory = useCallback((path: string, newContent: string) => {
+        const originalContent = lastSubmittedContentRef.current.get(path);
+
+        if (originalContent !== undefined && originalContent !== newContent) {
+            const action: any = {
+                type: 'write-code',
+                diffs: [{
+                    path,
+                    original: originalContent,
+                    generated: newContent,
+                    branchId // Include branchId for context if needed, though CodeManager ignores it for write-code currently
+                }]
+            };
+            editorEngine.history.push(action);
+            lastSubmittedContentRef.current.set(path, newContent);
+        }
+    }, [editorEngine, branchId]);
+
+    const debouncedPushToHistory = useRef(
+        debounce((path: string, content: string) => {
+            pushToHistory(path, content);
+        }, 1000)
+    ).current;
+
     const updateLocalFileContent = (filePath: string, content: string) => {
         const updatedFiles = openedEditorFiles.map(file =>
             pathsEqual(file.path, filePath)
@@ -361,6 +400,9 @@ export const CodeTab = memo(forwardRef<CodeTabRef, CodeTabProps>(({ projectId, b
             const updatedActiveFile = { ...activeEditorFile, content };
             setActiveEditorFile(updatedActiveFile);
         }
+
+        // Trigger debounced history push
+        debouncedPushToHistory(filePath, content);
     };
 
     // Centralized function to close a file and clean up resources

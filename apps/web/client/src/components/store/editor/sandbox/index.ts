@@ -95,7 +95,7 @@ export class SandboxManager {
 
         // Initialize Automerge Persistence
         try {
-            this.handle = await initPersistence();
+            this.handle = await initPersistence(this.branch.projectId);
             const doc = await this.handle.doc();
 
             runInAction(() => {
@@ -528,6 +528,11 @@ export class SandboxManager {
 
         // Sync to ZenFS
         await this.seedFilesToZenFS();
+    }
+
+    async checkoutAndSave(hash: string, saveMessage: string = 'Backup before checkout'): Promise<void> {
+        await this.createSnapshot(saveMessage);
+        await this.restoreSnapshot(hash);
     }
 
     async getHistory() {
