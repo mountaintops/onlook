@@ -8,7 +8,7 @@ import {
 import { Icons } from '@onlook/ui/icons';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@onlook/ui/tooltip';
 import { cn } from '@onlook/ui/utils';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FileModal } from './modals/file-modal';
 import { FolderModal } from './modals/folder-modal';
 import { UploadModal } from './modals/upload-modal';
@@ -29,8 +29,40 @@ export const CodeControls = ({ isDirty, currentPath, onSave, onRefresh, onCreate
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [showFolderModal, setShowFolderModal] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
 
-    const handleSave = async () => {
+    // Use native event listeners to aggressively block middle-click behavior
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+
+        const handleMiddleClick = (e: MouseEvent) => {
+            if (e.button === 1) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+            }
+        };
+
+        const options = { capture: true };
+        container.addEventListener('mousedown', handleMiddleClick, options);
+        container.addEventListener('auxclick', handleMiddleClick, options);
+        container.addEventListener('click', handleMiddleClick, options);
+        container.addEventListener('mouseup', handleMiddleClick, options);
+
+        return () => {
+            container.removeEventListener('mousedown', handleMiddleClick, options);
+            container.removeEventListener('auxclick', handleMiddleClick, options);
+            container.removeEventListener('click', handleMiddleClick, options);
+            container.removeEventListener('mouseup', handleMiddleClick, options);
+        };
+    }, []);
+
+    const handleSave = async (e?: React.MouseEvent) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
         if (!isDirty || isSaving) return;
 
         try {
@@ -48,7 +80,10 @@ export const CodeControls = ({ isDirty, currentPath, onSave, onRefresh, onCreate
     };
 
     return (
-        <div className="flex flex-row items-center justify-between p-1 border-b border-border w-full h-10">
+        <div
+            ref={containerRef}
+            className="flex flex-row items-center justify-between p-1 border-b border-border w-full h-10"
+        >
             <Button
                 variant="ghost"
                 size="icon"
