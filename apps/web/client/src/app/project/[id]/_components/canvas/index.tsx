@@ -86,6 +86,18 @@ export const Canvas = observer(() => {
 
     const handleCanvasMouseMove = useCallback(
         throttle((event: React.MouseEvent<HTMLDivElement>) => {
+            // Handle Panning Trigger (Right Click Drag)
+            if (panStartRef.current) {
+                const dx = event.clientX - panStartRef.current.x;
+                const dy = event.clientY - panStartRef.current.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance > 5 && !editorEngine.state.canvasPanning) {
+                    editorEngine.state.editorMode = EditorMode.PAN;
+                    editorEngine.state.canvasPanning = true;
+                }
+            }
+
             if (!isDragSelecting || !containerRef.current) {
                 return;
             }
@@ -98,7 +110,7 @@ export const Canvas = observer(() => {
             // Update frames in selection for visual feedback
             updateFramesInSelection(dragSelectStart, { x, y });
         }, 16), // ~60fps
-        [isDragSelecting, dragSelectStart, updateFramesInSelection]
+        [isDragSelecting, dragSelectStart, updateFramesInSelection, editorEngine.state]
     );
 
     const handleCanvasMouseUp = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -192,21 +204,33 @@ export const Canvas = observer(() => {
         [handleZoom, handlePan, editorEngine.state],
     );
 
-    const middleMouseButtonDown = useCallback((e: MouseEvent) => {
-        if (e.button === 1) {
-            editorEngine.state.editorMode = EditorMode.PAN;
-            editorEngine.state.canvasPanning = true;
-            e.preventDefault();
-            e.stopPropagation();
+    const panStartRef = useRef<{ x: number; y: number } | null>(null);
+
+    const rightMouseButtonDown = useCallback((e: MouseEvent) => {
+        if (e.button === 2) {
+            panStartRef.current = { x: e.clientX, y: e.clientY };
         }
     }, []);
 
-    const middleMouseButtonUp = useCallback((e: MouseEvent) => {
-        if (e.button === 1) {
+    const rightMouseButtonUp = useCallback((e: MouseEvent) => {
+        if (e.button === 2) {
             editorEngine.state.editorMode = EditorMode.DESIGN;
             editorEngine.state.canvasPanning = false;
-            e.preventDefault();
-            e.stopPropagation();
+            panStartRef.current = null;
+        }
+    }, []);
+
+    const preventContextMenu = useCallback((e: MouseEvent) => {
+        // Only prevent context menu if we actually panned
+        if (panStartRef.current) {
+            const dx = e.clientX - panStartRef.current.x;
+            const dy = e.clientY - panStartRef.current.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance > 5) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
         }
     }, []);
 
@@ -223,16 +247,18 @@ export const Canvas = observer(() => {
         const div = containerRef.current;
         if (div) {
             div.addEventListener('wheel', handleWheel, { passive: false });
-            div.addEventListener('mousedown', middleMouseButtonDown);
-            div.addEventListener('mouseup', middleMouseButtonUp);
+            div.addEventListener('mousedown', rightMouseButtonDown);
+            div.addEventListener('mouseup', rightMouseButtonUp);
+            div.addEventListener('contextmenu', preventContextMenu);
             return () => {
                 div.removeEventListener('wheel', handleWheel);
-                div.removeEventListener('mousedown', middleMouseButtonDown);
-                div.removeEventListener('mouseup', middleMouseButtonUp);
+                div.removeEventListener('mousedown', rightMouseButtonDown);
+                div.removeEventListener('mouseup', rightMouseButtonUp);
+                div.removeEventListener('contextmenu', preventContextMenu);
                 handleCanvasMouseMove.cancel?.(); // Clean up throttled function
             };
         }
-    }, [handleWheel, middleMouseButtonDown, middleMouseButtonUp, handleCanvasMouseMove]);
+    }, [handleWheel, rightMouseButtonDown, rightMouseButtonUp, preventContextMenu, handleCanvasMouseMove]);
 
     // Global mouseup listener to handle drag termination outside canvas
     useEffect(() => {

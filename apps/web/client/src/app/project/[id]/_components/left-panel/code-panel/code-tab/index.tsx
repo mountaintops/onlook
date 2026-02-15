@@ -607,113 +607,25 @@ export const CodeTab = memo(forwardRef<CodeTabRef, CodeTabProps>(({ projectId, b
         };
     }, []);
 
-    // Global Middle-Click Blocker & Right-Click Pan
+    // Global Middle-Click Blocker (Diagnostic)
     useEffect(() => {
-        let isDragging = false;
-        let hasMoved = false;
-        let scrollTarget: HTMLElement | null = null;
-        let startX = 0;
-        let startY = 0;
-        let scrollStartX = 0;
-        let scrollStartY = 0;
-
-        const handleMouseDown = (e: MouseEvent) => {
-            // Middle Click (Button 1) - Block it
+        const handleGlobalMiddleClick = (e: MouseEvent) => {
             if (e.button === 1) {
-                e.preventDefault();
-                e.stopPropagation();
-                e.stopImmediatePropagation();
-                return;
-            }
-
-            // Right Click (Button 2) - Start Pan
-            if (e.button === 2) {
-                hasMoved = false;
-                isDragging = true;
-                startX = e.clientX;
-                startY = e.clientY;
-
-                // Find closest scrollable target
-                let current = e.target as HTMLElement;
-                while (current && current !== document.body) {
-                    const style = window.getComputedStyle(current);
-                    const overflowY = style.overflowY;
-                    const overflowX = style.overflowX;
-                    const isScrollable = (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'hidden') ||
-                        (overflowX === 'auto' || overflowX === 'scroll' || overflowX === 'hidden');
-
-                    if (isScrollable && (current.scrollHeight > current.clientHeight || current.scrollWidth > current.clientWidth)) {
-                        scrollTarget = current;
-                        scrollStartX = current.scrollLeft;
-                        scrollStartY = current.scrollTop;
-                        break;
-                    }
-                    current = current.parentElement as HTMLElement;
-                }
-            }
-        };
-
-        const handleMouseMove = (e: MouseEvent) => {
-            // Check if right button is active (buttons=2)
-            if (isDragging && (e.buttons & 2) === 2 && scrollTarget) {
-                const deltaX = e.clientX - startX;
-                const deltaY = e.clientY - startY;
-
-                if (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2) {
-                    hasMoved = true;
-                    scrollTarget.scrollLeft = scrollStartX - deltaX;
-                    scrollTarget.scrollTop = scrollStartY - deltaY;
-                }
-            }
-        };
-
-        const handleMouseUp = (e: MouseEvent) => {
-            if (e.button === 1) {
-                e.preventDefault();
-                e.stopPropagation();
-                return;
-            }
-
-            if (e.button === 2) {
-                isDragging = false;
-                scrollTarget = null;
-                // Don't reset hasMoved immediately here, checking it in contextmenu
-                setTimeout(() => {
-                    hasMoved = false;
-                }, 0);
-            }
-        };
-
-        const handleContextMenu = (e: MouseEvent) => {
-            if (hasMoved) {
-                e.preventDefault();
-                e.stopPropagation();
-                e.stopImmediatePropagation();
-                hasMoved = false;
-            }
-        };
-
-        // Middle Click Blockers (Aux/MouseUp need capture)
-        const handleAuxClick = (e: MouseEvent) => {
-            if (e.button === 1) {
+                console.log('[CodeTab] Global Middle Click Captured!', e.target);
                 e.preventDefault();
                 e.stopPropagation();
                 e.stopImmediatePropagation();
             }
-        }
+        };
 
-        window.addEventListener('mousedown', handleMouseDown, { capture: true });
-        window.addEventListener('mousemove', handleMouseMove, { capture: true });
-        window.addEventListener('mouseup', handleMouseUp, { capture: true });
-        window.addEventListener('auxclick', handleAuxClick, { capture: true });
-        window.addEventListener('contextmenu', handleContextMenu, { capture: true });
+        window.addEventListener('mousedown', handleGlobalMiddleClick, { capture: true });
+        window.addEventListener('auxclick', handleGlobalMiddleClick, { capture: true });
+        window.addEventListener('mouseup', handleGlobalMiddleClick, { capture: true });
 
         return () => {
-            window.removeEventListener('mousedown', handleMouseDown, { capture: true });
-            window.removeEventListener('mousemove', handleMouseMove, { capture: true });
-            window.removeEventListener('mouseup', handleMouseUp, { capture: true });
-            window.removeEventListener('auxclick', handleAuxClick, { capture: true });
-            window.removeEventListener('contextmenu', handleContextMenu, { capture: true });
+            window.removeEventListener('mousedown', handleGlobalMiddleClick, { capture: true });
+            window.removeEventListener('auxclick', handleGlobalMiddleClick, { capture: true });
+            window.removeEventListener('mouseup', handleGlobalMiddleClick, { capture: true });
         }
     }, []);
 
