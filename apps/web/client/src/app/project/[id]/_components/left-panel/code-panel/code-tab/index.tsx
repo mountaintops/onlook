@@ -239,6 +239,7 @@ export const CodeTab = memo(forwardRef<CodeTabRef, CodeTabProps>(({ projectId, b
                 top: editorView.scrollDOM.scrollTop,
                 left: editorView.scrollDOM.scrollLeft
             } : null;
+            const selection = editorView ? editorView.state.selection : null;
 
             await saveFileWithHash(selectedFilePath, activeEditorFile);
 
@@ -268,18 +269,44 @@ export const CodeTab = memo(forwardRef<CodeTabRef, CodeTabProps>(({ projectId, b
                 setActiveEditorFile(formattedFile);
 
                 // Restore scroll position after content update with multiple attempts to ensure it sticks
-                if (scrollPos && editorView) {
-                    const restoreScroll = () => {
-                        editorView.scrollDOM.scrollTop = scrollPos.top;
-                        editorView.scrollDOM.scrollLeft = scrollPos.left;
+                if (editorView) {
+                    const restoreView = () => {
+                        if (scrollPos) {
+                            editorView.scrollDOM.scrollTop = scrollPos.top;
+                            editorView.scrollDOM.scrollLeft = scrollPos.left;
+                        }
+                        if (selection) {
+                            try {
+                                // Map selection to new document length to prevent out of bounds
+                                const newDocLength = editorView.state.doc.length;
+                                const safeSelection = selection.map(range => {
+                                    return range.toJSON();
+                                });
+                                // Create a new selection state that is safe for the new document
+                                const newSelection = editorView.state.selection.constructor.create(
+                                    safeSelection.ranges.map((r: any) => ({
+                                        anchor: Math.min(r.anchor, newDocLength),
+                                        head: Math.min(r.head, newDocLength)
+                                    })),
+                                    selection.mainIndex
+                                );
+
+                                editorView.dispatch({
+                                    selection: newSelection,
+                                    userEvent: 'select'
+                                });
+                            } catch (e) {
+                                console.warn('Failed to restore selection', e);
+                            }
+                        }
                     };
 
                     // Use multiple RAF cycles to ensure the scroll is applied after all reflows
                     requestAnimationFrame(() => {
                         requestAnimationFrame(() => {
-                            restoreScroll();
+                            restoreView();
                             // One more check after a short delay to handle any final adjustments
-                            setTimeout(restoreScroll, 10);
+                            setTimeout(restoreView, 10);
                         });
                     });
                 }

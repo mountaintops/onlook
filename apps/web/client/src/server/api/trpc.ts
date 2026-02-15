@@ -36,7 +36,12 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
     } = await supabase.auth.getUser();
 
     if (error) {
+        console.error('createTRPCContext: Error getting user', error);
         throw new TRPCError({ code: 'UNAUTHORIZED', message: error.message });
+    }
+
+    if (!user) {
+        console.log('createTRPCContext: User not found');
     }
 
     return {

@@ -22,11 +22,11 @@ export async function checkUserSubscriptionAccess(
 
     const legacySubscription = userEmail
         ? await db.query.legacySubscriptions.findFirst({
-              where: and(
-                  eq(legacySubscriptions.email, userEmail),
-                  isNull(legacySubscriptions.redeemAt),
-              ),
-          })
+            where: and(
+                eq(legacySubscriptions.email, userEmail),
+                isNull(legacySubscriptions.redeemAt),
+            ),
+        })
         : null;
 
     return {

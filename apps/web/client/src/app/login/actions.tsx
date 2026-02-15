@@ -38,6 +38,7 @@ export async function login(provider: SignInMethod.GITHUB | SignInMethod.GOOGLE)
 }
 
 export async function devLogin() {
+    console.log('Attempting dev login');
     if (env.NODE_ENV !== 'development') {
         throw new Error('Dev login is only available in development mode');
     }
@@ -46,6 +47,7 @@ export async function devLogin() {
     const { data: { session } } = await supabase.auth.getSession();
 
     if (session) {
+        console.log('Dev login: Session already exists, redirecting');
         redirect(Routes.AUTH_REDIRECT);
     }
 
@@ -63,5 +65,9 @@ export async function devLogin() {
         }
         throw new Error(error.message);
     }
+    console.log('Dev login successful, connection data:', {
+        hasSession: !!data.session,
+        hasUser: !!data.user
+    });
     redirect(Routes.AUTH_REDIRECT);
 }
