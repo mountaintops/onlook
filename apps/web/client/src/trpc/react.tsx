@@ -3,8 +3,8 @@
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { createTRPCReact } from '@trpc/react-query';
 import { type inferRouterInputs, type inferRouterOutputs } from '@trpc/server';
-import { useState } from 'react';
-import { type AppRouter } from '~/server/api/root';
+import { createContext, useState } from 'react';
+import { type AppRouter } from '@/server/api/root';
 import { links } from './helpers';
 import { createQueryClient } from './query-client';
 
@@ -20,7 +20,17 @@ const getQueryClient = () => {
     return clientQueryClientSingleton;
 };
 
-export const api = createTRPCReact<AppRouter>();
+const getTRPCContext = () => {
+    const globalContext = globalThis as any;
+    if (!globalContext.__TRPC_CONTEXT__) {
+        globalContext.__TRPC_CONTEXT__ = createContext<any>(null);
+    }
+    return globalContext.__TRPC_CONTEXT__;
+};
+
+export const api = createTRPCReact<AppRouter>({
+    context: getTRPCContext(),
+});
 
 /**
  * Inference helper for inputs.

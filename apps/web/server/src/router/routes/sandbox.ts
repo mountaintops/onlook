@@ -1,38 +1,30 @@
 import { z } from 'zod';
+import * as sandbox from '../../sandbox';
 import { publicProcedure, router } from '../trpc';
 
 export const sandboxRouter = router({
     create: publicProcedure
-        .input(z.string())
+        .input(z.object({ sandboxId: z.string() }))
         .mutation(({ input }) => {
-            return `hi ${input}`;
+            return sandbox.start(input.sandboxId);
         }),
 
     start: publicProcedure
-        .input(z.string())
+        .input(z.object({ sandboxId: z.string() }))
         .mutation(({ input }) => {
-            return `hi ${input}`;
+            return sandbox.start(input.sandboxId);
         }),
 
     stop: publicProcedure
-        .input(z.string())
+        .input(z.object({ sandboxId: z.string() }))
         .mutation(({ input }) => {
-            return {
-                success: true,
-                message: `Sandbox ${input} stopped`,
-                timestamp: new Date().toISOString(),
-            };
+            return sandbox.stop(input.sandboxId);
         }),
 
     status: publicProcedure
-        .input(z.string())
+        .input(z.object({ sandboxId: z.string() }))
         .query(({ input }) => {
-            return {
-                id: input,
-                status: 'running',
-                details: { cpu: '5%', memory: '120MB' },
-                uptime: 1200,
-            };
+            return sandbox.status(input.sandboxId);
         }),
 
 });

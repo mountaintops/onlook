@@ -112,9 +112,16 @@ export class CodesandboxProvider extends Provider {
                     getSession: async (id) =>
                         (await this.options.getSession?.(id, this.options.userId)) || null,
                 });
-                this._client.keepActiveWhileConnected(
-                    this.options.keepActiveWhileConnected ?? true,
-                );
+                    try {
+                        this._client.keepActiveWhileConnected(
+                            this.options.keepActiveWhileConnected ?? true,
+                        );
+                    } catch (error) {
+                        console.warn(
+                            '[CodesandboxProvider] Failed to set keepActiveWhileConnected:',
+                            error,
+                        );
+                    }
             }
         } else {
             // backend path, use environment variables
@@ -410,9 +417,28 @@ export class CodesandboxProvider extends Provider {
         if (!this.sandbox) {
             throw new Error('Client not initialized');
         }
-        return this.sandbox.createBrowserSession({
+        const session = await this.sandbox.createBrowserSession({
             id: input.args.id,
         });
+
+        try {
+            // Generate a signed preview URL to bypass the security gateway
+            // This uses the host token API which can automatically authorize the browser
+            const sdk = new CodeSandbox();
+            if (this.options.sandboxId) {
+                const hostToken = await sdk.hosts.createToken(this.options.sandboxId);
+                const signedPreviewUrl = sdk.hosts.getUrl(hostToken, 3000);
+
+                return {
+                    ...session,
+                    signedPreviewUrl,
+                };
+            }
+            return session;
+        } catch (error) {
+            console.warn('[CodesandboxProvider] Failed to generate signed preview URL:', error);
+            return session;
+        }
     }
 }
 

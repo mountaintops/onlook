@@ -1,3 +1,4 @@
+'use client';
 import { useEditorEngine } from '@/components/store/editor';
 import { useHostingType } from '@/components/store/hosting';
 import { useStateManager } from '@/components/store/state';

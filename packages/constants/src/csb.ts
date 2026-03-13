@@ -20,5 +20,5 @@ export const CSB_PREVIEW_TASK_NAME = 'dev';
 export const CSB_DOMAIN = 'csb.app';
 
 export function getSandboxPreviewUrl(sandboxId: string, port: number) {
-    return `https://${sandboxId}-${port}.${CSB_DOMAIN}`;
+    return `https://${sandboxId}-${port}.${CSB_DOMAIN}?v=1&wait=1&preview=1&from-embed=1&standalone=1&run=1`;
 }

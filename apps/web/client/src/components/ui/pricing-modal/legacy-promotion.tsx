@@ -3,7 +3,7 @@ import { Icons } from "@onlook/ui/icons/index";
 import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
 import { toast } from "sonner";
-import { api } from "~/trpc/react";
+import { api } from "@/trpc/react";
 
 export const LegacyPromotion = () => {
     const { data: legacySubscriptions } = api.subscription.getLegacySubscriptions.useQuery();

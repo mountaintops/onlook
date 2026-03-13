@@ -142,6 +142,7 @@ export const FrameComponent = observer(
                         }, penpalTimeoutMs);
                     });
 
+                    console.log(`${PENPAL_PARENT_CHANNEL} (${frame.id}) - Handshake starting...`);
                     // Race the connection promise against the timeout
                     Promise.race([connection.promise, timeoutPromise])
                         .then((child) => {
@@ -200,52 +201,67 @@ export const FrameComponent = observer(
             };
 
             const remoteMethods = useMemo((): PromisifiedPendpalChildMethods => {
-                if (!penpalChild) {
-                    return createSafeFallbackMethods();
-                }
+                const promisify = <K extends keyof PromisifiedPendpalChildMethods>(
+                    key: K,
+                ): PromisifiedPendpalChildMethods[K] => {
+                    return (async (...args: any[]) => {
+                        try {
+                            if (penpalChild && (penpalChild as any)[key]) {
+                                return (penpalChild as any)[key](...args);
+                            }
+                            const fallback = createSafeFallbackMethods();
+                            return (fallback as any)[key](...args);
+                        } catch (error) {
+                            console.error(
+                                `${PENPAL_PARENT_CHANNEL} (${frame.id}) - Method ${key} failed:`,
+                                error,
+                            );
+                        }
+                    }) as unknown as PromisifiedPendpalChildMethods[K];
+                };
 
                 return {
-                    processDom: promisifyMethod(penpalChild?.processDom),
-                    getElementAtLoc: promisifyMethod(penpalChild?.getElementAtLoc),
-                    getElementByDomId: promisifyMethod(penpalChild?.getElementByDomId),
-                    setFrameId: promisifyMethod(penpalChild?.setFrameId),
-                    setBranchId: promisifyMethod(penpalChild?.setBranchId),
-                    getElementIndex: promisifyMethod(penpalChild?.getElementIndex),
-                    getComputedStyleByDomId: promisifyMethod(penpalChild?.getComputedStyleByDomId),
-                    updateElementInstance: promisifyMethod(penpalChild?.updateElementInstance),
-                    getFirstOnlookElement: promisifyMethod(penpalChild?.getFirstOnlookElement),
-                    setElementType: promisifyMethod(penpalChild?.setElementType),
-                    getElementType: promisifyMethod(penpalChild?.getElementType),
-                    getParentElement: promisifyMethod(penpalChild?.getParentElement),
-                    getChildrenCount: promisifyMethod(penpalChild?.getChildrenCount),
-                    getOffsetParent: promisifyMethod(penpalChild?.getOffsetParent),
-                    getActionLocation: promisifyMethod(penpalChild?.getActionLocation),
-                    getActionElement: promisifyMethod(penpalChild?.getActionElement),
-                    getInsertLocation: promisifyMethod(penpalChild?.getInsertLocation),
-                    getRemoveAction: promisifyMethod(penpalChild?.getRemoveAction),
-                    getTheme: promisifyMethod(penpalChild?.getTheme),
-                    setTheme: promisifyMethod(penpalChild?.setTheme),
-                    startDrag: promisifyMethod(penpalChild?.startDrag),
-                    drag: promisifyMethod(penpalChild?.drag),
-                    dragAbsolute: promisifyMethod(penpalChild?.dragAbsolute),
-                    endDragAbsolute: promisifyMethod(penpalChild?.endDragAbsolute),
-                    endDrag: promisifyMethod(penpalChild?.endDrag),
-                    endAllDrag: promisifyMethod(penpalChild?.endAllDrag),
-                    startEditingText: promisifyMethod(penpalChild?.startEditingText),
-                    editText: promisifyMethod(penpalChild?.editText),
-                    stopEditingText: promisifyMethod(penpalChild?.stopEditingText),
-                    updateStyle: promisifyMethod(penpalChild?.updateStyle),
-                    insertElement: promisifyMethod(penpalChild?.insertElement),
-                    removeElement: promisifyMethod(penpalChild?.removeElement),
-                    moveElement: promisifyMethod(penpalChild?.moveElement),
-                    groupElements: promisifyMethod(penpalChild?.groupElements),
-                    ungroupElements: promisifyMethod(penpalChild?.ungroupElements),
-                    insertImage: promisifyMethod(penpalChild?.insertImage),
-                    removeImage: promisifyMethod(penpalChild?.removeImage),
-                    isChildTextEditable: promisifyMethod(penpalChild?.isChildTextEditable),
-                    handleBodyReady: promisifyMethod(penpalChild?.handleBodyReady),
-                    captureScreenshot: promisifyMethod(penpalChild?.captureScreenshot),
-                    buildLayerTree: promisifyMethod(penpalChild?.buildLayerTree),
+                    processDom: promisify('processDom'),
+                    getElementAtLoc: promisify('getElementAtLoc'),
+                    getElementByDomId: promisify('getElementByDomId'),
+                    setFrameId: promisify('setFrameId'),
+                    setBranchId: promisify('setBranchId'),
+                    getElementIndex: promisify('getElementIndex'),
+                    getComputedStyleByDomId: promisify('getComputedStyleByDomId'),
+                    updateElementInstance: promisify('updateElementInstance'),
+                    getFirstOnlookElement: promisify('getFirstOnlookElement'),
+                    setElementType: promisify('setElementType'),
+                    getElementType: promisify('getElementType'),
+                    getParentElement: promisify('getParentElement'),
+                    getChildrenCount: promisify('getChildrenCount'),
+                    getOffsetParent: promisify('getOffsetParent'),
+                    getActionLocation: promisify('getActionLocation'),
+                    getActionElement: promisify('getActionElement'),
+                    getInsertLocation: promisify('getInsertLocation'),
+                    getRemoveAction: promisify('getRemoveAction'),
+                    getTheme: promisify('getTheme'),
+                    setTheme: promisify('setTheme'),
+                    startDrag: promisify('startDrag'),
+                    drag: promisify('drag'),
+                    dragAbsolute: promisify('dragAbsolute'),
+                    endDragAbsolute: promisify('endDragAbsolute'),
+                    endDrag: promisify('endDrag'),
+                    endAllDrag: promisify('endAllDrag'),
+                    startEditingText: promisify('startEditingText'),
+                    editText: promisify('editText'),
+                    stopEditingText: promisify('stopEditingText'),
+                    updateStyle: promisify('updateStyle'),
+                    insertElement: promisify('insertElement'),
+                    removeElement: promisify('removeElement'),
+                    moveElement: promisify('moveElement'),
+                    groupElements: promisify('groupElements'),
+                    ungroupElements: promisify('ungroupElements'),
+                    insertImage: promisify('insertImage'),
+                    removeImage: promisify('removeImage'),
+                    isChildTextEditable: promisify('isChildTextEditable'),
+                    handleBodyReady: promisify('handleBodyReady'),
+                    captureScreenshot: promisify('captureScreenshot'),
+                    buildLayerTree: promisify('buildLayerTree'),
                 };
             }, [penpalChild]);
 
@@ -317,7 +333,36 @@ export const FrameComponent = observer(
                             isActiveBranch && !isSelected && 'outline-dashed',
                             !isActiveBranch && isInDragSelection && 'outline-teal-500',
                         )}
-                        src={frame.url}
+                        src={useMemo(() => {
+                            if (frame.url.includes('csb.app')) {
+                                // Prefer the signed URL if available from the session, as it bypasses the security gateway
+                                const sandbox = editorEngine.branches.getSandboxById(frame.branchId);
+                                if (sandbox?.session.signedPreviewUrl) {
+                                    return sandbox.session.signedPreviewUrl;
+                                }
+
+                                try {
+                                    const url = new URL(frame.url);
+                                    url.searchParams.set('v', '1');
+                                    url.searchParams.set('wait', '1');
+                                    url.searchParams.set('preview', '1');
+                                    url.searchParams.set('from-embed', '1');
+                                    url.searchParams.set('standalone', '1');
+                                    url.searchParams.set('run', '1');
+                                    return url.toString();
+                                } catch (e) {
+                                    let newUrl = frame.url;
+                                    const params = ['v=1', 'wait=1', 'preview=1', 'from-embed=1', 'standalone=1', 'run=1'];
+                                    for (const param of params) {
+                                        if (!newUrl.includes(param)) {
+                                            newUrl += (newUrl.includes('?') ? '&' : '?') + param;
+                                        }
+                                    }
+                                    return newUrl;
+                                }
+                            }
+                            return frame.url;
+                        }, [frame.url, editorEngine.branches.getSandboxById(frame.branchId)?.session.signedPreviewUrl])}
                         sandbox="allow-modals allow-forms allow-same-origin allow-scripts allow-popups allow-downloads"
                         allow="geolocation; microphone; camera; midi; encrypted-media"
                         style={{ width: frame.dimension.width, height: frame.dimension.height }}

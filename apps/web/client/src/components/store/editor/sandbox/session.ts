@@ -10,6 +10,7 @@ export class SessionManager {
     isConnecting = false;
     terminalSessions = new Map<string, CLISession>();
     activeTerminalSessionId = 'cli';
+    signedPreviewUrl: string | null = null;
 
     constructor(
         private readonly branch: Branch,
@@ -35,8 +36,13 @@ export class SessionManager {
                         sandboxId,
                         userId,
                         initClient: true,
+                        keepActiveWhileConnected: false,
                         getSession: async (sandboxId, userId) => {
-                            return api.sandbox.start.mutate({ sandboxId });
+                            const session = await api.sandbox.start.mutate({ sandboxId });
+                            if (session.signedPreviewUrl) {
+                                this.signedPreviewUrl = session.signedPreviewUrl;
+                            }
+                            return session;
                         },
                     },
                 },
@@ -148,7 +154,9 @@ export class SessionManager {
     async reconnect(sandboxId: string, userId?: string) {
         try {
             if (!this.provider) {
-                console.error('No provider found in reconnect');
+                if (!this.isConnecting) {
+                    console.error('No provider found in reconnect');
+                }
                 return;
             }
 
@@ -196,6 +204,7 @@ export class SessionManager {
         command: string,
         streamCallback?: (output: string) => void,
         ignoreError: boolean = false,
+        retryCount = 0,
     ): Promise<{
         output: string;
         success: boolean;
@@ -218,11 +227,28 @@ export class SessionManager {
                 error: null,
             };
         } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+
+            // Handle "Shell does not exist" error by attempting to reconnect
+            if (errorMessage.includes('Shell with id') && errorMessage.includes('does not exist') && retryCount < 1) {
+                console.warn(`[SessionManager] Shell expired, attempting to reconnect... (retry ${retryCount + 1})`);
+
+                try {
+                    // Attempt to reconnect/restart provider to get a fresh shell
+                    await this.reconnect(this.branch.sandbox.id);
+
+                    // Retry the command once with fresh session
+                    return this.runCommand(command, streamCallback, ignoreError, retryCount + 1);
+                } catch (reconnectError) {
+                    console.error('[SessionManager] Failed to reconnect after shell expiry:', reconnectError);
+                }
+            }
+
             console.error('Error running command:', error);
             return {
                 output: '',
                 success: false,
-                error: error instanceof Error ? error.message : 'Unknown error occurred',
+                error: errorMessage,
             };
         }
     }

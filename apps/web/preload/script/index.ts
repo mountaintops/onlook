@@ -31,6 +31,7 @@ const findOnlookParent = (): Window => {
     }
 
     // Final fallback
+    console.log(`${PENPAL_CHILD_CHANNEL} - Using window.parent as final fallback`);
     return window.parent;
 };
 
@@ -62,13 +63,13 @@ const createMessageConnection = async () => {
         }
         const remote = parent as unknown as PromisifiedPenpalParentMethods;
         penpalParent = remote;
-        console.log(`${PENPAL_CHILD_CHANNEL} - Penpal connection set`);
+        console.log(`${PENPAL_CHILD_CHANNEL} - Penpal connection set successfully!`);
     }).finally(() => {
         isConnecting = false;
     });
 
     connection.promise.catch((error) => {
-        console.error(`${PENPAL_CHILD_CHANNEL} - Failed to setup penpal connection:`, error);
+        console.error(`${PENPAL_CHILD_CHANNEL} - Failed to setup penpal connection error:`, error);
         reconnect();
     });
 
