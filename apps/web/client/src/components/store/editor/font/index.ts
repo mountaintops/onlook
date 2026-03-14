@@ -112,6 +112,11 @@ export class FontManager {
                 // Load the new font in the search manager
                 await this.fontSearchManager.loadFontFromBatch([font]);
 
+                // Reload all views after a delay to ensure the font is applied
+                setTimeout(async () => {
+                    await this.editorEngine.frames.reloadAllWithProgress('Activating new font...');
+                }, 500);
+
                 return true;
             }
             return false;
@@ -173,7 +178,7 @@ export class FontManager {
             await this.editorEngine.fileSystem.writeFile(codeDiff.path, codeDiff.generated);
             // Reload all views after a delay to ensure the font is applied
             setTimeout(async () => {
-                await this.editorEngine.frames.reloadAllViews();
+                await this.editorEngine.frames.reloadAllWithProgress('Setting default font...');
             }, 500);
             return true;
         } catch (error) {
@@ -196,7 +201,7 @@ export class FontManager {
 
                 // Reload all views after a delay
                 setTimeout(async () => {
-                    await this.editorEngine.frames.reloadAllViews();
+                    await this.editorEngine.frames.reloadAllWithProgress('Clearing default font...');
                 }, 500);
 
                 return true;
@@ -249,6 +254,13 @@ export class FontManager {
                 );
             }
 
+            if (result.success) {
+                // Reload all views after a delay
+                setTimeout(async () => {
+                    await this.editorEngine.frames.reloadAllWithProgress('Activating uploaded fonts...');
+                }, 500);
+            }
+ 
             return result.success;
         } catch (error) {
             console.error('Error uploading fonts:', error);

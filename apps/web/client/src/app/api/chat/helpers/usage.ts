@@ -11,7 +11,8 @@ export const checkMessageLimit = async (req: NextRequest): Promise<{
     const usage = await api.usage.get();
 
     const dailyUsage = usage.daily;
-    const dailyExceeded = dailyUsage.usageCount >= dailyUsage.limitCount;
+    const isDailyUnlimited = dailyUsage.limitCount >= 99999;
+    const dailyExceeded = !isDailyUnlimited && dailyUsage.limitCount > 0 && dailyUsage.usageCount >= dailyUsage.limitCount;
     if (dailyExceeded) {
         return {
             exceeded: true,
@@ -20,7 +21,8 @@ export const checkMessageLimit = async (req: NextRequest): Promise<{
     }
 
     const monthlyUsage = usage.monthly;
-    const monthlyExceeded = monthlyUsage.usageCount >= monthlyUsage.limitCount;
+    const isMonthlyUnlimited = monthlyUsage.limitCount >= 99999;
+    const monthlyExceeded = !isMonthlyUnlimited && monthlyUsage.limitCount > 0 && monthlyUsage.usageCount >= monthlyUsage.limitCount;
     if (monthlyExceeded) {
         return {
             exceeded: true,

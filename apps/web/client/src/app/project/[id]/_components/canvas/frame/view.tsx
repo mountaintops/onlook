@@ -13,6 +13,8 @@ import type {
 } from '@onlook/penpal';
 import { PENPAL_PARENT_CHANNEL } from '@onlook/penpal';
 import { WebPreview, WebPreviewBody } from '@onlook/ui/ai-elements';
+import { Icons } from '@onlook/ui/icons';
+import { ProgressWithInterval } from '@onlook/ui/progress-with-interval';
 import { cn } from '@onlook/ui/utils';
 
 import { useEditorEngine } from '@/components/store/editor';
@@ -104,6 +106,7 @@ export const FrameComponent = observer(
                     if (connectionRef.current) {
                         connectionRef.current.destroy();
                         connectionRef.current = null;
+                        setPenpalChild(null);
                     }
 
                     const messenger = new WindowMessenger({
@@ -183,6 +186,11 @@ export const FrameComponent = observer(
                     onConnectionFailed();
                 }
             };
+ 
+            const handleOnLoad = () => {
+                setupPenpalConnection();
+                editorEngine.frames.reportFrameLoaded();
+            };
 
             const promisifyMethod = <T extends (...args: any[]) => any>(
                 method: T | undefined,
@@ -212,6 +220,11 @@ export const FrameComponent = observer(
                             const fallback = createSafeFallbackMethods();
                             return (fallback as any)[key](...args);
                         } catch (error) {
+                            if (error instanceof Error && error.message.includes('destroyed')) {
+                                console.warn(`${PENPAL_PARENT_CHANNEL} (${frame.id}) - Connection destroyed while calling ${key}, using fallback.`);
+                                const fallback = createSafeFallbackMethods();
+                                return (fallback as any)[key](...args);
+                            }
                             console.error(
                                 `${PENPAL_PARENT_CHANNEL} (${frame.id}) - Method ${key} failed:`,
                                 error,
@@ -366,9 +379,25 @@ export const FrameComponent = observer(
                         sandbox="allow-modals allow-forms allow-same-origin allow-scripts allow-popups allow-downloads"
                         allow="geolocation; microphone; camera; midi; encrypted-media"
                         style={{ width: frame.dimension.width, height: frame.dimension.height }}
-                        onLoad={setupPenpalConnection}
+                        onLoad={handleOnLoad}
                         {...props}
                     />
+                    {editorEngine.frames.isReloading && (
+                        <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center z-50">
+                            <div className="w-full max-w-xs space-y-4">
+                                <Icons.LoadingSpinner className="h-8 w-8 animate-spin mx-auto text-primary" />
+                                <div className="space-y-2">
+                                    <p className="text-sm font-medium text-foreground">
+                                        {editorEngine.frames.loadingMessage || 'Reloading...'}
+                                    </p>
+                                    <ProgressWithInterval
+                                        isLoading={true}
+                                        className="h-1"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </WebPreview>
             );
         },

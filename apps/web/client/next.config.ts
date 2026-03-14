@@ -22,6 +22,16 @@ const nextConfig: NextConfig = {
             },
         ];
     },
+    experimental: {
+        optimizePackageImports: [
+            '@onlook/ui',
+            '@onlook/models',
+            'lucide-react',
+            'date-fns',
+            'recharts',
+            'motion',
+        ],
+    },
 };
 
 if (process.env.NODE_ENV === 'development') {

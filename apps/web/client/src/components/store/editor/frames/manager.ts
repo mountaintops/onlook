@@ -21,6 +21,10 @@ export class FramesManager {
     private _navigation = new FrameNavigationManager();
     private _disposers: Array<() => void> = [];
 
+    isReloading = false;
+    loadingMessage = '';
+    private _loadingFramesCount = 0;
+
     constructor(private editorEngine: EditorEngine) {
         makeAutoObservable(this);
     }
@@ -139,6 +143,25 @@ export class FramesManager {
             return;
         }
         frameData.view.reload();
+    }
+
+    reloadAllWithProgress(message: string) {
+        this.isReloading = true;
+        this.loadingMessage = message;
+        this._loadingFramesCount = this.getAll().length;
+        this.reloadAllViews();
+    }
+
+    reportFrameLoaded() {
+        if (!this.isReloading) {
+            return;
+        }
+
+        this._loadingFramesCount = Math.max(0, this._loadingFramesCount - 1);
+        if (this._loadingFramesCount === 0) {
+            this.isReloading = false;
+            this.loadingMessage = '';
+        }
     }
 
     // Navigation history methods
