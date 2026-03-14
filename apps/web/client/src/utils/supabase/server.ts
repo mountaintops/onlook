@@ -1,6 +1,7 @@
 import { env } from '@/env';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { fetchWithRetry } from './fetch';
 
 export async function createClient() {
     const cookieStore = await cookies();

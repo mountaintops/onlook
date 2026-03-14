@@ -1,5 +1,6 @@
 import { env } from '@/env';
 import { createClient } from '@supabase/supabase-js';
+import { fetchWithRetry } from './fetch';
 
 /**
  * Admin Supabase client with service role key
@@ -14,6 +15,9 @@ export const createAdminClient = () => {
             auth: {
                 autoRefreshToken: false,
                 persistSession: false,
+            },
+            global: {
+                fetch: fetchWithRetry,
             },
         }
     );

@@ -1,6 +1,7 @@
 import { env } from '@/env';
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { fetchWithRetry } from './fetch';
 
 export async function updateSession(request: NextRequest) {
     let supabaseResponse = NextResponse.next({
