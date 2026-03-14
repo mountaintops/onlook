@@ -34,21 +34,23 @@ export class OverlayManager {
         for (const selectedElement of this.editorEngine.elements.selected) {
             const frameData = this.editorEngine.frames.get(selectedElement.frameId);
             if (!frameData) {
-                console.error('Frame data not found');
                 continue;
             }
             const { view } = frameData;
             if (!view) {
-                console.error('No frame view found');
                 continue;
             }
-            const el: DomElement = await view.getElementByDomId(selectedElement.domId, true);
-            if (!el) {
-                console.error('Element not found');
+            try {
+                const el: DomElement | null = await view.getElementByDomId(selectedElement.domId, true);
+                if (!el) {
+                    continue;
+                }
+                const adaptedRect = adaptRectToCanvas(el.rect, view);
+                newClickRects.push({ rect: adaptedRect, styles: el.styles });
+            } catch (e) {
+                console.warn(`Failed to get element ${selectedElement.domId} for overlay:`, e);
                 continue;
             }
-            const adaptedRect = adaptRectToCanvas(el.rect, view);
-            newClickRects.push({ rect: adaptedRect, styles: el.styles });
         }
 
         this.state.removeClickRects();
@@ -60,20 +62,21 @@ export class OverlayManager {
         if (this.editorEngine.text.isEditing && this.editorEngine.text.targetElement) {
             const targetElement = this.editorEngine.text.targetElement;
             const frameData = this.editorEngine.frames.get(targetElement.frameId);
-            if (frameData?.view) {
+            const view = frameData?.view;
+            if (view) {
                 try {
-                    const el: DomElement = await frameData.view.getElementByDomId(
+                    const el: DomElement | null = await view.getElementByDomId(
                         targetElement.domId,
                         true,
                     );
                     if (el) {
-                        const adaptedRect = adaptRectToCanvas(el.rect, frameData.view);
+                        const adaptedRect = adaptRectToCanvas(el.rect, view);
                         this.state.updateTextEditor(adaptedRect, {
                             styles: el.styles?.computed
                         });
                     }
-                } catch {
-                    console.error('Error refreshing text editor position');
+                } catch (e) {
+                    console.warn('Failed to refresh text editor position:', e);
                 }
             }
         }

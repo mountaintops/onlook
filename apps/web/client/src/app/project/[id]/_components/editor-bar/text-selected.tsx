@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { observer } from 'mobx-react-lite';
 import { Border } from './dropdowns/border';
 import { BorderColor } from './dropdowns/border-color';
 import { ColorBackground } from './dropdowns/color-background';
@@ -65,7 +66,7 @@ const MUST_EXTEND_GROUPS = [
     },
 ];
 
-export const TextSelected = ({ availableWidth = 0 }: { availableWidth?: number }) => {
+export const TextSelected = observer(({ availableWidth = 0 }: { availableWidth?: number }) => {
     const { visibleCount } = useMeasureGroup({
         availableWidth,
         count: TEXT_SELECTED_GROUPS.length,
@@ -98,4 +99,4 @@ export const TextSelected = ({ availableWidth = 0 }: { availableWidth?: number }
             />
         </div>
     );
-};
+});

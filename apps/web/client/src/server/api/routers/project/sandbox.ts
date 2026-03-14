@@ -15,10 +15,12 @@ function getProvider({
     sandboxId,
     userId,
     provider = CodeProvider.CodeSandbox,
+    tier,
 }: {
     sandboxId: string;
     provider?: CodeProvider;
     userId?: undefined | string;
+    tier?: string;
 }) {
     if (provider === CodeProvider.CodeSandbox) {
         return createCodeProviderClient(CodeProvider.CodeSandbox, {
@@ -26,6 +28,7 @@ function getProvider({
                 codesandbox: {
                     sandboxId,
                     userId,
+                    tier,
                 },
             },
         });
@@ -58,6 +61,7 @@ export const sandboxRouter = createTRPCRouter({
                 title: input.title || 'Onlook Test Sandbox',
                 description: 'Test sandbox for Onlook sync engine',
                 tags: ['onlook-test'],
+                tier: 'Pico',
             });
 
             return {
@@ -77,6 +81,7 @@ export const sandboxRouter = createTRPCRouter({
             const provider = await getProvider({
                 sandboxId: input.sandboxId,
                 userId,
+                tier: 'Pico',
             });
             const session = await provider.createSession({
                 args: {
@@ -93,7 +98,7 @@ export const sandboxRouter = createTRPCRouter({
             }),
         )
         .mutation(async ({ input }) => {
-            const provider = await getProvider({ sandboxId: input.sandboxId });
+            const provider = await getProvider({ sandboxId: input.sandboxId, tier: 'Pico' });
             try {
                 await provider.pauseProject({});
             } finally {
@@ -101,7 +106,7 @@ export const sandboxRouter = createTRPCRouter({
             }
         }),
     list: protectedProcedure.input(z.object({ sandboxId: z.string() })).query(async ({ input }) => {
-        const provider = await getProvider({ sandboxId: input.sandboxId });
+        const provider = await getProvider({ sandboxId: input.sandboxId, tier: 'Pico' });
         const res = await provider.listProjects({});
         // TODO future iteration of code provider abstraction will need this code to be refactored
         if ('projects' in res) {
@@ -140,6 +145,7 @@ export const sandboxRouter = createTRPCRouter({
                         // Metadata
                         title: input.config?.title,
                         tags: input.config?.tags,
+                        tier: 'Pico',
                     });
 
                     const previewUrl = getSandboxPreviewUrl(sandbox.id, input.sandbox.port);
@@ -172,7 +178,7 @@ export const sandboxRouter = createTRPCRouter({
             }),
         )
         .mutation(async ({ input }) => {
-            const provider = await getProvider({ sandboxId: input.sandboxId });
+            const provider = await getProvider({ sandboxId: input.sandboxId, tier: 'Pico' });
             try {
                 await provider.stopProject({});
             } finally {
@@ -199,6 +205,7 @@ export const sandboxRouter = createTRPCRouter({
                     const sandbox = await CodesandboxProvider.createProjectFromGit({
                         repoUrl: input.repoUrl,
                         branch: input.branch,
+                        tier: 'Pico',
                     });
 
                     const previewUrl = getSandboxPreviewUrl(sandbox.id, DEFAULT_PORT);

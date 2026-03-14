@@ -242,12 +242,12 @@ export class CodeFileSystem extends FileSystem {
     private async undobounceSaveIndexToFile(): Promise<void> {
         try {
             await this.createDirectory(ONLOOK_CACHE_DIRECTORY);
-        } catch {
-            console.warn(`[CodeEditorApi] Failed to create ${ONLOOK_CACHE_DIRECTORY} directory`);
-        }
-        const index = getIndexFromCache(this.getCacheKey());
-        if (index) {
-            await super.writeFile(this.indexPath, JSON.stringify(index));
+            const index = getIndexFromCache(this.getCacheKey());
+            if (index) {
+                await super.writeFile(this.indexPath, JSON.stringify(index));
+            }
+        } catch (error) {
+            console.warn(`[CodeEditorApi] Failed to save index to file:`, error);
         }
     }
 
@@ -268,6 +268,7 @@ export class CodeFileSystem extends FileSystem {
         }
 
         clearIndexCache(cacheKey);
+        super.cleanup();
     }
 
     private getCacheKey(): string {

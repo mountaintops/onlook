@@ -4,6 +4,7 @@ import {
     Sandbox,
     Task,
     Terminal,
+    VMTier,
     WebSocketSession,
     type SandboxBrowserSession,
     type Watcher,
@@ -71,6 +72,7 @@ export interface CodesandboxProviderOptions {
     userId?: string;
     keepActiveWhileConnected?: boolean;
     initClient?: boolean;
+    tier?: string;
     // returns a session object used by codesandbox SDK
     // only populate this property in the browser
     getSession?: (sandboxId: string, userId?: string) => Promise<SandboxBrowserSession | null>;
@@ -127,6 +129,17 @@ export class CodesandboxProvider extends Provider {
             // backend path, use environment variables
             const sdk = new CodeSandbox();
             this.sandbox = await sdk.sandboxes.resume(this.options.sandboxId);
+            try {
+                const tier = this.options.tier
+                    ? VMTier.fromName(this.options.tier as any)
+                    : VMTier.Pico;
+                await this.sandbox.updateTier(tier);
+            } catch (error) {
+                console.warn(
+                    `[CodesandboxProvider] Failed to update VM tier to ${this.options.tier || 'Pico'}:`,
+                    error,
+                );
+            }
             if (this.options.initClient) {
                 this._client = await this.sandbox.connect();
             }
@@ -174,6 +187,7 @@ export class CodesandboxProvider extends Provider {
             title: input.title,
             description: input.description,
             tags: input.tags,
+            vmTier: input.tier ? VMTier.fromName(input.tier as any) : VMTier.Pico,
         });
         return {
             id: newSandbox.id,
@@ -183,6 +197,7 @@ export class CodesandboxProvider extends Provider {
     static async createProjectFromGit(input: {
         repoUrl: string;
         branch: string;
+        tier?: string;
     }): Promise<CreateProjectOutput> {
         const sdk = new CodeSandbox();
         const TIMEOUT_MS = 30000;
@@ -191,6 +206,7 @@ export class CodesandboxProvider extends Provider {
             source: 'git',
             url: input.repoUrl,
             branch: input.branch,
+            vmTier: input.tier ? VMTier.fromName(input.tier as any) : VMTier.Pico,
             async setup(session) {
                 await session.setup.run();
             },

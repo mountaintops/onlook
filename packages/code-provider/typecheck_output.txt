@@ -1,0 +1,53 @@
+$ tsc --noEmit
+../../apps/web/client/src/components/store/editor/api/index.ts(1,21): error TS2307: Cannot find module '@/trpc/client' or its corresponding type declarations.
+../../apps/web/client/src/components/store/editor/branch/manager.ts(1,21): error TS2307: Cannot find module '@/trpc/client' or its corresponding type declarations.
+../../apps/web/client/src/components/store/editor/branch/manager.ts(4,23): error TS6142: Module '@onlook/ui/sonner' was resolved to '/teamspace/studios/this_studio/onlook/packages/ui/src/components/sonner.tsx', but '--jsx' is not set.
+../../apps/web/client/src/components/store/editor/canvas/index.ts(1,21): error TS2307: Cannot find module '@/trpc/client' or its corresponding type declarations.
+../../apps/web/client/src/components/store/editor/chat/conversation.ts(1,21): error TS2307: Cannot find module '@/trpc/client' or its corresponding type declarations.
+../../apps/web/client/src/components/store/editor/chat/index.ts(1,34): error TS2307: Cannot find module '@/app/project/[id]/_hooks/use-chat' or its corresponding type declarations.
+../../apps/web/client/src/components/store/editor/code/index.ts(2,23): error TS6142: Module '@onlook/ui/sonner' was resolved to '/teamspace/studios/this_studio/onlook/packages/ui/src/components/sonner.tsx', but '--jsx' is not set.
+../../apps/web/client/src/components/store/editor/code/index.ts(6,35): error TS2307: Cannot find module '@/components/store/editor/engine' or its corresponding type declarations.
+../../apps/web/client/src/components/store/editor/element/index.ts(3,23): error TS6142: Module '@onlook/ui/sonner' was resolved to '/teamspace/studios/this_studio/onlook/packages/ui/src/components/sonner.tsx', but '--jsx' is not set.
+../../apps/web/client/src/components/store/editor/element/index.ts(187,41): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'Record<CoreElementType, string>'.
+../../apps/web/client/src/components/store/editor/element/index.ts(200,52): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'Record<DynamicType, string>'.
+../../apps/web/client/src/components/store/editor/engine.ts(26,35): error TS6142: Module './screenshot' was resolved to '/teamspace/studios/this_studio/onlook/apps/web/client/src/components/store/editor/screenshot/index.tsx', but '--jsx' is not set.
+../../apps/web/client/src/components/store/editor/frames/manager.ts(1,33): error TS2307: Cannot find module '@/app/project/[id]/_components/canvas/frame/view' or its corresponding type declarations.
+../../apps/web/client/src/components/store/editor/frames/manager.ts(2,21): error TS2307: Cannot find module '@/trpc/client' or its corresponding type declarations.
+../../apps/web/client/src/components/store/editor/git/git.ts(8,77): error TS2307: Cannot find module '@/utils/git' or its corresponding type declarations.
+../../apps/web/client/src/components/store/editor/git/utils.ts(2,23): error TS6142: Module '@onlook/ui/sonner' was resolved to '/teamspace/studios/this_studio/onlook/packages/ui/src/components/sonner.tsx', but '--jsx' is not set.
+../../apps/web/client/src/components/store/editor/group/index.ts(196,71): error TS7006: Parameter 'child' implicitly has an 'any' type.
+../../apps/web/client/src/components/store/editor/insert/index.ts(1,33): error TS2307: Cannot find module '@/app/project/[id]/_components/canvas/frame/view' or its corresponding type declarations.
+../../apps/web/client/src/components/store/editor/overlay/utils.ts(1,33): error TS2307: Cannot find module '@/app/project/[id]/_components/canvas/frame/view' or its corresponding type declarations.
+../../apps/web/client/src/components/store/editor/sandbox/index.ts(1,34): error TS2307: Cannot find module '@/services/sync-engine/sync-engine' or its corresponding type declarations.
+../../apps/web/client/src/components/store/editor/sandbox/session.ts(1,21): error TS2307: Cannot find module '@/trpc/client' or its corresponding type declarations.
+../../apps/web/client/src/components/store/editor/text/index.ts(1,33): error TS2307: Cannot find module '@/app/project/[id]/_components/canvas/frame/view' or its corresponding type declarations.
+../ai/src/contexts/classes/agent-rule.ts(2,23): error TS6142: Module '@onlook/ui/icons' was resolved to '/teamspace/studios/this_studio/onlook/packages/ui/src/components/icons/index.tsx', but '--jsx' is not set.
+../ai/src/contexts/classes/branch.ts(2,23): error TS6142: Module '@onlook/ui/icons' was resolved to '/teamspace/studios/this_studio/onlook/packages/ui/src/components/icons/index.tsx', but '--jsx' is not set.
+../ai/src/contexts/classes/error.ts(2,23): error TS6142: Module '@onlook/ui/icons' was resolved to '/teamspace/studios/this_studio/onlook/packages/ui/src/components/icons/index.tsx', but '--jsx' is not set.
+../ai/src/contexts/classes/file.ts(2,23): error TS6142: Module '@onlook/ui/icons' was resolved to '/teamspace/studios/this_studio/onlook/packages/ui/src/components/icons/index.tsx', but '--jsx' is not set.
+../ai/src/contexts/classes/highlight.ts(2,23): error TS6142: Module '@onlook/ui/icons' was resolved to '/teamspace/studios/this_studio/onlook/packages/ui/src/components/icons/index.tsx', but '--jsx' is not set.
+../ai/src/contexts/classes/image.ts(2,23): error TS6142: Module '@onlook/ui/icons' was resolved to '/teamspace/studios/this_studio/onlook/packages/ui/src/components/icons/index.tsx', but '--jsx' is not set.
+../ai/src/tools/classes/bash-edit.ts(1,23): error TS6142: Module '@onlook/ui/icons' was resolved to '/teamspace/studios/this_studio/onlook/packages/ui/src/components/icons/index.tsx', but '--jsx' is not set.
+../ai/src/tools/classes/bash-read.ts(1,23): error TS6142: Module '@onlook/ui/icons' was resolved to '/teamspace/studios/this_studio/onlook/packages/ui/src/components/icons/index.tsx', but '--jsx' is not set.
+../ai/src/tools/classes/check-errors.ts(2,23): error TS6142: Module '@onlook/ui/icons' was resolved to '/teamspace/studios/this_studio/onlook/packages/ui/src/components/icons/index.tsx', but '--jsx' is not set.
+../ai/src/tools/classes/fuzzy-edit-file.ts(1,23): error TS6142: Module '@onlook/ui/icons' was resolved to '/teamspace/studios/this_studio/onlook/packages/ui/src/components/icons/index.tsx', but '--jsx' is not set.
+../ai/src/tools/classes/glob.ts(1,23): error TS6142: Module '@onlook/ui/icons' was resolved to '/teamspace/studios/this_studio/onlook/packages/ui/src/components/icons/index.tsx', but '--jsx' is not set.
+../ai/src/tools/classes/grep.ts(1,23): error TS6142: Module '@onlook/ui/icons' was resolved to '/teamspace/studios/this_studio/onlook/packages/ui/src/components/icons/index.tsx', but '--jsx' is not set.
+../ai/src/tools/classes/list-branches.ts(2,23): error TS6142: Module '@onlook/ui/icons' was resolved to '/teamspace/studios/this_studio/onlook/packages/ui/src/components/icons/index.tsx', but '--jsx' is not set.
+../ai/src/tools/classes/list-files.ts(1,23): error TS6142: Module '@onlook/ui/icons' was resolved to '/teamspace/studios/this_studio/onlook/packages/ui/src/components/icons/index.tsx', but '--jsx' is not set.
+../ai/src/tools/classes/onlook-instructions.ts(1,23): error TS6142: Module '@onlook/ui/icons' was resolved to '/teamspace/studios/this_studio/onlook/packages/ui/src/components/icons/index.tsx', but '--jsx' is not set.
+../ai/src/tools/classes/read-file.ts(1,23): error TS6142: Module '@onlook/ui/icons' was resolved to '/teamspace/studios/this_studio/onlook/packages/ui/src/components/icons/index.tsx', but '--jsx' is not set.
+../ai/src/tools/classes/read-style-guide.ts(1,23): error TS6142: Module '@onlook/ui/icons' was resolved to '/teamspace/studios/this_studio/onlook/packages/ui/src/components/icons/index.tsx', but '--jsx' is not set.
+../ai/src/tools/classes/sandbox.ts(1,23): error TS6142: Module '@onlook/ui/icons' was resolved to '/teamspace/studios/this_studio/onlook/packages/ui/src/components/icons/index.tsx', but '--jsx' is not set.
+../ai/src/tools/classes/scrape-url.ts(1,23): error TS6142: Module '@onlook/ui/icons' was resolved to '/teamspace/studios/this_studio/onlook/packages/ui/src/components/icons/index.tsx', but '--jsx' is not set.
+../ai/src/tools/classes/search-replace-edit.ts(1,23): error TS6142: Module '@onlook/ui/icons' was resolved to '/teamspace/studios/this_studio/onlook/packages/ui/src/components/icons/index.tsx', but '--jsx' is not set.
+../ai/src/tools/classes/search-replace-multi-edit.ts(1,23): error TS6142: Module '@onlook/ui/icons' was resolved to '/teamspace/studios/this_studio/onlook/packages/ui/src/components/icons/index.tsx', but '--jsx' is not set.
+../ai/src/tools/classes/terminal-command.ts(1,23): error TS6142: Module '@onlook/ui/icons' was resolved to '/teamspace/studios/this_studio/onlook/packages/ui/src/components/icons/index.tsx', but '--jsx' is not set.
+../ai/src/tools/classes/typecheck.ts(1,23): error TS6142: Module '@onlook/ui/icons' was resolved to '/teamspace/studios/this_studio/onlook/packages/ui/src/components/icons/index.tsx', but '--jsx' is not set.
+../ai/src/tools/classes/upload-image.ts(9,23): error TS6142: Module '@onlook/ui/icons' was resolved to '/teamspace/studios/this_studio/onlook/packages/ui/src/components/icons/index.tsx', but '--jsx' is not set.
+../ai/src/tools/classes/web-search.ts(2,23): error TS6142: Module '@onlook/ui/icons' was resolved to '/teamspace/studios/this_studio/onlook/packages/ui/src/components/icons/index.tsx', but '--jsx' is not set.
+../ai/src/tools/classes/write-file.ts(1,23): error TS6142: Module '@onlook/ui/icons' was resolved to '/teamspace/studios/this_studio/onlook/packages/ui/src/components/icons/index.tsx', but '--jsx' is not set.
+../file-system/src/hooks/index.ts(7,23): error TS6142: Module './use-fs' was resolved to '/teamspace/studios/this_studio/onlook/packages/file-system/src/hooks/use-fs.tsx', but '--jsx' is not set.
+../file-system/src/hooks/index.ts(8,34): error TS6142: Module './use-fs' was resolved to '/teamspace/studios/this_studio/onlook/packages/file-system/src/hooks/use-fs.tsx', but '--jsx' is not set.
+../file-system/src/hooks/use-dir.ts(6,23): error TS6142: Module './use-fs' was resolved to '/teamspace/studios/this_studio/onlook/packages/file-system/src/hooks/use-fs.tsx', but '--jsx' is not set.
+../file-system/src/hooks/use-file.ts(5,23): error TS6142: Module './use-fs' was resolved to '/teamspace/studios/this_studio/onlook/packages/file-system/src/hooks/use-fs.tsx', but '--jsx' is not set.

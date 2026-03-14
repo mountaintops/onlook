@@ -112,17 +112,24 @@ export class ActionManager {
                 continue;
             }
 
-            // cloneDeep is used to avoid the issue of observable values can not pass through the webview
-            const domEl = await frameData.view.updateStyle(target.domId, cloneDeep(change));
-            if (!domEl) {
-                console.error('Failed to update style');
+            try {
+                // cloneDeep is used to avoid the issue of observable values can not pass through the webview
+                const domEl = await frameData.view.updateStyle(target.domId, cloneDeep(change));
+                if (!domEl) {
+                    console.error('Failed to update style');
+                    continue;
+                }
+
+                domEls.push(domEl);
+            } catch (e) {
+                console.warn('Failed to update style in iframe:', e);
                 continue;
             }
-
-            domEls.push(domEl);
         }
 
-        this.refreshDomElement(domEls);
+        if (domEls.length > 0) {
+            this.refreshDomElement(domEls);
+        }
     }
 
     debouncedRefreshDomElement(domEls: DomElement[]) {

@@ -4,5 +4,12 @@ import { cssManager } from "./css-manager";
 
 export function updateStyle(domId: string, change: Change<Record<string, StyleChange>>): DomElement | null {
     cssManager.updateStyle(domId, change.updated);
-    return getElementByDomId(domId, true);
+    const domEl = getElementByDomId(domId, true);
+    if (domEl && domEl.styles) {
+        for (const [prop, val] of Object.entries(change.updated)) {
+            domEl.styles.computed[prop] = val.value;
+            domEl.styles.defined[prop] = val.value;
+        }
+    }
+    return domEl;
 }

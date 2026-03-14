@@ -2,34 +2,42 @@
 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@onlook/ui/dropdown-menu';
 import { Icons } from '@onlook/ui/icons';
+import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState } from 'react';
 import { useDropdownControl } from '../../hooks/use-dropdown-manager';
-import { useTextControl } from '../../hooks/use-text-control';
+import { useTextControl } from '../../hooks/use-text-control'; // Added this import
 import { HoverOnlyTooltip } from '../../hover-tooltip';
 import { ToolbarButton } from '../../toolbar-button';
 
 const FONT_SIZES = [12, 14, 16, 18, 20, 24, 30, 36, 48, 60, 72, 96];
 
-export const FontSizeSelector = () => {
-    const inputRef = useRef<HTMLInputElement>(null);
+export const FontSizeSelector = observer(({ onOpenChange: parentOnOpenChange }: { onOpenChange?: (open: boolean) => void }) => {
     const { handleFontSizeChange, textState } = useTextControl();
+    const inputRef = useRef<HTMLInputElement>(null);
     const [inputValue, setInputValue] = useState(textState.fontSize.toString());
 
     const { isOpen, onOpenChange } = useDropdownControl({
         id: 'font-size-dropdown'
     });
 
+    useEffect(() => {
+        if (parentOnOpenChange) {
+            parentOnOpenChange(isOpen);
+        }
+    }, [isOpen, parentOnOpenChange]);
+
     // Update local input value when textState.fontSize changes externally
     useEffect(() => {
         setInputValue(textState.fontSize.toString());
     }, [textState.fontSize]);
 
-    const adjustFontSize = (amount: number) => {
+    const adjustFontSize = (e: React.MouseEvent, amount: number) => {
+        e.stopPropagation(); // Prevent dropdown from potentially closing
         const newSize = Math.max(1, textState.fontSize + amount);
         handleFontSizeChange(newSize);
     };
 
-    const handleInputClick = () => {
+    const handleInputClick = (e: React.MouseEvent) => {
         onOpenChange(true);
         // Use setTimeout to ensure the input is focused after the dropdown opens
         setTimeout(() => {
@@ -70,6 +78,7 @@ export const FontSizeSelector = () => {
             // Reset to current value if invalid
             setInputValue(textState.fontSize.toString());
         }
+        onOpenChange(false);
     };
 
     const handleSizeSelect = (size: number) => {
@@ -141,4 +150,4 @@ export const FontSizeSelector = () => {
             </DropdownMenuContent>
         </DropdownMenu>
     );
-};
+});

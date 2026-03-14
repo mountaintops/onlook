@@ -166,6 +166,7 @@ export interface CreateProjectInput {
     title?: string;
     description?: string;
     tags?: string[];
+    tier?: string;
 }
 export interface CreateProjectOutput {
     id: string;

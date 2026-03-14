@@ -19,6 +19,7 @@ import { BranchDisplay } from './branch';
 import { ModeToggle } from './mode-toggle';
 import { ProjectBreadcrumb } from './project-breadcrumb';
 import { PublishButton } from './publish';
+import { SandboxControls } from './sandbox-controls';
 
 export const TopBar = observer(() => {
     const stateManager = useStateManager();
@@ -114,6 +115,7 @@ export const TopBar = observer(() => {
                         {t(transKeys.editor.toolbar.versionHistory)}
                     </TooltipContent>
                 </Tooltip>
+                <SandboxControls />
                 <PublishButton />
             </div>
         </div>

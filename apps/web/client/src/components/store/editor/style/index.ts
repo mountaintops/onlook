@@ -148,7 +148,11 @@ export class StyleManager {
         for (const [selector, selectedStyle] of this.domIdToStyle.entries()) {
             this.domIdToStyle.set(selector, {
                 ...selectedStyle,
-                styles: { ...selectedStyle.styles, ...styles },
+                styles: {
+                    ...selectedStyle.styles,
+                    defined: { ...selectedStyle.styles.defined, ...(styles as any) },
+                    computed: { ...selectedStyle.styles.computed, ...(styles as any) },
+                },
             });
         }
 
@@ -157,7 +161,11 @@ export class StyleManager {
         }
         this.selectedStyle = {
             ...this.selectedStyle,
-            styles: { ...this.selectedStyle.styles, ...styles },
+            styles: {
+                ...this.selectedStyle.styles,
+                defined: { ...this.selectedStyle.styles.defined, ...(styles as any) },
+                computed: { ...this.selectedStyle.styles.computed, ...(styles as any) },
+            },
         };
     }
 

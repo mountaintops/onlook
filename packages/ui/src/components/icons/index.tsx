@@ -121,6 +121,7 @@ import {
     MessageSquareIcon,
     SquareCheckIcon,
     SquareXIcon,
+    Loader2Icon,
 } from 'lucide-react';
 import { cn } from '../../utils';
 import H1Icon from './header-level-icons/h1Icon';
@@ -341,6 +342,7 @@ export const Icons = {
             <path d="M1 1h22v22H1z" fill="none" />
         </svg>
     ),
+    Spinner: ({ className, ...props }: IconProps) => <Loader2Icon className={className} {...props} />,
     ZedLogo: ({ className, ...props }: IconProps) => (
         <svg
             width="16"

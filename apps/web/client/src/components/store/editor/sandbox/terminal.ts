@@ -92,14 +92,21 @@ export class CLISessionImpl implements CLISession {
             });
 
             this.xterm.onData((data: string) => {
-                terminal.write(data);
+                terminal.write(data).catch((err) => {
+                    console.error('Terminal write failed:', err);
+                });
             });
 
             // Handle terminal resize
             this.xterm.onResize(({ cols, rows }: { cols: number; rows: number }) => {
                 // Check if terminal has resize method
                 if ('resize' in terminal && typeof terminal.resize === 'function') {
-                    terminal.resize(cols, rows);
+                    const resizeResult = terminal.resize(cols, rows);
+                    if (resizeResult instanceof Promise) {
+                        resizeResult.catch((err) => {
+                            console.error('Terminal resize failed:', err);
+                        });
+                    }
                 }
             });
 
@@ -179,7 +186,7 @@ export class CLISessionImpl implements CLISession {
                     terminal.write('\x1b[G'); // Go to beginning of line
 
                     // Extract just the content after the clearing commands
-                    const contentMatch = /\x1b\[G(.+)$/s.exec(data);
+                    const contentMatch = /\x1b\[G([\s\S]+)$/.exec(data);
                     if (contentMatch?.[1]) {
                         return originalWrite(contentMatch[1], callback);
                     }

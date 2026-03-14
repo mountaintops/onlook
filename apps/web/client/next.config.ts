@@ -14,6 +14,14 @@ const nextConfig: NextConfig = {
         // Don't run ESLint during builds - handle it separately in CI
         ignoreDuringBuilds: true,
     },
+    async rewrites() {
+        return [
+            {
+                source: '/__sw__.js',
+                destination: '/assets/empty.js',
+            },
+        ];
+    },
 };
 
 if (process.env.NODE_ENV === 'development') {
