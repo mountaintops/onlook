@@ -33,34 +33,31 @@ export const useTextControl = () => {
     const editorEngine = useEditorEngine();
 
     const getInitialState = (): TextState => {
+        const styles = editorEngine.style.selectedStyle?.styles;
+        const getStyleValue = (key: string, defaultValue: string): string => {
+            const kebabKey = key.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
+            return (
+                styles?.defined[key]?.toString() ??
+                styles?.defined[kebabKey]?.toString() ??
+                styles?.computed[key]?.toString() ??
+                styles?.computed[kebabKey]?.toString() ??
+                defaultValue
+            );
+        };
+
         return {
-            fontFamily: convertFontString(
-                editorEngine.style.selectedStyle?.styles.computed.fontFamily ??
-                DefaultState.fontFamily,
-            ),
-            fontSize: parseInt(
-                editorEngine.style.selectedStyle?.styles.computed.fontSize?.toString() ??
-                DefaultState.fontSize.toString(),
-            ),
-            fontWeight:
-                editorEngine.style.selectedStyle?.styles.computed.fontWeight?.toString() ??
-                DefaultState.fontWeight,
-            textAlign: (editorEngine.style.selectedStyle?.styles.computed.textAlign ??
-                DefaultState.textAlign) as TextAlign,
-            textColor:
-                editorEngine.style.selectedStyle?.styles.computed.color ?? DefaultState.textColor,
-            letterSpacing:
-                editorEngine.style.selectedStyle?.styles.computed.letterSpacing?.toString() ??
-                DefaultState.letterSpacing,
-            capitalization:
-                editorEngine.style.selectedStyle?.styles.computed.textTransform?.toString() ??
-                DefaultState.capitalization,
-            textDecorationLine:
-                editorEngine.style.selectedStyle?.styles.computed.textDecorationLine?.toString() ??
-                DefaultState.textDecorationLine,
-            lineHeight:
-                editorEngine.style.selectedStyle?.styles.computed.lineHeight?.toString() ??
-                DefaultState.lineHeight,
+            fontFamily: convertFontString(getStyleValue('fontFamily', DefaultState.fontFamily)),
+            fontSize: (() => {
+                const size = parseFloat(getStyleValue('fontSize', DefaultState.fontSize.toString()));
+                return isNaN(size) ? DefaultState.fontSize : size;
+            })(),
+            fontWeight: getStyleValue('fontWeight', DefaultState.fontWeight),
+            textAlign: getStyleValue('textAlign', DefaultState.textAlign) as TextAlign,
+            textColor: getStyleValue('color', DefaultState.textColor),
+            letterSpacing: getStyleValue('letterSpacing', DefaultState.letterSpacing),
+            capitalization: getStyleValue('textTransform', DefaultState.capitalization),
+            textDecorationLine: getStyleValue('textDecorationLine', DefaultState.textDecorationLine),
+            lineHeight: getStyleValue('lineHeight', DefaultState.lineHeight),
         };
     };
 

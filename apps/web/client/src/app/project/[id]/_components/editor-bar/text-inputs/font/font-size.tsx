@@ -31,9 +31,9 @@ export const FontSizeSelector = observer(({ onOpenChange: parentOnOpenChange }: 
         setInputValue(textState.fontSize.toString());
     }, [textState.fontSize]);
 
-    const adjustFontSize = (e: React.MouseEvent, amount: number) => {
-        e.stopPropagation(); // Prevent dropdown from potentially closing
-        const newSize = Math.max(1, textState.fontSize + amount);
+    const adjustFontSize = (amount: number) => {
+        const currentSize = typeof textState.fontSize === 'number' ? textState.fontSize : parseFloat(textState.fontSize);
+        const newSize = Math.max(1, Math.round(currentSize || 16) + amount);
         handleFontSizeChange(newSize);
     };
 
@@ -52,7 +52,7 @@ export const FontSizeSelector = observer(({ onOpenChange: parentOnOpenChange }: 
 
     const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter') {
-            const value = parseInt(inputValue);
+            const value = parseFloat(inputValue);
             if (!isNaN(value) && value > 0) {
                 handleFontSizeChange(value);
             } else {
@@ -71,7 +71,7 @@ export const FontSizeSelector = observer(({ onOpenChange: parentOnOpenChange }: 
 
     const handleInputBlur = () => {
         // When input loses focus, validate and apply the value or reset
-        const value = parseInt(inputValue);
+        const value = parseFloat(inputValue);
         if (!isNaN(value) && value > 0) {
             handleFontSizeChange(value);
         } else {
@@ -98,7 +98,10 @@ export const FontSizeSelector = observer(({ onOpenChange: parentOnOpenChange }: 
             >
                 <div className="flex items-center gap-0.5">
                     <ToolbarButton
-                        onClick={() => adjustFontSize(-1)}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            adjustFontSize(-1);
+                        }}
                         className="px-2 min-w-9"
                     >
                         <Icons.Minus className="h-4 w-4" />
@@ -122,7 +125,10 @@ export const FontSizeSelector = observer(({ onOpenChange: parentOnOpenChange }: 
                         </ToolbarButton>
                     </DropdownMenuTrigger>
                     <ToolbarButton
-                        onClick={() => adjustFontSize(1)}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            adjustFontSize(1);
+                        }}
                         className="px-2 min-w-9"
                     >
                         <Icons.Plus className="h-4 w-4" />
