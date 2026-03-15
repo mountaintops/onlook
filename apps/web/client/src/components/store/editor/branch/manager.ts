@@ -1,4 +1,6 @@
 import { api } from '@/trpc/client';
+import { getBranchDocHandle, cloneBranchDoc } from '@/services/automerge/repo';
+import type { DocHandle } from '@automerge/automerge-repo';
 import { CodeFileSystem } from '@onlook/file-system';
 import type { Branch, RouterType } from '@onlook/models';
 import { toast } from '@onlook/ui/sonner';
@@ -9,12 +11,18 @@ import { ErrorManager } from '../error';
 import { HistoryManager } from '../history';
 import { SandboxManager } from '../sandbox';
 
+// Dynamically import Heads to avoid SSR WASM issues
+type Heads = any; 
+
 export interface BranchData {
     branch: Branch;
     sandbox: SandboxManager;
     history: HistoryManager;
     error: ErrorManager;
     codeEditor: CodeFileSystem;
+    automergeHandle?: DocHandle<any>;
+    undoStack: Heads[];
+    redoStack: Heads[];
 }
 
 export class BranchManager {
@@ -22,13 +30,22 @@ export class BranchManager {
     private currentBranchId: string | null = null;
     private branchMap = new Map<string, BranchData>();
     private reactionDisposer: (() => void) | null = null;
+    private automergeLib: any = null;
 
     constructor(editorEngine: EditorEngine) {
         this.editorEngine = editorEngine;
         makeAutoObservable(this);
     }
 
-    async initBranches(branches: Branch[]): Promise<void> {
+    private async getAutomerge() {
+        if (typeof window === 'undefined') return null;
+        if (!this.automergeLib) {
+            this.automergeLib = await import('@automerge/automerge');
+        }
+        return this.automergeLib;
+    }
+
+    initBranches(branches: Branch[]): void {
         this.reactionDisposer?.();
         this.reactionDisposer = null;
         for (const { sandbox, history, error, codeEditor } of this.branchMap.values()) {
@@ -47,17 +64,49 @@ export class BranchManager {
             this.currentBranchId = prev;
         } else {
             this.currentBranchId =
-                branches.find(b => b.isDefault)?.id
-                ?? branches[0]?.id
-                ?? null;
+                branches.find((b) => b.isDefault)?.id ?? branches[0]?.id ?? null;
         }
     }
 
     async init(): Promise<void> {
-        for (const branchData of this.branchMap.values()) {
-            await branchData.codeEditor.initialize();
-            await branchData.sandbox.init();
+        // Find the branch that should be active first
+        const activeBranchId = this.currentBranchId;
+        if (!activeBranchId) return;
+
+        // Initialize active branch first to unblock the UI
+        const activeData = this.branchMap.get(activeBranchId);
+        if (activeData) {
+            console.log(`[BranchManager] Initializing active branch: ${activeBranchId}`);
+            const handle = await getBranchDocHandle(activeBranchId);
+            activeData.automergeHandle = handle;
+            (activeData.codeEditor as any).automergeHandle = handle;
+            await activeData.codeEditor.initialize();
+            
+            // Re-detect router if needed
+            const routerConfig = await activeData.sandbox.getRouterConfig().catch(() => null);
+            if (routerConfig) {
+                (activeData.codeEditor as any).options.routerType = routerConfig.type;
+            }
+
+            // Start sandbox in background
+            void activeData.sandbox.init();
         }
+
+        // Initialize other branches in the background without awaiting them
+        Array.from(this.branchMap.entries()).forEach(async ([branchId, data]) => {
+            if (branchId === activeBranchId) return;
+            
+            try {
+                const handle = await getBranchDocHandle(branchId);
+                data.automergeHandle = handle;
+                (data.codeEditor as any).automergeHandle = handle;
+                await data.codeEditor.initialize();
+                void data.sandbox.init();
+            } catch (e) {
+                console.error(`[BranchManager] Background init failed for branch ${branchId}:`, e);
+            }
+        });
+
         this.setupActiveFrameReaction();
     }
 
@@ -66,24 +115,35 @@ export class BranchManager {
         this.reactionDisposer = reaction(
             () => {
                 const selectedFrames = this.editorEngine.frames.selected;
-                const activeFrame = selectedFrames.length > 0 ? selectedFrames[0] : this.editorEngine.frames.getAll()[0];
+                const activeFrame =
+                    selectedFrames.length > 0
+                        ? selectedFrames[0]
+                        : this.editorEngine.frames.getAll()[0];
                 return activeFrame?.frame?.branchId || null;
             },
             (activeBranchId) => {
-                if (activeBranchId && activeBranchId !== this.currentBranchId && this.branchMap.has(activeBranchId)) {
+                if (
+                    activeBranchId &&
+                    activeBranchId !== this.currentBranchId &&
+                    this.branchMap.has(activeBranchId)
+                ) {
                     this.currentBranchId = activeBranchId;
                 }
-            }
+            },
         );
     }
 
     get activeBranchData(): BranchData {
         if (!this.currentBranchId) {
-            throw new Error('No branch selected. This should not happen after proper initialization.');
+            throw new Error(
+                'No branch selected. This should not happen after proper initialization.',
+            );
         }
         const branchData = this.branchMap.get(this.currentBranchId);
         if (!branchData) {
-            throw new Error(`Branch not found for branch ${this.currentBranchId}. This should not happen after proper initialization.`);
+            throw new Error(
+                `Branch not found for branch ${this.currentBranchId}. This should not happen after proper initialization.`,
+            );
         }
         return branchData;
     }
@@ -108,6 +168,104 @@ export class BranchManager {
         return this.activeBranchData.codeEditor;
     }
 
+    get activeAutomergeHandle(): DocHandle<any> | undefined {
+        return this.activeBranchData.automergeHandle;
+    }
+
+    get canUndo(): boolean {
+        try {
+            return this.activeBranchData.undoStack.length > 0;
+        } catch {
+            return false;
+        }
+    }
+
+    get canRedo(): boolean {
+        try {
+            return this.activeBranchData.redoStack.length > 0;
+        } catch {
+            return false;
+        }
+    }
+
+    async recordChange(): Promise<void> {
+        const handle = this.activeAutomergeHandle;
+        if (!handle) return;
+
+        const automerge = await this.getAutomerge();
+        if (!automerge) return;
+
+        const doc = handle.docSync();
+        if (!doc) return;
+
+        const heads = automerge.getHeads(doc);
+        const data = this.activeBranchData;
+
+        // If stack is empty or heads are different from last recorded, record them
+        const lastHeads = data.undoStack[data.undoStack.length - 1];
+        if (!lastHeads || JSON.stringify(lastHeads) !== JSON.stringify(heads)) {
+            data.undoStack.push(heads);
+            data.redoStack = []; // Clear redo stack on new change
+
+            // Limit stack size to 50
+            if (data.undoStack.length > 50) {
+                data.undoStack.shift();
+            }
+        }
+    }
+
+    async undo(): Promise<void> {
+        const data = this.activeBranchData;
+        if (data.undoStack.length === 0 || !data.automergeHandle) {
+            return;
+        }
+
+        const automerge = await this.getAutomerge();
+        if (!automerge) return;
+
+        const doc = data.automergeHandle.docSync();
+        if (!doc) return;
+
+        const currentHeads = automerge.getHeads(doc);
+        const targetHeads = data.undoStack.pop()!;
+        data.redoStack.push(currentHeads);
+
+        this.applyHeads(targetHeads);
+    }
+
+    async redo(): Promise<void> {
+        const data = this.activeBranchData;
+        if (data.redoStack.length === 0 || !data.automergeHandle) {
+            return;
+        }
+
+        const automerge = await this.getAutomerge();
+        if (!automerge) return;
+
+        const doc = data.automergeHandle.docSync();
+        if (!doc) return;
+
+        const currentHeads = automerge.getHeads(doc);
+        const targetHeads = data.redoStack.pop()!;
+        data.undoStack.push(currentHeads);
+
+        this.applyHeads(targetHeads);
+    }
+
+    private async applyHeads(targetHeads: any): Promise<void> {
+        const handle = this.activeAutomergeHandle;
+        if (!handle) return;
+
+        const automerge = await this.getAutomerge();
+        if (!automerge) return;
+
+        handle.change((doc) => {
+            const currentHeads = automerge.getHeads(doc);
+            const patches = automerge.diff(doc, currentHeads, targetHeads);
+            automerge.applyPatches(doc, patches);
+        });
+    }
+
     async switchToBranch(branchId: string): Promise<void> {
         if (this.currentBranchId === branchId) {
             return;
@@ -127,33 +285,6 @@ export class BranchManager {
         return this.getBranchDataById(branchId)?.sandbox ?? null;
     }
 
-    private createBranchData(branch: Branch, routerType?: RouterType): BranchData {
-        const codeEditorApi = new CodeFileSystem(this.editorEngine.projectId, branch.id, { routerType });
-        const errorManager = new ErrorManager(branch);
-        const sandboxManager = new SandboxManager(branch, this.editorEngine, errorManager, codeEditorApi);
-        const historyManager = new HistoryManager(this.editorEngine);
-
-        const branchData: BranchData = {
-            branch,
-            sandbox: sandboxManager,
-            history: historyManager,
-            error: errorManager,
-            codeEditor: codeEditorApi,
-        };
-
-        this.branchMap.set(branch.id, branchData);
-
-        return branchData;
-    }
-
-    get allBranches(): Branch[] {
-        return Array.from(this.branchMap.values()).map(({ branch }) => branch);
-    }
-
-    async listBranches(): Promise<Branch[]> {
-        return [];
-    }
-
     async forkBranch(branchId: string): Promise<void> {
         if (!branchId) {
             throw new Error('No active branch to fork');
@@ -169,8 +300,14 @@ export class BranchManager {
             // Call the fork API
             const result = await api.branch.fork.mutate({ branchId });
 
-            // Add the new branch to the local branch map
-            const branchData = this.createBranchData(result.branch);
+            // Create branch metadata synchronously
+            const branchData = this.createBranchData(result.branch, undefined);
+            
+            // Load handle asynchronously
+            const handle = await cloneBranchDoc(branchId, result.branch.id);
+            branchData.automergeHandle = handle;
+            (branchData.codeEditor as any).automergeHandle = handle;
+
             await branchData.codeEditor.initialize();
             await branchData.sandbox.init();
 
@@ -195,7 +332,8 @@ export class BranchManager {
             toast.loading('Creating blank sandbox...');
             // Get current active frame for positioning
             const activeFrames = this.editorEngine.frames.selected;
-            const activeFrame = activeFrames.length > 0 ? activeFrames[0] : this.editorEngine.frames.getAll()[0];
+            const activeFrame =
+                activeFrames.length > 0 ? activeFrames[0] : this.editorEngine.frames.getAll()[0];
 
             let framePosition;
             if (activeFrame) {
@@ -226,6 +364,12 @@ export class BranchManager {
 
             // Add the new branch to the local branch map
             const branchData = this.createBranchData(result.branch, routerConfig?.type);
+            
+            // Load handle asynchronously
+            const handle = await getBranchDocHandle(result.branch.id);
+            branchData.automergeHandle = handle;
+            (branchData.codeEditor as any).automergeHandle = handle;
+
             await branchData.codeEditor.initialize();
             await branchData.sandbox.init();
 
@@ -274,7 +418,7 @@ export class BranchManager {
         if (branchData) {
             // Remove all frames associated with this branch
             const framesToRemove = this.editorEngine.frames.getAll().filter(
-                frameState => frameState.frame.branchId === branchId
+                (frameState) => frameState.frame.branchId === branchId,
             );
 
             for (const frameState of framesToRemove) {
@@ -293,11 +437,13 @@ export class BranchManager {
 
             // If this was the current branch, switch to default or first available
             if (this.currentBranchId === branchId) {
-                const remainingBranches = Array.from(this.branchMap.values()).map(({ branch }) => branch);
+                const remainingBranches = Array.from(this.branchMap.values()).map(
+                    ({ branch }) => branch,
+                );
                 this.currentBranchId =
-                    remainingBranches.find(b => b.isDefault)?.id
-                    ?? remainingBranches[0]?.id
-                    ?? null;
+                    remainingBranches.find((b) => b.isDefault)?.id ??
+                    remainingBranches[0]?.id ??
+                    null;
             }
         }
     }
@@ -313,6 +459,46 @@ export class BranchManager {
         }
         this.branchMap.clear();
         this.currentBranchId = null;
+    }
+
+    get allBranches(): Branch[] {
+        return Array.from(this.branchMap.values()).map(({ branch }) => branch);
+    }
+
+    async listBranches(): Promise<Branch[]> {
+        return this.allBranches;
+    }
+
+    private createBranchData(
+        branch: Branch,
+        routerType?: RouterType,
+    ): BranchData {
+        const codeEditorApi = new CodeFileSystem(this.editorEngine.projectId, branch.id, {
+            routerType,
+            // Handle will be set later asynchronously
+        });
+        const errorManager = new ErrorManager(branch);
+        const sandboxManager = new SandboxManager(
+            branch,
+            this.editorEngine,
+            errorManager,
+            codeEditorApi,
+        );
+        const historyManager = new HistoryManager(this.editorEngine);
+
+        const branchData: BranchData = {
+            branch,
+            sandbox: sandboxManager,
+            history: historyManager,
+            error: errorManager,
+            codeEditor: codeEditorApi,
+            undoStack: [],
+            redoStack: [],
+        };
+
+        this.branchMap.set(branch.id, branchData);
+
+        return branchData;
     }
 
     // Helper methods for error management

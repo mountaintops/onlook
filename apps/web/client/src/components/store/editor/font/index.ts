@@ -175,6 +175,7 @@ export class FontManager {
             if (!codeDiff) {
                 return false;
             }
+            this.editorEngine.branches.recordChange();
             await this.editorEngine.fileSystem.writeFile(codeDiff.path, codeDiff.generated);
             // Reload all views after a delay to ensure the font is applied
             setTimeout(async () => {
@@ -248,6 +249,7 @@ export class FontManager {
                 if (!fontConfigPath) {
                     return false;
                 }
+                this.editorEngine.branches.recordChange();
                 await this.editorEngine.fileSystem.writeFile(
                     fontConfigPath,
                     code,

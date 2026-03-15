@@ -1,5 +1,5 @@
 import debounce from 'lodash.debounce';
-
+import type { DocHandle } from '@automerge/automerge-repo';
 import { ONLOOK_CACHE_DIRECTORY, ONLOOK_PRELOAD_SCRIPT_FILE } from '@onlook/constants';
 import { RouterType } from '@onlook/models';
 import {
@@ -26,6 +26,7 @@ export type { JsxElementMetadata } from './index-cache';
 
 export interface CodeEditorOptions {
     routerType?: RouterType;
+    automergeHandle?: DocHandle<any>;
 }
 
 export class CodeFileSystem extends FileSystem {
@@ -33,17 +34,84 @@ export class CodeFileSystem extends FileSystem {
     private branchId: string;
     private options: Required<CodeEditorOptions>;
     private indexPath = `${ONLOOK_CACHE_DIRECTORY}/index.json`;
+    private automergeHandle?: DocHandle<any>;
 
     constructor(projectId: string, branchId: string, options: CodeEditorOptions = {}) {
         super(`/${projectId}/${branchId}`);
         this.projectId = projectId;
         this.branchId = branchId;
+        this.automergeHandle = options.automergeHandle;
         this.options = {
             routerType: options.routerType ?? RouterType.APP,
+            automergeHandle: options.automergeHandle ?? (null as any),
         };
     }
 
+    async initialize(): Promise<void> {
+        await super.initialize();
+
+        if (this.automergeHandle) {
+            // Use AbortController for a 3-second timeout on whenReady()
+            // If it's not ready by then, we proceed with ZenFS as source
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+            try {
+                await this.automergeHandle.whenReady(undefined, { signal: controller.signal });
+                clearTimeout(timeoutId);
+
+                const doc = this.automergeHandle.docSync();
+                if (doc && doc.files && Object.keys(doc.files).length > 0) {
+                    console.log(
+                        `[Automerge] Restoring ${Object.keys(doc.files).length} files from Automerge to ZenFS`,
+                    );
+                    for (const [path, content] of Object.entries(doc.files)) {
+                        try {
+                            const existing = await super.readFile(path);
+                            if (existing !== content) {
+                                await super.writeFile(path, content as string | Uint8Array);
+                            }
+                        } catch (e) {
+                            await super.writeFile(path, content as string | Uint8Array);
+                        }
+                    }
+                } else {
+                    console.log(`[Automerge] Automerge document is empty, populating from ZenFS`);
+                    const entries = await this.listAll();
+                    const filesToPopulate: Record<string, string | Uint8Array> = {};
+                    
+                    for (const entry of entries) {
+                        if (entry.type === 'file') {
+                            const content = await super.readFile(entry.path);
+                            filesToPopulate[entry.path] = content;
+                        }
+                    }
+
+                    if (Object.keys(filesToPopulate).length > 0) {
+                        this.automergeHandle.change((d: any) => {
+                            if (!d.files) d.files = {};
+                            for (const [path, content] of Object.entries(filesToPopulate)) {
+                                d.files[path] = content;
+                            }
+                        });
+                    }
+                }
+            } catch (e: any) {
+                clearTimeout(timeoutId);
+                console.warn(`[Automerge] DocHandle not ready after timeout, skipping Automerge sync`, e.name === 'AbortError' ? '(Timeout)' : e);
+            }
+        }
+    }
+
     async writeFile(path: string, content: string | Uint8Array): Promise<void> {
+        // Update Automerge if handle is available
+        if (this.automergeHandle) {
+            this.automergeHandle.change((d: any) => {
+                if (!d.files) d.files = {};
+                d.files[path] = content;
+            });
+        }
+
         if (this.isJsxFile(path) && typeof content === 'string') {
             const processedContent = await this.processJsxFile(path, content);
             await super.writeFile(path, processedContent);
@@ -53,9 +121,24 @@ export class CodeFileSystem extends FileSystem {
     }
 
     async writeFiles(files: Array<{ path: string; content: string | Uint8Array }>): Promise<void> {
-        // Write files sequentially to avoid race conditions to metadata file
+        // Update Automerge in a single batch
+        if (this.automergeHandle) {
+            this.automergeHandle.change((d: any) => {
+                if (!d.files) d.files = {};
+                for (const { path, content } of files) {
+                    d.files[path] = content;
+                }
+            });
+        }
+
+        // Write files sequentially to ZenFS to avoid race conditions to metadata file
         for (const { path, content } of files) {
-            await this.writeFile(path, content);
+            if (this.isJsxFile(path) && typeof content === 'string') {
+                const processedContent = await this.processJsxFile(path, content);
+                await super.writeFile(path, processedContent);
+            } else {
+                await super.writeFile(path, content);
+            }
         }
     }
 
@@ -191,6 +274,15 @@ export class CodeFileSystem extends FileSystem {
     }
 
     async deleteFile(path: string): Promise<void> {
+        // Update Automerge if handle is available
+        if (this.automergeHandle) {
+            this.automergeHandle.change((d: any) => {
+                if (d.files && d.files[path]) {
+                    delete d.files[path];
+                }
+            });
+        }
+
         await super.deleteFile(path);
 
         if (this.isJsxFile(path)) {
@@ -211,6 +303,16 @@ export class CodeFileSystem extends FileSystem {
     }
 
     async moveFile(oldPath: string, newPath: string): Promise<void> {
+        // Update Automerge if handle is available
+        if (this.automergeHandle) {
+            this.automergeHandle.change((d: any) => {
+                if (d.files && d.files[oldPath]) {
+                    d.files[newPath] = d.files[oldPath];
+                    delete d.files[oldPath];
+                }
+            });
+        }
+
         await super.moveFile(oldPath, newPath);
 
         if (this.isJsxFile(oldPath) && this.isJsxFile(newPath)) {

@@ -43,6 +43,7 @@
         "typescript": "^5.5.4"
     },
     "dependencies": {
+        "@automerge/automerge-repo": "^2.5.3",
         "@zenfs/core": "2.4.0",
         "@zenfs/dom": "1.2.5",
         "lodash.debounce": "^4.0.8"

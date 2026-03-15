@@ -20,6 +20,7 @@ import { EditorBar } from './editor-bar';
 import { LeftPanel } from './left-panel';
 import { RightPanel } from './right-panel';
 import { TopBar } from './top-bar';
+import { VersionControlToolbar } from './version-control-toolbar';
 
 export const Main = observer(() => {
     const router = useRouter();
@@ -123,6 +124,11 @@ export const Main = observer(() => {
                     )}
                 >
                     <RightPanel />
+                </div>
+
+                {/* Version Control Floating Toolbar */}
+                <div className="absolute bottom-16 right-4 z-50">
+                    <VersionControlToolbar />
                 </div>
 
                 <BottomBar />

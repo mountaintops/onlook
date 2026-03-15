@@ -28,11 +28,13 @@ export class CodeManager {
             // TODO: This is a hack to write code, we should refactor this
             if (action.type === 'write-code' && action.diffs[0]) {
                 // Write-code actions don't have branch context, use active editor
+                this.editorEngine.branches.recordChange();
                 await this.editorEngine.fileSystem.writeFile(
                     action.diffs[0].path,
                     action.diffs[0].generated,
                 );
             } else {
+                this.editorEngine.branches.recordChange();
                 const requests = await this.collectRequests(action);
                 await this.writeRequest(requests);
             }

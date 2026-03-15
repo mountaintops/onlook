@@ -245,13 +245,11 @@ export class CodeProviderSync {
             }
         }
 
-        // Write files sequentially to avoid race conditions
-        for (const { path, content } of filesToWrite) {
-            try {
-                await this.fs.writeFile(path, content);
-            } catch (error) {
-                console.error(`[Sync] Failed to write ${path}:`, error);
-            }
+        // Write files in batch to avoid multiple Automerge transactions
+        try {
+            await this.fs.writeFiles(filesToWrite);
+        } catch (error) {
+            console.error(`[Sync] Failed to write files in batch:`, error);
         }
 
         // Store hashes of files so we can skip syncing if the content hasn't changed later.
