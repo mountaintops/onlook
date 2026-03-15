@@ -20,6 +20,7 @@
     "scripts": {
         "build": "bun --filter @onlook/web build:client",
         "start": "bun --filter @onlook/web start:client",
+        "predev": "bun run kill-ports",
         "dev": "bun --filter @onlook/web dev",
         "test": "bun --filter '*' test",
         "docs": "bun --filter @onlook/docs dev",
@@ -40,7 +41,8 @@
         "docker:up": "docker compose up -d",
         "docker:down": "docker compose down",
         "docker:logs": "docker compose logs -f",
-        "docker:restart": "docker compose down && docker compose up -d --build"
+        "docker:restart": "docker compose down && docker compose up -d --build",
+        "kill-ports": "bash scripts/kill-ports.sh"
     },
     "repository": {
         "type": "git",
