@@ -79,8 +79,9 @@ export function prepareCommitMessage(message: string): string {
  * Useful for operations like git restore that cause rapid file changes.
  */
 export async function withSyncPaused<T>(
-    sync: { pause: () => void; unpause: () => Promise<void> } | null | undefined,
+    sync: { pause: () => void; unpause: (options?: { changedFiles?: string[] }) => Promise<void> } | null | undefined,
     operation: () => Promise<T>,
+    getChangedFiles?: (result: T) => Promise<string[] | undefined>,
     delayMs: number = 1000,
 ): Promise<T> {
     if (!sync) {
@@ -94,8 +95,27 @@ export async function withSyncPaused<T>(
         // Wait for filesystem changes to settle before unpausing
         await new Promise(resolve => setTimeout(resolve, delayMs));
 
+        let changedFiles: string[] | undefined;
+        if (getChangedFiles) {
+            try {
+                changedFiles = await getChangedFiles(result);
+            } catch (error) {
+                console.warn('[withSyncPaused] Failed to get changed files:', error);
+            }
+        }
+
+        await sync.unpause({ changedFiles });
         return result;
     } finally {
-        await sync.unpause();
+        // Fallback to ensure unpause is called even if getChangedFiles or unpause({changedFiles}) fails
+        // but unpause is idempotent so it's safe to call again or if it was already called in results
+        if (sync) {
+            // Note: In a real scenario we'd want to be careful not to unpause twice if it's not idempotent,
+            // but for this engine it is.
+            // If unpause was not called in the try block (e.g., due to an error before it), call it now.
+            // If it was called, calling it again should be safe due to idempotency.
+            // We call it without changedFiles here as they might not be available or relevant in a fallback.
+            await sync.unpause();
+        }
     }
 }

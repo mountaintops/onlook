@@ -43,9 +43,15 @@ export class GitManager {
      */
     async isRepoInitialized(): Promise<boolean> {
         try {
-            return (await this.sandbox.fileExists('.git')) || false;
+            // ALWAYS use git rev-parse as the source of truth
+            // .git might exist in the sandbox but be hidden from the file system sync engine
+            const statusResult = await this.runCommand('git rev-parse --is-inside-work-tree', true);
+            if (statusResult.success && statusResult.output.trim() === 'true') {
+                return true;
+            }
+            return false;
         } catch (error) {
-            console.error('Error checking if repository is initialized:', error);
+            console.error('[GitManager] Error checking if repository is initialized:', error);
             return false;
         }
     }
@@ -56,13 +62,13 @@ export class GitManager {
     async ensureGitConfig(): Promise<boolean> {
         try {
             if (!this.sandbox.session) {
-                console.error('No sandbox session available');
+                console.error('[GitManager] No sandbox session available for config');
                 return false;
             }
 
             // Check if user.name is set
-            const nameResult = await this.runCommand('git config user.name');
-            const emailResult = await this.runCommand('git config user.email');
+            const nameResult = await this.runCommand('git config user.name', true);
+            const emailResult = await this.runCommand('git config user.email', true);
 
             const hasName = nameResult.success && nameResult.output.trim();
             const hasEmail = emailResult.success && emailResult.output.trim();
@@ -72,27 +78,29 @@ export class GitManager {
                 return true;
             }
 
+            console.log('[GitManager] Configuring git user for the first time...');
+
             // Set user.name if not configured
             if (!hasName) {
-                const nameConfigResult = await this.runCommand('git config user.name "Onlook"');
+                const nameConfigResult = await this.runCommand('git config --global user.name "Onlook"');
                 if (!nameConfigResult.success) {
-                    console.error('Failed to set git user.name:', nameConfigResult.error);
+                    console.error('[GitManager] Failed to set git user.name:', nameConfigResult.error);
                 }
             }
 
             // Set user.email if not configured
             if (!hasEmail) {
                 const emailConfigResult = await this.runCommand(
-                    `git config user.email "${SUPPORT_EMAIL}"`,
+                    `git config --global user.email "${SUPPORT_EMAIL}"`,
                 );
                 if (!emailConfigResult.success) {
-                    console.error('Failed to set git user.email:', emailConfigResult.error);
+                    console.error('[GitManager] Failed to set git user.email:', emailConfigResult.error);
                 }
             }
 
             return true;
         } catch (error) {
-            console.error('Failed to ensure git config:', error);
+            console.error('[GitManager] Failed to ensure git config:', error);
             return false;
         }
     }
@@ -169,11 +177,20 @@ export class GitManager {
     async commit(message: string): Promise<GitCommandResult> {
         const sanitizedMessage = sanitizeCommitMessage(message);
         const escapedMessage = prepareCommitMessage(sanitizedMessage);
+        
+        console.log(`[GitManager] Attempting to commit: "${sanitizedMessage.substring(0, 50)}..."`);
+        
         const result = await this.runCommand(
             `git commit --allow-empty --no-verify -m ${escapedMessage}`,
         );
+
         if (result.success) {
+            console.log('[GitManager] Commit successful, waiting for filesystem to settle...');
+            // Wait a tiny bit for git state to settle
+            await new Promise((resolve) => setTimeout(resolve, 200));
             await this.listCommits();
+        } else {
+            console.error('[GitManager] Commit failed:', result.error);
         }
         return result;
     }
@@ -205,19 +222,29 @@ export class GitManager {
         let lastError: Error | null = null;
 
         try {
+            // Check if repo exists first to avoid unnecessary errors
+            const isInit = await this.isRepoInitialized();
+            if (!isInit) {
+                console.log('[GitManager] Repo not initialized, skipping listCommits');
+                this.commits = [];
+                return [];
+            }
+
             for (let attempt = 0; attempt <= maxRetries; attempt++) {
                 try {
-                    // Use a more robust format with unique separators and handle multiline messages
+                    // Do NOT use ignoreError: true here, we need the actual error message in result.error
                     const result = await this.runCommand(
                         'git --no-pager log --pretty=format:"COMMIT_START%n%H%n%an <%ae>%n%ad%n%B%nCOMMIT_END" --date=iso',
                     );
 
                     if (result.success && result.output) {
                         const parsedCommits = this.parseGitLog(result.output);
+                        
+                        console.log(`[GitManager] Successfully listed ${parsedCommits.length} commits`);
 
                         // Enhance commits with display names from notes
                         if (parsedCommits.length > 0) {
-                            const enhancedCommits = await Promise.all(
+            const enhancedCommits = await Promise.all(
                                 parsedCommits.map(async (commit) => {
                                     const displayName = await this.getCommitNote(commit.oid);
                                     return {
@@ -234,13 +261,21 @@ export class GitManager {
                         return parsedCommits;
                     }
 
-                    // If git command failed but didn't throw, treat as error for retry logic
+                    // If it's a new repo with no commits, this is expected
+                    const errorStr = result.error || '';
+                    if (errorStr.includes('does not have any commits yet') || 
+                        errorStr.includes('fatal: bad default revision \'HEAD\'')) {
+                        console.log('[GitManager] Repository is empty (no commits yet)');
+                        this.commits = [];
+                        return [];
+                    }
+
+                    console.warn(`[GitManager] listCommits failed (attempt ${attempt + 1}):`, result.error);
                     lastError = new Error(`Git command failed: ${result.error || 'Unknown error'}`);
 
                     if (attempt < maxRetries) {
-                        // Wait before retry with exponential backoff
                         await new Promise((resolve) =>
-                            setTimeout(resolve, Math.pow(2, attempt) * 100),
+                            setTimeout(resolve, Math.pow(2, attempt) * 300),
                         );
                         continue;
                     }
@@ -257,7 +292,7 @@ export class GitManager {
                     if (attempt < maxRetries) {
                         // Wait before retry with exponential backoff
                         await new Promise((resolve) =>
-                            setTimeout(resolve, Math.pow(2, attempt) * 100),
+                            setTimeout(resolve, Math.pow(2, attempt) * 200),
                         );
                         continue;
                     }
@@ -279,9 +314,17 @@ export class GitManager {
      * Checkout/restore to a specific commit - auto-refreshes commits after restore
      */
     async restoreToCommit(commitOid: string): Promise<GitCommandResult> {
-        const result = await withSyncPaused(this.sandbox.syncEngine, () => {
-            return this.runCommand(`git restore --source ${commitOid} .`);
-        });
+        const result = await withSyncPaused(
+            this.sandbox.syncEngine,
+            () => {
+                return this.runCommand(`git restore --source ${commitOid} .`);
+            },
+            async () => {
+                const status = await this.getStatus();
+                return status?.files;
+            },
+            2000, // Increase settle delay for large restores
+        );
 
         if (result.success) {
             await this.listCommits();
@@ -338,13 +381,11 @@ export class GitManager {
         return this.sandbox.session.runCommand(command, undefined, ignoreError);
     }
 
-    /**
-     * Parse git log output into GitCommit objects
-     */
     private parseGitLog(rawOutput: string): GitCommit[] {
         const cleanOutput = this.formatGitLogOutput(rawOutput);
 
         if (!cleanOutput) {
+            console.warn('[GitManager] Empty clean output from git log');
             return [];
         }
 
@@ -353,60 +394,71 @@ export class GitManager {
         // Split by COMMIT_START and COMMIT_END markers
         const commitBlocks = cleanOutput.split('COMMIT_START').filter((block) => block.trim());
 
+        console.log(`[GitManager] Parsing git log: found ${commitBlocks.length} blocks. Raw output length: ${rawOutput.length}`);
+
         for (const block of commitBlocks) {
-            // Remove COMMIT_END if present
-            const cleanBlock = block.replace(/COMMIT_END\s*$/, '').trim();
-            if (!cleanBlock) continue;
-
-            // Split the block into lines
-            const lines = cleanBlock.split('\n');
-
-            if (lines.length < 4) continue; // Need at least hash, author, date, and message
-
-            const hash = lines[0]?.trim();
-            const authorLine = lines[1]?.trim();
-            const dateLine = lines[2]?.trim();
-
-            // Everything from line 3 onwards is the commit message (including empty lines)
-            const messageLines = lines.slice(3);
-            // Join all message lines and trim only leading/trailing whitespace
-            const message = messageLines.join('\n').trim();
-
-            if (!hash || !authorLine || !dateLine) continue;
-
-            // Parse author name and email
-            const authorMatch = /^(.+?)\s*<(.+?)>$/.exec(authorLine);
-            const authorName = authorMatch?.[1]?.trim() || authorLine;
-            const authorEmail = authorMatch?.[2]?.trim() || '';
-
-            // Parse date to timestamp
-            let timestamp: number;
             try {
-                timestamp = Math.floor(new Date(dateLine).getTime() / 1000);
-                // Validate timestamp
-                if (isNaN(timestamp) || timestamp < 0) {
+                // Remove the end marker and any trailing whitespace
+                const cleanBlock = block.replace(/COMMIT_END\s*$/, '').trim();
+                
+                // We need the raw lines to properly join the message, but we need to find where the header ends
+                const rawLines = cleanBlock.split('\n');
+                const headerLines = rawLines.map(l => l.trim()).filter(l => l.length > 0);
+
+                if (headerLines.length < 3) {
+                    console.warn('[GitManager] skipping block, too few headers:', headerLines.length, cleanBlock.substring(0, 100));
+                    continue;
+                }
+
+                // The first 3 non-empty lines are always hash, author, date
+                const hash = headerLines[0];
+                const authorLine = headerLines[1];
+                const dateLine = headerLines[2];
+
+                // Message starts after the date. We find the date in rawLines and take everything after.
+                const dateIndex = rawLines.findIndex(l => l.trim() === dateLine);
+                const message = rawLines.slice(dateIndex + 1).join('\n').trim();
+
+                if (!hash || !authorLine || !dateLine) {
+                    console.warn('[GitManager] Missing required fields in block:', { hash, authorLine, dateLine });
+                    continue;
+                }
+
+                // Parse author name and email
+                const authorMatch = /^(.+?)\s*<(.+?)>$/.exec(authorLine);
+                const authorName = authorMatch?.[1]?.trim() || authorLine;
+                const authorEmail = authorMatch?.[2]?.trim() || '';
+
+                // Parse date to timestamp
+                let timestamp: number;
+                try {
+                    timestamp = Math.floor(new Date(dateLine).getTime() / 1000);
+                    if (isNaN(timestamp) || timestamp < 0) {
+                        timestamp = Math.floor(Date.now() / 1000);
+                    }
+                } catch (error) {
+                    console.warn('[GitManager] Failed to parse commit date:', dateLine, error);
                     timestamp = Math.floor(Date.now() / 1000);
                 }
+
+                const displayMessage = message.split('\n')[0] || 'No message';
+
+                commits.push({
+                    oid: hash,
+                    message: message || 'No message',
+                    author: {
+                        name: authorName,
+                        email: authorEmail,
+                    },
+                    timestamp: timestamp,
+                    displayName: displayMessage,
+                });
             } catch (error) {
-                console.warn('Failed to parse commit date:', dateLine, error);
-                timestamp = Math.floor(Date.now() / 1000);
+                console.error('[GitManager] Error parsing commit block:', error, block.substring(0, 100));
             }
-
-            // Use the first line of the message as display name, or the full message if it's short
-            const displayMessage = message.split('\n')[0] || 'No message';
-
-            commits.push({
-                oid: hash,
-                message: message || 'No message',
-                author: {
-                    name: authorName,
-                    email: authorEmail,
-                },
-                timestamp: timestamp,
-                displayName: displayMessage,
-            });
         }
 
+        console.log(`[GitManager] Successfully parsed ${commits.length} commits`);
         return commits;
     }
 

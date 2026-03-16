@@ -133,12 +133,18 @@ export class CodeProviderSync {
 
     /**
      * Resume syncing after being paused. Pulls fresh state from sandbox to ensure consistency.
+     * @param options Optional parameters for unpausing
+     * @param options.changedFiles Optional list of changed files to pull. If provided, only these files will be pulled.
      */
-    async unpause(): Promise<void> {
+    async unpause(options?: { changedFiles?: string[] }): Promise<void> {
         // Keep paused while reconciling to avoid echoing local writes back to the provider
         if (this.isRunning) {
             try {
-                await this.pullFromSandbox();
+                if (options?.changedFiles && options.changedFiles.length > 0) {
+                    await this.pullSpecificFiles(options.changedFiles);
+                } else {
+                    await this.pullFromSandbox();
+                }
             } finally {
                 this.isPaused = false;
             }
@@ -216,25 +222,8 @@ export class CodeProviderSync {
         }
 
         // Process sandbox entries
-        const directoriesToCreate = [];
-        const filesToWrite = [];
-
-        for (const entry of sandboxEntries) {
-            if (entry.type === 'directory') {
-                directoriesToCreate.push(entry.path);
-            } else {
-                try {
-                    const result = await this.provider.readFile({ args: { path: entry.path } });
-                    const { file } = result;
-
-                    if ((file.type === 'text' || file.type === 'binary') && file.content) {
-                        filesToWrite.push({ path: entry.path, content: file.content });
-                    }
-                } catch (error) {
-                    console.debug(`[Sync] Skipping ${entry.path}:`, error);
-                }
-            }
-        }
+        const directoriesToCreate = sandboxEntries.filter(e => e.type === 'directory').map(e => e.path);
+        const filePathsToRead = sandboxEntries.filter(e => e.type === 'file').map(e => e.path);
 
         // Create directories first
         for (const dirPath of directoriesToCreate) {
@@ -245,20 +234,45 @@ export class CodeProviderSync {
             }
         }
 
-        // Write files sequentially to avoid race conditions
-        for (const { path, content } of filesToWrite) {
-            try {
-                await this.fs.writeFile(path, content);
-            } catch (error) {
-                console.error(`[Sync] Failed to write ${path}:`, error);
-            }
-        }
+        // Pull files in parallel with concurrency limit
+        await this.pullSpecificFiles(filePathsToRead);
+    }
 
-        // Store hashes of files so we can skip syncing if the content hasn't changed later.
-        for (const { path, content } of filesToWrite) {
-            const hash = await hashContent(content);
-            this.fileHashes.set(path, hash);
-        }
+    /**
+     * Pull specific files from the sandbox in parallel with a concurrency limit.
+     */
+    private async pullSpecificFiles(filePaths: string[], concurrency: number = 5): Promise<void> {
+        if (filePaths.length === 0) return;
+
+        console.log(`[Sync] Pulling ${filePaths.length} files from sandbox (concurrency: ${concurrency})...`);
+        
+        const queue = [...filePaths];
+        const workers = Array(Math.min(concurrency, queue.length)).fill(null).map(async () => {
+            while (queue.length > 0) {
+                const path = queue.shift();
+                if (!path) break;
+
+                try {
+                    const result = await this.provider.readFile({ args: { path } });
+                    const { file } = result;
+
+                    if ((file.type === 'text' || file.type === 'binary') && file.content !== undefined && file.content !== null) {
+                        // Write to filesystem
+                        await this.fs.writeFile(path, file.content);
+                        
+                        // Update hash tracking
+                        const hash = await hashContent(file.content);
+                        this.fileHashes.set(path, hash);
+                    }
+                } catch (error) {
+                    console.error(`[Sync] Failed to pull ${path}:`, error);
+                    // Don't throw, allow other files to continue
+                }
+            }
+        });
+
+        await Promise.all(workers);
+        console.log(`[Sync] Finished pulling ${filePaths.length} files.`);
     }
 
     private async getAllSandboxFiles(

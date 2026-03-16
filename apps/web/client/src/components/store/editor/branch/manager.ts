@@ -54,7 +54,9 @@ export class BranchManager {
     }
 
     async init(): Promise<void> {
-        for (const branchData of this.branchMap.values()) {
+        console.log(`[BranchManager] Initializing ${this.branchMap.size} branches`);
+        for (const [id, branchData] of this.branchMap.entries()) {
+            console.log(`[BranchManager] Initializing branch: ${branchData.branch.name} (${id})`);
             await branchData.codeEditor.initialize();
             await branchData.sandbox.init();
         }
@@ -112,7 +114,16 @@ export class BranchManager {
         if (this.currentBranchId === branchId) {
             return;
         }
+        console.log(`[BranchManager] Switching to branch: ${branchId}`);
         this.currentBranchId = branchId;
+        
+        const branchData = this.branchMap.get(branchId);
+        if (branchData) {
+            // Re-sync commits if needed when switching branch
+            void branchData.sandbox.gitManager.listCommits().catch(err => {
+                console.warn(`[BranchManager] Failed to preload commits for branch ${branchId}:`, err);
+            });
+        }
     }
 
     getBranchDataById(branchId: string): BranchData | null {
@@ -128,6 +139,7 @@ export class BranchManager {
     }
 
     private createBranchData(branch: Branch, routerType?: RouterType): BranchData {
+        console.log(`[BranchManager] Creating branch data for ${branch.name} (${branch.id})`);
         const codeEditorApi = new CodeFileSystem(this.editorEngine.projectId, branch.id, { routerType });
         const errorManager = new ErrorManager(branch);
         const sandboxManager = new SandboxManager(branch, this.editorEngine, errorManager, codeEditorApi);

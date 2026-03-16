@@ -220,6 +220,11 @@ export class SessionManager {
 
             streamCallback?.(finalCommand + '\n');
             const { output } = await this.provider.runCommand({ args: { command: finalCommand } });
+            
+            if (command.includes('git')) {
+                console.log(`[SessionManager] git command: "${command}", success: true, output length: ${output.length}`);
+            }
+
             streamCallback?.(output);
             return {
                 output,
@@ -242,6 +247,10 @@ export class SessionManager {
                 } catch (reconnectError) {
                     console.error('[SessionManager] Failed to reconnect after shell expiry:', reconnectError);
                 }
+            }
+
+            if (command.includes('git')) {
+                console.error(`[SessionManager] git command failed: "${command}", error: ${errorMessage}`);
             }
 
             console.error('Error running command:', error);
