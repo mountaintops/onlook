@@ -63,7 +63,7 @@ export class SandboxManager {
     }
 
     async getRouterConfig(): Promise<RouterConfig | null> {
-        if (!!this.routerConfig) {
+        if (this.routerConfig) {
             return this.routerConfig;
         }
         if (!this.session.provider) {

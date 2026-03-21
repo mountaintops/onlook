@@ -31,7 +31,7 @@ export const validateNextJsRoute = (route: string): { valid: boolean; error?: st
     // Checks if it's a dynamic route
     const hasMatchingBrackets = /\[[^\]]*\]/.test(route);
     if (hasMatchingBrackets) {
-        const dynamicRegex = /^\[([a-z0-9-]+)\]$/;
+        const dynamicRegex = /^\[([a-z0-9-_]+)\]$/i;
         if (!dynamicRegex.test(route)) {
             return {
                 valid: false,
@@ -41,12 +41,12 @@ export const validateNextJsRoute = (route: string): { valid: boolean; error?: st
         return { valid: true };
     }
 
-    // For regular routes, allow lowercase letters, numbers, and hyphens
-    const validCharRegex = /^[a-z0-9-]+$/;
+    // For regular routes, allow letters, numbers, hyphens, and underscores
+    const validCharRegex = /^[a-z0-9-_]+$/i;
     if (!validCharRegex.test(route)) {
         return {
             valid: false,
-            error: 'Page name can only contain lowercase letters, numbers, and hyphens',
+            error: 'Page name can only contain letters, numbers, hyphens, and underscores',
         };
     }
 
@@ -436,55 +436,89 @@ export const scanPagesFromSandbox = async (sandboxManager: SandboxManager): Prom
 export const detectRouterConfig = async (
     provider: Provider,
 ): Promise<RouterConfig | null> => {
-    // Check for App Router
+    // 1. First check the common root paths
     for (const appPath of APP_ROUTER_PATHS) {
-        try {
-            const result = await provider.listFiles({ args: { path: appPath } });
-            const entries = result.files;
-            if (entries && entries.length > 0) {
-                // Check for layout file (required for App Router)
-                const hasLayout = entries.some(
-                    (entry) =>
-                        entry.type === 'file' &&
-                        entry.name.startsWith('layout.') &&
-                        ALLOWED_EXTENSIONS.includes(getFileExtension(entry.name)),
-                );
-
-                if (hasLayout) {
-                    return { type: RouterType.APP, basePath: appPath };
-                }
-            }
-        } catch (error) {
-            // Directory doesn't exist, continue checking
+        if (await isAppRouterDir(provider, appPath)) {
+            return { type: RouterType.APP, basePath: appPath };
         }
     }
 
-    // Check for Pages Router if App Router not found
     for (const pagesPath of PAGES_ROUTER_PATHS) {
-        try {
-            const result = await provider.listFiles({ args: { path: pagesPath } });
-            const entries = result.files;
-            if (entries && entries.length > 0) {
-                // Check for index file (common in Pages Router)
-                const hasIndex = entries.some(
-                    (entry) =>
-                        entry.type === 'file' &&
-                        entry.name.startsWith('index.') &&
-                        ALLOWED_EXTENSIONS.includes(getFileExtension(entry.name)),
-                );
+        if (await isPagesRouterDir(provider, pagesPath)) {
+            return { type: RouterType.PAGES, basePath: pagesPath };
+        }
+    }
 
-                if (hasIndex) {
-                    console.log(`Found Pages Router at: ${pagesPath}`);
-                    return { type: RouterType.PAGES, basePath: pagesPath };
+    // 2. Fallback: Search for the directories if not found at root (monorepo support)
+    try {
+        const result = await provider.runCommand({ args: { command: 'find . -maxdepth 4 -name "page.tsx" -o -name "layout.tsx" -o -name "index.tsx" | grep -v "node_modules"' } });
+        if (result.output) {
+            const paths = result.output.split('\n').filter(Boolean);
+            
+            // Look for App Router structures
+            for (const p of paths) {
+                if (p.endsWith('layout.tsx') || p.endsWith('page.tsx')) {
+                    const dir = getDirName(p);
+                    if (dir.endsWith('/app') || dir === 'app' || dir.endsWith('/src/app') || dir === 'src/app') {
+                        if (await isAppRouterDir(provider, dir)) {
+                            return { type: RouterType.APP, basePath: dir };
+                        }
+                    }
                 }
             }
-        } catch (error) {
-            // Directory doesn't exist, continue checking
+
+            // Look for Pages Router structures
+            for (const p of paths) {
+                if (p.endsWith('index.tsx')) {
+                    const dir = getDirName(p);
+                    if (dir.endsWith('/pages') || dir === 'pages' || dir.endsWith('/src/pages') || dir === 'src/pages') {
+                        if (await isPagesRouterDir(provider, dir)) {
+                            return { type: RouterType.PAGES, basePath: dir };
+                        }
+                    }
+                }
+            }
         }
+    } catch (e) {
+        console.warn('[detectRouterConfig] Deep scan failed:', e);
     }
 
     return null;
 };
+
+async function isAppRouterDir(provider: Provider, path: string): Promise<boolean> {
+    try {
+        const result = await provider.listFiles({ args: { path } });
+        const entries = result.files;
+        if (entries && entries.length > 0) {
+            // Check for layout file (required for App Router)
+            return entries.some(
+                (entry) =>
+                    entry.type === 'file' &&
+                    entry.name.startsWith('layout.') &&
+                    ALLOWED_EXTENSIONS.includes(getFileExtension(entry.name)),
+            );
+        }
+    } catch (e) {}
+    return false;
+}
+
+async function isPagesRouterDir(provider: Provider, path: string): Promise<boolean> {
+    try {
+        const result = await provider.listFiles({ args: { path } });
+        const entries = result.files;
+        if (entries && entries.length > 0) {
+            // Check for index file
+            return entries.some(
+                (entry) =>
+                    entry.type === 'file' &&
+                    entry.name.startsWith('index.') &&
+                    ALLOWED_EXTENSIONS.includes(getFileExtension(entry.name)),
+            );
+        }
+    } catch (e) {}
+    return false;
+}
 
 // checks if file/directory exists
 const pathExists = async (sandboxManager: SandboxManager, filePath: string): Promise<boolean> => {
@@ -550,11 +584,7 @@ export const createPageInSandbox = async (
         const routerConfig = await sandboxManager.getRouterConfig();
 
         if (!routerConfig) {
-            throw new Error('Could not detect Next.js router type');
-        }
-
-        if (routerConfig.type !== RouterType.APP) {
-            throw new Error('Page creation is only supported for App Router projects.');
+            throw new Error('Could not detect Next.js router type. Please make sure your project is a standard Next.js app.');
         }
 
         // Validate and normalize the path
@@ -563,16 +593,29 @@ export const createPageInSandbox = async (
             throw new Error('Page path contains invalid characters');
         }
 
-        const fullPath = joinPath(routerConfig.basePath, normalizedPagePath);
-        const pageFilePath = joinPath(fullPath, 'page.tsx');
+        if (routerConfig.type === RouterType.APP) {
+            const fullPath = joinPath(routerConfig.basePath, normalizedPagePath);
+            const pageFilePath = joinPath(fullPath, 'page.tsx');
 
-        if (await pathExists(sandboxManager, pageFilePath)) {
-            throw new Error('Page already exists at this path');
+            if (await pathExists(sandboxManager, pageFilePath)) {
+                throw new Error('Page already exists at this path');
+            }
+
+            await sandboxManager.writeFile(pageFilePath, DEFAULT_PAGE_CONTENT);
+            console.log(`Created App Router page at: ${pageFilePath}`);
+        } else {
+            // Pages Router support
+            // For Pages Router, we don't use directories unless it's index.tsx
+            const pageFilePath = joinPath(routerConfig.basePath, `${normalizedPagePath}.tsx`);
+            const indexFilePath = joinPath(routerConfig.basePath, normalizedPagePath, 'index.tsx');
+
+            if ((await pathExists(sandboxManager, pageFilePath)) || (await pathExists(sandboxManager, indexFilePath))) {
+                throw new Error('Page already exists at this path');
+            }
+
+            await sandboxManager.writeFile(pageFilePath, DEFAULT_PAGE_CONTENT);
+            console.log(`Created Pages Router page at: ${pageFilePath}`);
         }
-
-        await sandboxManager.writeFile(pageFilePath, DEFAULT_PAGE_CONTENT);
-
-        console.log(`Created page at: ${pageFilePath}`);
     } catch (error) {
         console.error('Error creating page:', error);
         throw error;
@@ -591,34 +634,44 @@ export const deletePageInSandbox = async (
             throw new Error('Could not detect Next.js router type');
         }
 
-        if (routerConfig.type !== RouterType.APP) {
-            throw new Error('Page deletion is only supported for App Router projects.');
-        }
-
         const normalizedPath = pagePath.replace(/\/+/g, '/').replace(/^\/|\/$/g, '');
         if (normalizedPath === '' || normalizedPath === '/') {
             throw new Error('Cannot delete root page');
         }
 
-        const fullPath = joinPath(routerConfig.basePath, normalizedPath);
+        if (routerConfig.type === RouterType.APP) {
+            const fullPath = joinPath(routerConfig.basePath, normalizedPath);
 
-        if (!(await pathExists(sandboxManager, fullPath))) {
-            throw new Error('Selected page not found');
-        }
+            if (!(await pathExists(sandboxManager, fullPath))) {
+                throw new Error('Selected page not found');
+            }
 
-        if (isDir) {
-            // Delete entire directory
-            await sandboxManager.deleteDirectory(fullPath);
+            if (isDir) {
+                // Delete entire directory
+                await sandboxManager.deleteDirectory(fullPath);
+            } else {
+                // Delete just the page.tsx file
+                const pageFilePath = joinPath(fullPath, 'page.tsx');
+                await sandboxManager.deleteFile(pageFilePath);
+
+                // Clean up empty parent directories
+                await cleanupEmptyFolders(sandboxManager, fullPath);
+            }
         } else {
-            // Delete just the page.tsx file
-            const pageFilePath = joinPath(fullPath, 'page.tsx');
-            await sandboxManager.deleteFile(pageFilePath);
-
-            // Clean up empty parent directories
-            await cleanupEmptyFolders(sandboxManager, fullPath);
+            // Pages Router deletion
+            const pageFilePath = joinPath(routerConfig.basePath, `${normalizedPath}.tsx`);
+            if (await pathExists(sandboxManager, pageFilePath)) {
+                await sandboxManager.deleteFile(pageFilePath);
+            } else {
+                const indexFilePath = joinPath(routerConfig.basePath, normalizedPath, 'index.tsx');
+                if (await pathExists(sandboxManager, indexFilePath)) {
+                    await sandboxManager.deleteFile(indexFilePath);
+                    await cleanupEmptyFolders(sandboxManager, getDirName(indexFilePath));
+                }
+            }
         }
 
-        console.log(`Deleted: ${fullPath}`);
+        console.log(`Deleted: ${normalizedPath}`);
     } catch (error) {
         console.error('Error deleting page:', error);
         throw error;
