@@ -1,7 +1,9 @@
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import {
     LLMProvider,
     MODEL_MAX_TOKENS,
     OPENROUTER_MODELS,
+    GEMINI_MODELS,
     type InitialModelPayload,
     type ModelConfig
 } from '@onlook/models';
@@ -20,7 +22,7 @@ export function initModel({
 
     switch (requestedProvider) {
         case LLMProvider.OPENROUTER:
-            model = getOpenRouterProvider(requestedModel);
+            model = getOpenRouterProvider(requestedModel as OPENROUTER_MODELS);
             headers = {
                 'HTTP-Referer': 'https://onlook.com',
                 'X-Title': 'Onlook',
@@ -32,6 +34,9 @@ export function initModel({
             providerOptions = isAnthropic
                 ? { ...providerOptions, anthropic: { cacheControl: { type: 'ephemeral' } } }
                 : providerOptions;
+            break;
+        case LLMProvider.GEMINI:
+            model = getGeminiProvider(requestedModel as GEMINI_MODELS);
             break;
         default:
             assertNever(requestedProvider);
@@ -50,5 +55,13 @@ function getOpenRouterProvider(model: OPENROUTER_MODELS): LanguageModel {
         throw new Error('OPENROUTER_API_KEY must be set');
     }
     const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY });
-    return openrouter(model);
+    return openrouter(model) as any;
+}
+
+function getGeminiProvider(model: GEMINI_MODELS): LanguageModel {
+    if (!process.env.GOOGLE_AI_STUDIO_API_KEY) {
+        throw new Error('GOOGLE_AI_STUDIO_API_KEY must be set');
+    }
+    const google = createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_AI_STUDIO_API_KEY });
+    return google(model) as any;
 }

@@ -31,7 +31,8 @@ Actionable rules for repo agents—keep diffs minimal, safe, token‑efficient.
 - Do not modify build outputs, generated files, or lockfiles.
 - Use Bun for all scripts; do not introduce npm/yarn.
 - Avoid running the local dev server in automation contexts.
-- Respect type safety and
+- Respect type safety and boundaries.
+- For AI features, use `gemini-3.1-flash-lite-preview` by default instead of `openrouter` (via `@ai-sdk/google`).
 
 ### Next.js App Router
 

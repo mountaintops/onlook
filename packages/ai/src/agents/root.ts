@@ -1,5 +1,5 @@
 import type { ToolCall } from '@ai-sdk/provider-utils';
-import { ChatType, LLMProvider, OPENROUTER_MODELS, type ChatMessage, type ModelConfig } from '@onlook/models';
+import { ChatType, LLMProvider, OPENROUTER_MODELS, GEMINI_MODELS, type ChatMessage, type ModelConfig } from '@onlook/models';
 import { NoSuchToolError, generateObject, smoothStream, stepCountIs, streamText, type ToolSet } from 'ai';
 import { convertToStreamMessages, getAskModeSystemPrompt, getCreatePageSystemPrompt, getSystemPrompt, getToolSetFromType, initModel } from '../index';
 
@@ -62,16 +62,12 @@ const getModelFromType = (chatType: ChatType): ModelConfig => {
     switch (chatType) {
         case ChatType.CREATE:
         case ChatType.FIX:
-            return initModel({
-                provider: LLMProvider.OPENROUTER,
-                model: OPENROUTER_MODELS.OPEN_AI_GPT_5,
-            });
         case ChatType.ASK:
         case ChatType.EDIT:
         default:
             return initModel({
-                provider: LLMProvider.OPENROUTER,
-                model: OPENROUTER_MODELS.CLAUDE_4_5_SONNET,
+                provider: LLMProvider.GEMINI,
+                model: GEMINI_MODELS.GEMINI_3_1_FLASH_LITE_PREVIEW,
             });
     }
 }
@@ -92,8 +88,8 @@ export const repairToolCall = async ({ toolCall, tools, error }: { toolCall: Too
     );
 
     const { model } = initModel({
-        provider: LLMProvider.OPENROUTER,
-        model: OPENROUTER_MODELS.OPEN_AI_GPT_5_NANO,
+        provider: LLMProvider.GEMINI,
+        model: GEMINI_MODELS.GEMINI_3_1_FLASH_LITE_PREVIEW,
     });
 
     const { object: repairedArgs } = await generateObject({

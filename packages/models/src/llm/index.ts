@@ -2,6 +2,7 @@ import type { LanguageModel } from 'ai';
 
 export enum LLMProvider {
     OPENROUTER = 'openrouter',
+    GEMINI = 'gemini',
 }
 
 export enum OPENROUTER_MODELS {
@@ -13,8 +14,13 @@ export enum OPENROUTER_MODELS {
     OPEN_AI_GPT_5_NANO = 'openai/gpt-5-nano',
 }
 
+export enum GEMINI_MODELS {
+    GEMINI_3_1_FLASH_LITE_PREVIEW = 'gemini-3.1-flash-lite-preview',
+}
+
 interface ModelMapping {
     [LLMProvider.OPENROUTER]: OPENROUTER_MODELS;
+    [LLMProvider.GEMINI]: GEMINI_MODELS;
 }
 
 export type InitialModelPayload = {
@@ -37,4 +43,5 @@ export const MODEL_MAX_TOKENS = {
     [OPENROUTER_MODELS.OPEN_AI_GPT_5_NANO]: 400000,
     [OPENROUTER_MODELS.OPEN_AI_GPT_5_MINI]: 400000,
     [OPENROUTER_MODELS.OPEN_AI_GPT_5]: 400000,
+    [GEMINI_MODELS.GEMINI_3_1_FLASH_LITE_PREVIEW]: 1000000,
 } as const;
