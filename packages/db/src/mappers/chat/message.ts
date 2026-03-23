@@ -9,7 +9,7 @@ export const fromDbMessage = (message: DbMessage): ChatMessage => {
             createdAt: message.createdAt,
             context: message.context ?? [],
             checkpoints: message.checkpoints ?? [],
-            usage: message.usage ?? undefined,
+            usage: message.usage as any ?? undefined,
         },
         parts: message.parts ?? [],
     }

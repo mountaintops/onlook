@@ -74,7 +74,7 @@ export const streamResponse = async (req: NextRequest, userId: string) => {
         if (chatType === ChatType.EDIT) {
             usageRecord = await incrementUsage(req, traceId);
         }
-        const stream = createRootAgentStream({
+        const stream = await createRootAgentStream({
             chatType,
             conversationId,
             projectId,

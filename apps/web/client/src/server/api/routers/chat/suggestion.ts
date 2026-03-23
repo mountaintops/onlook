@@ -31,10 +31,10 @@ export const suggestionsRouter = createTRPCRouter({
                         role: 'system',
                         content: SUGGESTION_SYSTEM_PROMPT,
                     },
-                    ...convertToModelMessages(input.messages.map((m) => ({
+                    ...(await convertToModelMessages(input.messages.map((m) => ({
                         role: m.role,
                         parts: [{ type: 'text', text: m.content }],
-                    }))),
+                    })))),
                     {
                         role: 'user',
                         content: 'Based on our conversation, what should I work on next to improve this page? Provide 3 specific, actionable suggestions. These should be realistic and achievable. Return the suggestions as a JSON object. DO NOT include any other text.',

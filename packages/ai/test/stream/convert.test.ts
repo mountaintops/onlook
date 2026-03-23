@@ -22,25 +22,25 @@ function createMessage(
 }
 
 describe('convertToStreamMessages', () => {
-    test('converts ChatMessage array to ModelMessage array', () => {
+    test('converts ChatMessage array to ModelMessage array', async () => {
         const userMessage = createMessage('u1', 'user', [{ type: 'text', text: 'Hello' }], []);
         const assistantMessage = createMessage('a1', 'assistant', [
             { type: 'text', text: 'Hi there!' },
         ]);
 
-        const result = convertToStreamMessages([userMessage, assistantMessage]);
+        const result = await convertToStreamMessages([userMessage, assistantMessage]);
 
         expect(result).toBeDefined();
         expect(Array.isArray(result)).toBe(true);
         expect(result.length).toBe(2);
     });
 
-    test('preserves assistant message parts unchanged', () => {
+    test('preserves assistant message parts unchanged', async () => {
         const assistantMessage = createMessage('a1', 'assistant', [
             { type: 'text', text: 'Found results' },
         ]);
 
-        const result = convertToStreamMessages([assistantMessage]);
+        const result = await convertToStreamMessages([assistantMessage]);
         const resultMessage = result[0];
 
         expect(resultMessage).toBeDefined();
@@ -48,7 +48,7 @@ describe('convertToStreamMessages', () => {
         expect(resultMessage?.content).toBeDefined();
     });
 
-    test('hydrates user messages with context information', () => {
+    test('hydrates user messages with context information', async () => {
         const fileCtx = (path: string, content: string) => ({
             type: 'file' as const,
             path,
@@ -63,7 +63,7 @@ describe('convertToStreamMessages', () => {
             [fileCtx('test.ts', 'console.log("test");')],
         );
 
-        const result = convertToStreamMessages([userMessage]);
+        const result = await convertToStreamMessages([userMessage]);
         const resultMessage = result[0];
 
         expect(resultMessage).toBeDefined();
@@ -73,7 +73,7 @@ describe('convertToStreamMessages', () => {
         expect(resultMessage?.content).toBeDefined();
     });
 
-    test('handles empty context arrays', () => {
+    test('handles empty context arrays', async () => {
         const userMessage = createMessage(
             'u1',
             'user',
@@ -81,7 +81,7 @@ describe('convertToStreamMessages', () => {
             [],
         );
 
-        const result = convertToStreamMessages([userMessage]);
+        const result = await convertToStreamMessages([userMessage]);
         const resultMessage = result[0];
 
         expect(resultMessage).toBeDefined();
@@ -89,14 +89,14 @@ describe('convertToStreamMessages', () => {
         expect(resultMessage?.content).toBeDefined();
     });
 
-    test('handles mixed message types in sequence', () => {
+    test('handles mixed message types in sequence', async () => {
         const user1 = createMessage('u1', 'user', [{ type: 'text', text: 'First question' }], []);
         const assistant1 = createMessage('a1', 'assistant', [
             { type: 'text', text: 'First answer' },
         ]);
         const user2 = createMessage('u2', 'user', [{ type: 'text', text: 'Second question' }], []);
 
-        const result = convertToStreamMessages([user1, assistant1, user2]);
+        const result = await convertToStreamMessages([user1, assistant1, user2]);
 
         expect(result.length).toBe(3);
         expect(result[0]?.role).toBe('user');
@@ -104,7 +104,7 @@ describe('convertToStreamMessages', () => {
         expect(result[2]?.role).toBe('user');
     });
 
-    test('handles messages with various part types', () => {
+    test('handles messages with various part types', async () => {
         const userMessage = createMessage(
             'u1',
             'user',
@@ -112,7 +112,7 @@ describe('convertToStreamMessages', () => {
             [],
         );
 
-        const result = convertToStreamMessages([userMessage]);
+        const result = await convertToStreamMessages([userMessage]);
 
         expect(result).toBeDefined();
         expect(Array.isArray(result)).toBe(true);
@@ -155,7 +155,7 @@ describe('extractTextFromParts', () => {
 
 describe('ensureToolCallResults', () => {
     test('returns unchanged parts when undefined', () => {
-        const result = ensureToolCallResults(undefined);
+        const result = ensureToolCallResults(undefined as any);
         expect(result).toBeUndefined();
     });
 
@@ -163,7 +163,7 @@ describe('ensureToolCallResults', () => {
         const parts = [{ type: 'text', text: 'Hello world' }];
 
         const result = ensureToolCallResults(parts as any);
-        expect(result).toEqual(parts);
+        expect(result).toEqual(parts as any);
     });
 
     test('adds stub results for tool calls without results', () => {
@@ -364,7 +364,7 @@ describe('ensureToolCallResults', () => {
             state: 'error',
             input: { a: 10, b: 0 },
             errorText: 'Division by zero',
-        });
+        } as any);
 
         // Input-available should get stub result
         expect(result[1]).toEqual({
@@ -401,7 +401,7 @@ describe('ensureToolCallResults', () => {
             type: 'tool-sum',
             state: 'input-available',
             input: { a: 1, b: 2 },
-        });
+        } as any);
 
         // Part with toolCallId should get stub result
         expect(result[1]).toEqual({
@@ -438,7 +438,7 @@ describe('ensureToolCallResults', () => {
             type: 'tool-sum',
             toolCallId: 'call_1',
             input: { a: 1, b: 2 },
-        });
+        } as any);
 
         // Part with proper state should get stub result
         expect(result[1]).toEqual({
@@ -482,14 +482,14 @@ describe('ensureToolCallResults', () => {
             toolCallId: 'call_1',
             state: 'unknown-state',
             input: { a: 1, b: 2 },
-        });
+        } as any);
 
         expect(result[1]).toEqual({
             type: 'tool-multiply',
             toolCallId: 'call_2',
             state: 'processing',
             input: { x: 3, y: 4 },
-        });
+        } as any);
 
         // Known state should get stub result
         expect(result[2]).toEqual({

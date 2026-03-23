@@ -3,7 +3,7 @@ import { ChatType, LLMProvider, OPENROUTER_MODELS, type ChatMessage, type ModelC
 import { NoSuchToolError, generateObject, smoothStream, stepCountIs, streamText, type ToolSet } from 'ai';
 import { convertToStreamMessages, getAskModeSystemPrompt, getCreatePageSystemPrompt, getSystemPrompt, getToolSetFromType, initModel } from '../index';
 
-export const createRootAgentStream = ({
+export const createRootAgentStream = async ({
     chatType,
     conversationId,
     projectId,
@@ -23,7 +23,7 @@ export const createRootAgentStream = ({
     const toolSet = getToolSetFromType(chatType);
     return streamText({
         providerOptions: modelConfig.providerOptions,
-        messages: convertToStreamMessages(messages),
+        messages: await convertToStreamMessages(messages),
         model: modelConfig.model,
         system: systemPrompt,
         tools: toolSet,

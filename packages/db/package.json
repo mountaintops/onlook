@@ -33,6 +33,6 @@
         "@onlook/eslint": "*",
         "drizzle-kit": "^0.31.4",
         "typescript": "^5.8.2",
-        "ai": "5.0.60"
+        "ai": "6.0.135"
     }
 }

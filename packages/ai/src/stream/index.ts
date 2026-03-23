@@ -2,7 +2,7 @@ import { type ChatMessage } from '@onlook/models';
 import { convertToModelMessages, type ModelMessage, type ToolUIPart } from 'ai';
 import { getHydratedUserMessage, type HydrateMessageOptions } from '../prompt';
 
-export function convertToStreamMessages(messages: ChatMessage[]): ModelMessage[] {
+export async function convertToStreamMessages(messages: ChatMessage[]): Promise<ModelMessage[]> {
     const totalMessages = messages.length;
     const lastUserMessageIndex = messages.findLastIndex((message) => message.role === 'user');
     const lastAssistantMessageIndex = messages.findLastIndex(
@@ -19,7 +19,7 @@ export function convertToStreamMessages(messages: ChatMessage[]): ModelMessage[]
         return toStreamMessage(message, opt);
     });
 
-    return convertToModelMessages(streamMessages);
+    return await convertToModelMessages(streamMessages);
 }
 
 export const toStreamMessage = (message: ChatMessage, opt: HydrateMessageOptions): ChatMessage => {
