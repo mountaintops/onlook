@@ -4,10 +4,12 @@ import {
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../../trpc";
 import { deploymentRouter } from './deployment';
+import { screenshitRouter } from './screenshit';
 import { createDeployment, getProjectUrls, unpublish } from './helpers/index.ts';
 
 export const publishRouter = createTRPCRouter({
     deployment: deploymentRouter,
+    screenshit: screenshitRouter,
     unpublish: protectedProcedure.input(z.object({
         type: z.enum(DeploymentType),
         projectId: z.string(),

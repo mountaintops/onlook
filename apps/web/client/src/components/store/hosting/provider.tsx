@@ -26,6 +26,12 @@ interface HostingContextValue {
     unpublish: (projectId: string, type: DeploymentType) => Promise<{ deploymentId: string } | null>;
     cancel: (type: DeploymentType) => Promise<void>;
 
+    // Screenshit Express API operations
+    deployScreenshit: (projectId: string, sandboxId: string) => Promise<{ url: string } | null>;
+    deleteScreenshit: (projectId: string) => Promise<boolean>;
+    isScreenshitDeploying: boolean;
+    isScreenshitDeleting: boolean;
+
     // Utilities
     refetch: (type: DeploymentType) => void;
     refetchAll: () => void;
@@ -44,6 +50,7 @@ export const HostingProvider = ({ children }: HostingProviderProps) => {
         [DeploymentType.CUSTOM]: false,
         [DeploymentType.UNPUBLISH_PREVIEW]: false,
         [DeploymentType.UNPUBLISH_CUSTOM]: false,
+        [DeploymentType.SCREENSHIT]: false,
     });
 
     // API hooks for all deployment types
@@ -82,12 +89,24 @@ export const HostingProvider = ({ children }: HostingProviderProps) => {
     const { mutateAsync: runUnpublish } = api.publish.unpublish.useMutation();
     const { mutateAsync: runCancel } = api.publish.deployment.cancel.useMutation();
 
+    // Screenshit mutations
+    const {
+        mutateAsync: runScreenshitDeploy,
+        isPending: isScreenshitDeploying,
+    } = api.publish.screenshit.deploy.useMutation();
+    const {
+        mutateAsync: runScreenshitDelete,
+        isPending: isScreenshitDeleting,
+    } = api.publish.screenshit.delete.useMutation();
+
     // Organize deployments by type
     const deployments = useMemo(() => ({
         [DeploymentType.PREVIEW]: previewQuery.data,
         [DeploymentType.CUSTOM]: customQuery.data,
         [DeploymentType.UNPUBLISH_PREVIEW]: unpublishPreviewQuery.data,
         [DeploymentType.UNPUBLISH_CUSTOM]: unpublishCustomQuery.data,
+        // SCREENSHIT deployments are tracked server-side only; no polling query needed
+        [DeploymentType.SCREENSHIT]: undefined,
     }), [previewQuery.data, customQuery.data, unpublishPreviewQuery.data, unpublishCustomQuery.data]);
 
     // Check if any deployment is in progress
@@ -198,6 +217,9 @@ export const HostingProvider = ({ children }: HostingProviderProps) => {
             case DeploymentType.UNPUBLISH_CUSTOM:
                 unpublishCustomQuery.refetch();
                 break;
+            case DeploymentType.SCREENSHIT:
+                // No polling query for screenshit — tRPC mutation is fire-and-complete
+                break;
         }
     };
 
@@ -218,6 +240,37 @@ export const HostingProvider = ({ children }: HostingProviderProps) => {
         }
     };
 
+    // Screenshit: deploy
+    const deployScreenshit = async (
+        projectId: string,
+        sandboxId: string,
+    ): Promise<{ url: string } | null> => {
+        try {
+            const result = await runScreenshitDeploy({ projectId, sandboxId });
+            toast.success('Deployment complete!', { description: result.url });
+            return { url: result.url };
+        } catch (error) {
+            toast.error('SST deployment failed', {
+                description: error instanceof Error ? error.message : 'Unknown error',
+            });
+            return null;
+        }
+    };
+
+    // Screenshit: delete
+    const deleteScreenshit = async (projectId: string): Promise<boolean> => {
+        try {
+            await runScreenshitDelete({ projectId });
+            toast.success('SST deployment deleted');
+            return true;
+        } catch (error) {
+            toast.error('Failed to delete SST deployment', {
+                description: error instanceof Error ? error.message : 'Unknown error',
+            });
+            return false;
+        }
+    };
+
     const refetchAll = () => {
         previewQuery.refetch();
         customQuery.refetch();
@@ -229,7 +282,8 @@ export const HostingProvider = ({ children }: HostingProviderProps) => {
             preview: deployments.preview ?? null,
             custom: deployments.custom ?? null,
             unpublish_preview: deployments.unpublish_preview ?? null,
-            unpublish_custom: deployments.unpublish_custom ?? null
+            unpublish_custom: deployments.unpublish_custom ?? null,
+            screenshit: null,
         },
         isDeploying,
         publish,
@@ -237,6 +291,10 @@ export const HostingProvider = ({ children }: HostingProviderProps) => {
         refetch,
         refetchAll,
         cancel,
+        deployScreenshit,
+        deleteScreenshit,
+        isScreenshitDeploying,
+        isScreenshitDeleting,
     };
 
     return (

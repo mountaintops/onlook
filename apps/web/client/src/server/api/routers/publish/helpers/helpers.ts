@@ -32,6 +32,10 @@ export async function getProjectUrls(db: DrizzleDb, projectId: string, type: Dep
             });
         }
         urls = foundCustomDomains.map(domain => domain.fullDomain);
+    } else if (type === DeploymentType.SCREENSHIT) {
+        // SST / screenshit deployments are not tied to a Freestyle domain URL.
+        // Return an empty array — the caller (screenshitRouter) handles URLs itself.
+        urls = [];
     } else {
         assertNever(type);
     }

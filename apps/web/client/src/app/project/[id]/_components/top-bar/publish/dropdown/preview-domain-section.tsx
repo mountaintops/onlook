@@ -1,9 +1,10 @@
 import { useEditorEngine } from '@/components/store/editor';
-import { useHostingType } from '@/components/store/hosting';
+import { useHostingContext, useHostingType } from '@/components/store/hosting';
 import { api } from '@/trpc/react';
 import { DeploymentStatus, DeploymentType } from '@onlook/models';
 import { Button } from '@onlook/ui/button';
 import { Icons } from '@onlook/ui/icons/index';
+import { Separator } from '@onlook/ui/separator';
 import { toast } from '@onlook/ui/sonner';
 import { timeAgo } from '@onlook/utility';
 import { observer } from 'mobx-react-lite';
@@ -14,10 +15,12 @@ import { UrlSection } from './url';
 export const PreviewDomainSection = observer(() => {
     const editorEngine = useEditorEngine();
     const [isLoading, setIsLoading] = useState(false);
+    const [sstDeployedUrl, setSstDeployedUrl] = useState<string | null>(null);
     const { data: project } = api.project.get.useQuery({ projectId: editorEngine.projectId });
     const { data: previewDomain, refetch: refetchPreviewDomain } = api.domain.preview.get.useQuery({ projectId: editorEngine.projectId });
     const { mutateAsync: createPreviewDomain, isPending: isCreatingDomain } = api.domain.preview.create.useMutation();
     const { deployment, publish: runPublish, isDeploying } = useHostingType(DeploymentType.PREVIEW);
+    const { deployScreenshit, isScreenshitDeploying } = useHostingContext();
 
     const createBaseDomain = async (): Promise<void> => {
         const previewDomain = await createPreviewDomain({ projectId: editorEngine.projectId });
@@ -144,11 +147,44 @@ export const PreviewDomainSection = observer(() => {
         );
     };
 
+    const publishSst = async (): Promise<void> => {
+        const sandboxId = editorEngine.branches?.activeBranch?.sandbox?.id;
+        if (!sandboxId) {
+            toast.error('No active sandbox found for SST deploy');
+            return;
+        }
+        const result = await deployScreenshit(editorEngine.projectId, sandboxId);
+        if (result?.url) {
+            setSstDeployedUrl(result.url);
+        }
+    };
+
     return (
         <div className="p-4 flex flex-col items-center gap-2">
             {previewDomain?.url
                 ? renderDomain()
                 : renderNoDomain()}
+
+            {/* ── SST / Screenshit deploy section ── */}
+            <Separator className="my-2" />
+            <div className="w-full flex flex-col gap-2">
+                <h3 className="text-sm font-medium">SST Deployment</h3>
+                {sstDeployedUrl && (
+                    <UrlSection url={sstDeployedUrl} isCopyable={true} />
+                )}
+                <Button
+                    onClick={publishSst}
+                    variant="outline"
+                    className="w-full rounded-md p-3"
+                    disabled={isScreenshitDeploying}
+                    id="sst-deploy-btn"
+                >
+                    {isScreenshitDeploying && (
+                        <Icons.LoadingSpinner className="w-4 h-4 mr-2 animate-spin" />
+                    )}
+                    {isScreenshitDeploying ? 'Deploying via SST...' : 'Deploy via SST'}
+                </Button>
+            </div>
         </div>
     );
 });

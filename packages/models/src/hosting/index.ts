@@ -3,6 +3,7 @@ export enum DeploymentType {
     CUSTOM = 'custom',
     UNPUBLISH_PREVIEW = 'unpublish_preview',
     UNPUBLISH_CUSTOM = 'unpublish_custom',
+    SCREENSHIT = 'screenshit',
 }
 
 export enum DeploymentStatus {
