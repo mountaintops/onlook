@@ -66,10 +66,8 @@ export class SandboxManager {
         if (this.routerConfig) {
             return this.routerConfig;
         }
-        if (!this.session.provider) {
-            throw new Error('Provider not initialized');
-        }
-        this.routerConfig = await detectRouterConfig(this.session.provider);
+        const provider = await this.session.waitForProvider();
+        this.routerConfig = await detectRouterConfig(provider);
         return this.routerConfig;
     }
 
@@ -191,12 +189,9 @@ export class SandboxManager {
     async downloadFiles(
         projectName?: string,
     ): Promise<{ downloadUrl: string; fileName: string } | null> {
-        if (!this.session.provider) {
-            console.error('No sandbox provider found for download');
-            return null;
-        }
         try {
-            const { url } = await this.session.provider.downloadFiles({
+            const provider = await this.session.waitForProvider();
+            const { url } = await provider.downloadFiles({
                 args: {
                     path: './',
                 },

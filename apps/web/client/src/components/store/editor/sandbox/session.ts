@@ -19,6 +19,35 @@ export class SessionManager {
         makeAutoObservable(this);
     }
 
+    async waitForProvider(): Promise<Provider> {
+        if (this.provider) {
+            return this.provider;
+        }
+
+        if (!this.isConnecting) {
+            throw new Error('No provider found and not connecting');
+        }
+
+        // Wait for provider to be set
+        return new Promise((resolve, reject) => {
+            const checkProvider = setInterval(() => {
+                if (this.provider) {
+                    clearInterval(checkProvider);
+                    resolve(this.provider);
+                } else if (!this.isConnecting) {
+                    clearInterval(checkProvider);
+                    reject(new Error('Failed to initialize provider'));
+                }
+            }, 100);
+
+            // Timeout after 30 seconds
+            setTimeout(() => {
+                clearInterval(checkProvider);
+                reject(new Error('Timeout waiting for provider'));
+            }, 30000);
+        });
+    }
+
     async start(sandboxId: string, userId?: string): Promise<void> {
         const MAX_RETRIES = 3;
         const RETRY_DELAY_MS = 2000;
@@ -77,11 +106,8 @@ export class SessionManager {
     }
 
     async restartDevServer(): Promise<boolean> {
-        if (!this.provider) {
-            console.error('No provider found in restartDevServer');
-            return false;
-        }
-        const { task } = await this.provider.getTask({
+        const provider = await this.waitForProvider();
+        const { task } = await provider.getTask({
             args: {
                 id: 'dev',
             },
@@ -94,7 +120,8 @@ export class SessionManager {
     }
 
     async readDevServerLogs(): Promise<string> {
-        const result = await this.provider?.getTask({ args: { id: 'dev' } });
+        const provider = await this.waitForProvider();
+        const result = await provider.getTask({ args: { id: 'dev' } });
         if (result) {
             return await result.task.open();
         }
@@ -190,9 +217,9 @@ export class SessionManager {
     }
 
     async ping() {
-        if (!this.provider) return false;
         try {
-            await this.provider.runCommand({ args: { command: 'echo "ping"' } });
+            const provider = await this.waitForProvider();
+            await provider.runCommand({ args: { command: 'echo "ping"' } });
             return true;
         } catch (error) {
             console.error('Failed to connect to sandbox', error);
@@ -211,15 +238,13 @@ export class SessionManager {
         error: string | null;
     }> {
         try {
-            if (!this.provider) {
-                throw new Error('No provider found in runCommand');
-            }
+            const provider = await this.waitForProvider();
 
             // Append error suppression if ignoreError is true
             const finalCommand = ignoreError ? `${command} 2>/dev/null || true` : command;
 
             streamCallback?.(finalCommand + '\n');
-            const { output } = await this.provider.runCommand({ args: { command: finalCommand } });
+            const { output } = await provider.runCommand({ args: { command: finalCommand } });
             
             if (command.includes('git')) {
                 console.log(`[SessionManager] git command: "${command}", success: true, output length: ${output.length}`);

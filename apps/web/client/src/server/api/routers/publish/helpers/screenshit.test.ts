@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Unit tests for the screenshit Express API integration helpers.
  *

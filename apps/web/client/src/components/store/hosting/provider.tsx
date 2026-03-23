@@ -82,6 +82,13 @@ export const HostingProvider = ({ children }: HostingProviderProps) => {
         refetchInterval: subscriptionStates[DeploymentType.UNPUBLISH_CUSTOM] ? 1000 : false,
     });
 
+    const screenshitQuery = api.publish.deployment.getByType.useQuery({
+        projectId: editorEngine.projectId,
+        type: DeploymentType.SCREENSHIT,
+    }, {
+        refetchInterval: subscriptionStates[DeploymentType.SCREENSHIT] ? 1000 : false,
+    });
+
     // Mutations
     const { mutateAsync: runCreateDeployment } = api.publish.deployment.create.useMutation();
     const { mutateAsync: runUpdateDeployment } = api.publish.deployment.update.useMutation();
@@ -105,9 +112,8 @@ export const HostingProvider = ({ children }: HostingProviderProps) => {
         [DeploymentType.CUSTOM]: customQuery.data,
         [DeploymentType.UNPUBLISH_PREVIEW]: unpublishPreviewQuery.data,
         [DeploymentType.UNPUBLISH_CUSTOM]: unpublishCustomQuery.data,
-        // SCREENSHIT deployments are tracked server-side only; no polling query needed
-        [DeploymentType.SCREENSHIT]: undefined,
-    }), [previewQuery.data, customQuery.data, unpublishPreviewQuery.data, unpublishCustomQuery.data]);
+        [DeploymentType.SCREENSHIT]: screenshitQuery.data,
+    }), [previewQuery.data, customQuery.data, unpublishPreviewQuery.data, unpublishCustomQuery.data, screenshitQuery.data]);
 
     // Check if any deployment is in progress
     const isDeploying = (type: DeploymentType): boolean => {
@@ -218,7 +224,7 @@ export const HostingProvider = ({ children }: HostingProviderProps) => {
                 unpublishCustomQuery.refetch();
                 break;
             case DeploymentType.SCREENSHIT:
-                // No polling query for screenshit — tRPC mutation is fire-and-complete
+                screenshitQuery.refetch();
                 break;
         }
     };
@@ -246,6 +252,7 @@ export const HostingProvider = ({ children }: HostingProviderProps) => {
         sandboxId: string,
     ): Promise<{ url: string } | null> => {
         try {
+            setSubscriptionStates(prev => ({ ...prev, [DeploymentType.SCREENSHIT]: true }));
             const result = await runScreenshitDeploy({ projectId, sandboxId });
             toast.success('Deployment complete!', { description: result.url });
             return { url: result.url };
@@ -254,12 +261,15 @@ export const HostingProvider = ({ children }: HostingProviderProps) => {
                 description: error instanceof Error ? error.message : 'Unknown error',
             });
             return null;
+        } finally {
+            refetch(DeploymentType.SCREENSHIT);
         }
     };
 
     // Screenshit: delete
     const deleteScreenshit = async (projectId: string): Promise<boolean> => {
         try {
+            setSubscriptionStates(prev => ({ ...prev, [DeploymentType.SCREENSHIT]: true }));
             await runScreenshitDelete({ projectId });
             toast.success('SST deployment deleted');
             return true;
@@ -268,6 +278,8 @@ export const HostingProvider = ({ children }: HostingProviderProps) => {
                 description: error instanceof Error ? error.message : 'Unknown error',
             });
             return false;
+        } finally {
+            refetch(DeploymentType.SCREENSHIT);
         }
     };
 
@@ -283,7 +295,7 @@ export const HostingProvider = ({ children }: HostingProviderProps) => {
             custom: deployments.custom ?? null,
             unpublish_preview: deployments.unpublish_preview ?? null,
             unpublish_custom: deployments.unpublish_custom ?? null,
-            screenshit: null,
+            screenshit: deployments.screenshit ?? null,
         },
         isDeploying,
         publish,

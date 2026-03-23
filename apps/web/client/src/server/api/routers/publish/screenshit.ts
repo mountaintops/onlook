@@ -114,12 +114,30 @@ export const screenshitRouter = createTRPCRouter({
      */
     delete: protectedProcedure
         .input(z.object({ projectId: z.string() }))
-        .mutation(async ({ input }): Promise<{ success: boolean }> => {
+        .mutation(async ({ ctx, input }): Promise<{ success: boolean }> => {
             const { projectId } = input;
 
             const { jobId } = await screenshitDelete(projectId);
             // Poll so that the mutation only resolves once the deletion is truly finished
-            await pollScreenshitStatus(jobId);
+            await pollScreenshitStatus(jobId, false);
+
+            // Mark the deployment as cancelled in the database so the UI hides the URL
+            const existingDeployment = await ctx.db.query.deployments.findFirst({
+                where: (deployments, { eq, and }) =>
+                    and(
+                        eq(deployments.projectId, projectId),
+                        eq(deployments.type, DeploymentType.SCREENSHIT)
+                    ),
+                orderBy: (deployments, { desc }) => [desc(deployments.createdAt)],
+            });
+            
+            if (existingDeployment) {
+                await updateDeployment(ctx.db, {
+                    id: existingDeployment.id,
+                    status: DeploymentStatus.CANCELLED,
+                    message: 'SST infrastructure deleted',
+                });
+            }
 
             return { success: true };
         }),

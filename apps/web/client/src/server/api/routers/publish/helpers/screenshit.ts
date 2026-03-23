@@ -73,7 +73,19 @@ async function walkAndAppend(
         } else if (entry.type === 'file') {
             try {
                 const { file } = await provider.readFile({ args: { path: `./${relPath}` } });
-                const content = file instanceof Uint8Array ? Buffer.from(file) : Buffer.from(file.toString());
+                let content: Buffer;
+                if (file.type === 'binary') {
+                    // Binary files from CodeSandbox provider's toString() are base64 encoded
+                    // But if it's already a Uint8Array, we can just use it.
+                    content = (file.content as any) instanceof Uint8Array 
+                        ? Buffer.from(file.content as unknown as Uint8Array)
+                        : Buffer.from(typeof file.content === 'string' ? file.content : file.toString(), 'base64');
+                } else {
+                    // Text files
+                    content = (file.content as any) instanceof Uint8Array
+                        ? Buffer.from(file.content as unknown as Uint8Array)
+                        : Buffer.from(typeof file.content === 'string' ? file.content : file.toString(), 'utf8');
+                }
                 archive.append(content, { name: relPath });
             } catch {
                 // skip unreadable files (e.g. binary sockets)
@@ -133,7 +145,7 @@ interface PollResponse {
  * Poll GET /deploy/status/:jobId until status is "completed" or "failed".
  * Returns the deployed URL on success, throws a descriptive error on failure.
  */
-export async function pollScreenshitStatus(jobId: string): Promise<string> {
+export async function pollScreenshitStatus(jobId: string, expectUrl = true): Promise<string> {
     const apiBase = getApiBase();
     const statusUrl = `${apiBase}/deploy/status/${encodeURIComponent(jobId)}`;
     const started = Date.now();
@@ -160,7 +172,7 @@ export async function pollScreenshitStatus(jobId: string): Promise<string> {
 
         if (status === 'completed' || status === 'success') {
             const deployedUrl = poll.result?.url ?? '';
-            if (!deployedUrl) {
+            if (expectUrl && !deployedUrl) {
                 throw new Error(`screenshit deploy completed but no URL was returned (jobId: ${jobId})`);
             }
             return deployedUrl;

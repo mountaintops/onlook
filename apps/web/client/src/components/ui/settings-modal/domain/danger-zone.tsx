@@ -14,6 +14,7 @@ import {
     AlertDialogTrigger,
 } from '@onlook/ui/alert-dialog';
 import { Button } from '@onlook/ui/button';
+import { Icons } from '@onlook/ui/icons/index';
 import { Separator } from '@onlook/ui/separator';
 import { toast } from '@onlook/ui/sonner';
 import { observer } from 'mobx-react-lite';
@@ -24,7 +25,7 @@ export const DangerZone = observer(() => {
     const { data: domains } = api.domain.getAll.useQuery({ projectId: editorEngine.projectId });
     const { deployment: unpublishPreviewDeployment, unpublish: runUnpublishPreview } = useHostingType(DeploymentType.UNPUBLISH_PREVIEW);
     const { deployment: unpublishCustomDeployment, unpublish: runUnpublishCustom } = useHostingType(DeploymentType.UNPUBLISH_CUSTOM);
-    const { deleteScreenshit, isScreenshitDeleting } = useHostingContext();
+    const { deleteScreenshit, isScreenshitDeleting, deployments, refetch } = useHostingContext();
 
     const previewDomain = domains?.preview;
     const customDomain = domains?.published;
@@ -52,6 +53,8 @@ export const DangerZone = observer(() => {
 
     const handleSstDelete = async () => {
         await deleteScreenshit(editorEngine.projectId);
+        // Refetch the screenshit deployment so the UI reflects it's been deleted
+        refetch(DeploymentType.SCREENSHIT);
     };
 
     return (
@@ -113,9 +116,10 @@ export const DangerZone = observer(() => {
                                 className="ml-auto shrink-0"
                                 size="sm"
                                 variant="destructive"
-                                disabled={isScreenshitDeleting}
+                                disabled={isScreenshitDeleting || deployments?.screenshit?.status !== DeploymentStatus.COMPLETED}
                                 id="sst-delete-btn"
                             >
+                                {isScreenshitDeleting && <Icons.LoadingSpinner className="w-4 h-4 mr-2 animate-spin" />}
                                 {isScreenshitDeleting ? 'Deleting...' : 'Delete SST Deploy'}
                             </Button>
                         </AlertDialogTrigger>

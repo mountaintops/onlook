@@ -20,7 +20,11 @@ export const PreviewDomainSection = observer(() => {
     const { data: previewDomain, refetch: refetchPreviewDomain } = api.domain.preview.get.useQuery({ projectId: editorEngine.projectId });
     const { mutateAsync: createPreviewDomain, isPending: isCreatingDomain } = api.domain.preview.create.useMutation();
     const { deployment, publish: runPublish, isDeploying } = useHostingType(DeploymentType.PREVIEW);
-    const { deployScreenshit, isScreenshitDeploying } = useHostingContext();
+    const { deployScreenshit, isScreenshitDeploying, deployments } = useHostingContext();
+    
+    // Use the backend DB URL if available and local session state hasn't overridden it
+    const sstDeployment = deployments?.screenshit;
+    const computedSstUrl = sstDeployedUrl || (sstDeployment?.status === DeploymentStatus.COMPLETED ? sstDeployment.message : null);
 
     const createBaseDomain = async (): Promise<void> => {
         const previewDomain = await createPreviewDomain({ projectId: editorEngine.projectId });
@@ -168,9 +172,16 @@ export const PreviewDomainSection = observer(() => {
             {/* ── SST / Screenshit deploy section ── */}
             <Separator className="my-2" />
             <div className="w-full flex flex-col gap-2">
-                <h3 className="text-sm font-medium">SST Deployment</h3>
-                {sstDeployedUrl && (
-                    <UrlSection url={sstDeployedUrl} isCopyable={true} />
+                <div className="flex flex-row justify-between items-center px-1">
+                    <h3 className="text-sm font-medium">SST Deployment</h3>
+                    {sstDeployment?.status === DeploymentStatus.IN_PROGRESS && (
+                        <div className="text-xs text-muted-foreground flex items-center gap-1.5 animate-pulse">
+                            {sstDeployment.message || 'Deploying...'}
+                        </div>
+                    )}
+                </div>
+                {computedSstUrl && (
+                    <UrlSection url={computedSstUrl} isCopyable={true} />
                 )}
                 <Button
                     onClick={publishSst}

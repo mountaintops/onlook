@@ -248,7 +248,7 @@ export class CodeProviderSync {
         
         const queue = [...filePaths];
         const workers = Array(Math.min(concurrency, queue.length)).fill(null).map(async () => {
-            while (queue.length > 0) {
+            while (queue.length > 0 && this.isRunning) {
                 const path = queue.shift();
                 if (!path) break;
 
@@ -285,6 +285,7 @@ export class CodeProviderSync {
             const entries = result.files;
 
             for (const entry of entries) {
+                if (!this.isRunning) break;
                 // Build path - when dir is './', just use entry.name
                 const fullPath = dir === './' ? entry.name : `${dir}/${entry.name}`;
 
@@ -325,6 +326,7 @@ export class CodeProviderSync {
             // TODO: Use available batch write API
             await Promise.all(
                 jsxFiles.map(async (filePath) => {
+                    if (!this.isRunning) return;
                     try {
                         const content = await this.fs.readFile(filePath);
                         if (typeof content === 'string') {
@@ -381,8 +383,8 @@ export class CodeProviderSync {
                     excludes: this.excludePatterns,
                 },
                 onFileChange: async (event) => {
-                    // Skip processing if paused
-                    if (this.isPaused) {
+                    // Skip processing if paused or not running
+                    if (this.isPaused || !this.isRunning) {
                         return;
                     }
 
@@ -608,8 +610,8 @@ export class CodeProviderSync {
     private async setupLocalWatching(): Promise<void> {
         // Watch the root directory for local changes
         this.localWatcher = this.fs.watchDirectory('/', async (event) => {
-            // Skip processing if paused
-            if (this.isPaused) {
+            // Skip processing if paused or not running
+            if (this.isPaused || !this.isRunning) {
                 return;
             }
 
