@@ -1,7 +1,7 @@
 import { initModel, SUGGESTION_SYSTEM_PROMPT } from '@onlook/ai';
 import { conversations } from '@onlook/db';
 import type { ChatSuggestion } from '@onlook/models';
-import { LLMProvider, OPENROUTER_MODELS } from '@onlook/models';
+import { LLMProvider, GOOGLE_MODELS } from '@onlook/models';
 import { ChatSuggestionsSchema } from '@onlook/models/chat';
 import { convertToModelMessages, generateObject } from 'ai';
 import { eq } from 'drizzle-orm';
@@ -19,8 +19,8 @@ export const suggestionsRouter = createTRPCRouter({
         }))
         .mutation(async ({ ctx, input }) => {
             const { model, headers } = initModel({
-                provider: LLMProvider.OPENROUTER,
-                model: OPENROUTER_MODELS.OPEN_AI_GPT_5_NANO,
+                provider: LLMProvider.GOOGLE,
+                model: GOOGLE_MODELS.GEMINI_3_1_FLASH_LITE_PREVIEW,
             });
             const { object } = await generateObject({
                 model,

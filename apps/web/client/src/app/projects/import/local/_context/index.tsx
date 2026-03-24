@@ -102,6 +102,8 @@ export const ProjectCreationProvider = ({ children, totalSteps }: ProjectCreatio
     const { mutateAsync: createProject } = api.project.create.useMutation();
     const { mutateAsync: forkSandbox } = api.sandbox.fork.useMutation();
     const { mutateAsync: startSandbox } = api.sandbox.start.useMutation();
+    const { mutateAsync: generateContext } = api.sandbox.generateContext.useMutation();
+
 
     const setProjectData = (newData: Partial<Project>) => {
         setProjectDataState((prevData) => ({ ...prevData, ...newData }));
@@ -166,6 +168,11 @@ export const ProjectCreationProvider = ({ children, totalSteps }: ProjectCreatio
                 console.error('Failed to create project');
                 return;
             }
+
+            generateContext({ sandboxId: forkedSandbox.sandboxId, userId: user.id }).catch((err) => {
+                console.warn('Context generation failed (non-critical):', err);
+            });
+
             // Open the project
             router.push(`${Routes.PROJECT}/${project.id}`);
         } catch (error) {

@@ -5,11 +5,49 @@ import {
     CodeProvider,
     createCodeProviderClient,
     getStaticCodeProvider,
+    Provider,
+    type ListFilesOutputFile,
 } from '@onlook/code-provider';
 import { getSandboxPreviewUrl, SandboxTemplates, Templates } from '@onlook/constants';
 import { shortenUuid } from '@onlook/utility/src/id';
 
 import { createTRPCRouter, protectedProcedure } from '../../trpc';
+
+const CONTEXT_EXCLUDED = new Set([
+    'node_modules', '.git', '.next', 'dist', '.sst', 'build', 'coverage', '.turbo', '.vscode',
+]);
+const CONTEXT_EXCLUDED_FILES = new Set([
+    '.prettierignore', '.DS_Store', 'bun.lock', 'package-lock.json',
+]);
+
+const ENTRY_POINT_CANDIDATES = ['./src/app/page.tsx', './app/page.tsx', './src/pages/index.tsx', './pages/index.tsx'];
+
+async function buildFileTree(
+    provider: Provider,
+    dirPath: string,
+    basePath: string = dirPath,
+): Promise<string[]> {
+    const results: string[] = [];
+    try {
+        const { files } = await provider.listFiles({ args: { path: dirPath } });
+        for (const entry of files as ListFilesOutputFile[]) {
+            if (entry.name.startsWith('.') && CONTEXT_EXCLUDED.has(entry.name)) continue;
+            if (entry.type === 'directory') {
+                if (CONTEXT_EXCLUDED.has(entry.name)) continue;
+                const subPath = `${dirPath}/${entry.name}`;
+                const subFiles = await buildFileTree(provider, subPath, basePath);
+                results.push(...subFiles);
+            } else {
+                if (CONTEXT_EXCLUDED_FILES.has(entry.name)) continue;
+                const relativePath = `${dirPath}/${entry.name}`.replace(basePath + '/', '').replace(basePath, '.');
+                results.push(relativePath);
+            }
+        }
+    } catch (_e) {
+        // Gracefully skip unreadable dirs
+    }
+    return results.sort();
+}
 
 function getProvider({
     sandboxId,
@@ -230,5 +268,64 @@ export const sandboxRouter = createTRPCRouter({
                 message: `Failed to create GitHub sandbox after ${MAX_RETRY_ATTEMPTS} attempts: ${lastError?.message}`,
                 cause: lastError,
             });
+        }),
+
+    generateContext: protectedProcedure
+        .input(z.object({ sandboxId: z.string(), userId: z.string() }))
+        .mutation(async ({ input }) => {
+            const provider = await getProvider({
+                sandboxId: input.sandboxId,
+                userId: input.userId,
+                tier: 'Pico',
+            });
+            try {
+                // 1. Build flat directory tree
+                const tree = await buildFileTree(provider, '.');
+
+                // 2. Find and read the primary entry point
+                let entryPath = '';
+                let entryContent = '';
+                for (const candidate of ENTRY_POINT_CANDIDATES) {
+                    try {
+                        const { file } = await provider.readFile({ args: { path: candidate } });
+                        entryContent = file.toString();
+                        entryPath = candidate.replace('./', '');
+                        break;
+                    } catch (_e) {
+                        // Try next candidate
+                    }
+                }
+
+                // 3. Build context.txt in the Onlook editable file format
+                const ext = entryPath.split('.').pop() ?? 'tsx';
+                let context = 'Project Directory Structure:\n';
+                context += tree.join('\n');
+                context += '\n\n=========================================\n\n';
+                if (entryPath && entryContent) {
+                    context += `I have added these files to the chat so you can go ahead and edit them\n`;
+                    context += `<file>\n`;
+                    context += `<path>${entryPath}</path>\n`;
+                    context += `\`\`\`${ext}\n`;
+                    context += entryContent;
+                    context += `\n\`\`\`\n`;
+                    context += `</file>\n`;
+                }
+
+                // 4. Write context.txt to sandbox root
+                await provider.writeFile({
+                    args: {
+                        path: './context.txt',
+                        content: context,
+                        overwrite: true,
+                    },
+                });
+
+                return { success: true, entryPath };
+            } catch (error) {
+                console.error('Error generating sandbox context:', error);
+                return { success: false, entryPath: '' };
+            } finally {
+                await provider.destroy().catch(() => {});
+            }
         }),
 });

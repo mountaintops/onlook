@@ -1,6 +1,6 @@
 'use client';
 
-import { MODEL_MAX_TOKENS, OPENROUTER_MODELS } from '@onlook/models';
+import { MODEL_MAX_TOKENS, GOOGLE_MODELS } from '@onlook/models';
 import {
     Context,
     ContextCacheUsage,
@@ -19,7 +19,7 @@ import { useMemo } from 'react';
 export const ChatContextWindow = ({ usage }: { usage: LanguageModelUsage }) => {
     const showCost = false;
     // Hardcoded for now, but should be dynamic based on the model used
-    const maxTokens = MODEL_MAX_TOKENS[OPENROUTER_MODELS.CLAUDE_4_5_SONNET];
+    const maxTokens = MODEL_MAX_TOKENS[GOOGLE_MODELS.GEMINI_3_1_FLASH_LITE_PREVIEW];
     const usedTokens = useMemo(() => {
         if (!usage) return 0;
         const input = usage.inputTokens ?? 0;

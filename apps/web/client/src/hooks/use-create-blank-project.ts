@@ -13,6 +13,7 @@ export function useCreateBlankProject() {
     const { data: user } = api.user.get.useQuery();
     const { mutateAsync: forkSandbox } = api.sandbox.fork.useMutation();
     const { mutateAsync: createProject } = api.project.create.useMutation();
+    const { mutateAsync: generateContext } = api.sandbox.generateContext.useMutation();
     const { setIsAuthModalOpen } = useAuthContext();
     const router = useRouter();
     const [isCreatingProject, setIsCreatingProject] = useState(false);
@@ -48,6 +49,10 @@ export function useCreateBlankProject() {
             });
 
             if (newProject) {
+                // Fire-and-forget: generate context.txt in the sandbox after project creation
+                generateContext({ sandboxId, userId: user.id }).catch((err) => {
+                    console.warn('Context generation failed (non-critical):', err);
+                });
                 router.push(`${Routes.PROJECT}/${newProject.id}`);
             }
         } catch (error) {
