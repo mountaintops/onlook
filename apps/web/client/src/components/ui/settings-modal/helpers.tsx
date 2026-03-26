@@ -6,6 +6,7 @@ export enum SettingsTabValue {
     VERSIONS = 'versions',
     ADVANCED = 'advanced',
     SITE = 'site',
+    LIFECYCLE_HOOKS = 'lifecycle-hooks',
 }
 
 export interface SettingTab {

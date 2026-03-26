@@ -24,6 +24,7 @@ export enum SettingsTabValue {
     PREFERENCES = 'preferences',
     VERSIONS = 'versions',
     ADVANCED = 'advanced',
+    LIFECYCLE_HOOKS = 'lifecycle-hooks',
 }
 
 export enum LeftPanelTabValue {

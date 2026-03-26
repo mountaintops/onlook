@@ -46,7 +46,6 @@ export const TopBar = ({ searchQuery, onSearchChange }: TopBarProps) => {
     const { data: user } = api.user.get.useQuery();
     const { mutateAsync: forkSandbox } = api.sandbox.fork.useMutation();
     const { mutateAsync: createProject } = api.project.create.useMutation();
-    const { mutateAsync: generateContext } = api.sandbox.generateContext.useMutation();
     const { setIsAuthModalOpen } = useAuthContext();
 
     useEffect(() => {
@@ -145,9 +144,6 @@ export const TopBar = ({ searchQuery, onSearchChange }: TopBarProps) => {
             });
 
             if (newProject) {
-                generateContext({ sandboxId, userId: user.id }).catch((err) => {
-                    console.warn('Context generation failed (non-critical):', err);
-                });
                 router.push(`${Routes.PROJECT}/${newProject.id}`);
             }
         } catch (error) {

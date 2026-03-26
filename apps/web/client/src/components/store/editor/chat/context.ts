@@ -22,6 +22,13 @@ export class ChatContext {
     }
 
     init() {
+        // Seed context.txt immediately so the pill shows before any element is selected
+        void this.getContextFromContextFile().then((contextFileContext) => {
+            if (contextFileContext.length > 0) {
+                this.addContexts(contextFileContext);
+            }
+        });
+
         this.selectedReactionDisposer = reaction(
             () => ({
                 elements: this.editorEngine.elements.selected,
@@ -42,6 +49,7 @@ export class ChatContext {
             },
         );
     }
+
 
     get context(): MessageContext[] {
         return this._context;
@@ -106,8 +114,77 @@ export class ChatContext {
     async getChatEditContext(): Promise<MessageContext[]> {
         return [
             ...await this.getRefreshedContext(this.context),
-            ...await this.getAgentRuleContext()
+            ...await this.getAgentRuleContext(),
         ];
+    }
+
+    /**
+     * Reads context.txt (written by the sync engine) and auto-attaches the
+     * listed recently-edited files as FileMessageContext — identical to "Add to Chat".
+     */
+    private async getContextFromContextFile(): Promise<FileMessageContext[]> {
+        try {
+            const activeBranchId = this.editorEngine.branches.activeBranch?.id;
+            if (!activeBranchId) return [];
+
+            const branchData = this.editorEngine.branches.getBranchDataById(activeBranchId);
+            if (!branchData) return [];
+
+            // context.txt may live at '/context.txt' or 'context.txt' depending on FS prefix
+            let raw: string | Uint8Array | null = null;
+            let resolvedPath = '/context.txt';
+            for (const p of ['/context.txt', 'context.txt']) {
+                try {
+                    raw = await branchData.codeEditor.readFile(p);
+                    if (raw) { resolvedPath = p; break; }
+                } catch {
+                    // try next path
+                }
+            }
+
+            if (!raw || typeof raw !== 'string') return [];
+
+            // Always attach context.txt itself so the AI has the directory tree + recent-file list
+            const fileContexts: FileMessageContext[] = [{
+                type: MessageContextType.FILE,
+                displayName: 'context.txt',
+                path: resolvedPath,
+                content: raw,
+                branchId: activeBranchId,
+            }];
+
+            let parsed: { files?: string[] };
+            try {
+                parsed = JSON.parse(raw);
+            } catch {
+                // Legacy plain-text format or malformed — return just context.txt itself
+                return fileContexts;
+            }
+
+            const filePaths = parsed.files;
+            if (!Array.isArray(filePaths)) return fileContexts;
+
+            for (const filePath of filePaths) {
+                try {
+                    const content = await branchData.codeEditor.readFile(filePath);
+                    if (!content || content instanceof Uint8Array) continue;
+                    fileContexts.push({
+                        type: MessageContextType.FILE,
+                        displayName: filePath.split('/').pop() || filePath,
+                        path: filePath,
+                        content,
+                        branchId: activeBranchId,
+                    });
+                } catch {
+                    // File may not exist yet — skip it
+                }
+            }
+
+            return fileContexts;
+        } catch (error) {
+            console.error('Error reading context from context.txt', error);
+            return [];
+        }
     }
 
     private async generateContextFromReaction({ elements, frames }: { elements: DomElement[], frames: FrameData[] }): Promise<MessageContext[]> {
@@ -119,7 +196,9 @@ export class ChatContext {
         // Derived from highlighted context - images are managed separately now
         const fileContext = await this.getFileContext(highlightedContext);
         const branchContext = this.getBranchContext(highlightedContext, frames);
-        const context = [...fileContext, ...highlightedContext, ...branchContext];
+        // Always include context.txt + recently-edited files so they show as pills
+        const contextFileContext = await this.getContextFromContextFile();
+        const context = [...contextFileContext, ...fileContext, ...highlightedContext, ...branchContext];
         return context;
     }
 

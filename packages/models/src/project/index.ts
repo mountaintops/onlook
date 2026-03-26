@@ -6,4 +6,5 @@ export * from './frame';
 export * from './project';
 export * from './rect';
 export * from './role';
+export * from './lifecycle-hooks';
 export * from './settings';

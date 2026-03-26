@@ -1,13 +1,7 @@
 'use client';
 
 import { VARIANTS } from '@onlook/fonts';
-import { Button } from '@onlook/ui/button';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '@onlook/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@onlook/ui/dropdown-menu';
 import { Icons } from '@onlook/ui/icons';
 import { convertFontWeight } from '@onlook/utility';
 import { observer } from 'mobx-react-lite';
@@ -22,6 +16,11 @@ export const FontWeightSelector = observer(
         const { isOpen, onOpenChange } = useDropdownControl({
             id: 'font-weight-dropdown',
         });
+
+        const handleSelect = (value: string) => {
+            handleFontWeightChange(value);
+            onOpenChange(false);
+        };
 
         return (
             <DropdownMenu open={isOpen} onOpenChange={onOpenChange} modal={false}>
@@ -44,21 +43,23 @@ export const FontWeightSelector = observer(
                     </DropdownMenuTrigger>
                 </HoverOnlyTooltip>
                 <DropdownMenuContent align="center" className="mt-1 min-w-[120px] rounded-lg p-1">
-                    {VARIANTS.map((weight) => (
-                        <DropdownMenuItem
-                            key={weight.value}
-                            onClick={() => handleFontWeightChange(weight.value)}
-                            className={`text-muted-foreground data-[highlighted]:bg-background-tertiary/10 border-border/0 data-[highlighted]:border-border flex items-center justify-between rounded-md border px-2 py-1.5 text-sm data-[highlighted]:text-white cursor-pointer transition-colors duration-150 hover:bg-background-tertiary/20 hover:text-foreground ${textState.fontWeight === weight.value
-                                ? 'bg-background-tertiary/20 border-border border text-white'
-                                : ''
-                                }`}
-                        >
-                            {weight.name}
-                            {textState.fontWeight === weight.value && (
-                                <Icons.Check className="ml-2 h-4 w-4 text-foreground-primary" />
-                            )}
-                        </DropdownMenuItem>
-                    ))}
+                    <div className="grid grid-cols-1 gap-1">
+                        {VARIANTS.map((weight) => (
+                            <button
+                                key={weight.value}
+                                onClick={() => handleSelect(weight.value)}
+                                className={`text-muted-foreground flex items-center justify-between rounded-md border px-2 py-1.5 text-sm cursor-pointer transition-colors duration-150 hover:bg-background-tertiary/20 hover:text-foreground ${String(textState.fontWeight) === String(weight.value)
+                                    ? 'bg-background-tertiary/20 border-border border text-white'
+                                    : 'border-border/0'
+                                    }`}
+                            >
+                                {weight.name}
+                                {String(textState.fontWeight) === String(weight.value) && (
+                                    <Icons.Check className="ml-2 h-4 w-4 text-foreground-primary" />
+                                )}
+                            </button>
+                        ))}
+                    </div>
                 </DropdownMenuContent>
             </DropdownMenu>
         )

@@ -165,6 +165,8 @@ export class CodeProviderSync {
             await this.setupWatching();
             // Push any locally modified files (with OIDs) back to sandbox. This is required for the first time sync.
             void this.pushModifiedFilesToSandbox();
+
+            this.triggerContextUpdate();
         } catch (error) {
             this.isRunning = false;
             throw error;
@@ -273,6 +275,17 @@ export class CodeProviderSync {
 
         await Promise.all(workers);
         console.log(`[Sync] Finished pulling ${filePaths.length} files.`);
+        
+        // Seed recent files from pulled sandbox if empty, to ensure we have context
+        if (this.recentEditedPaths.length === 0) {
+            const ENTRY_POINT_CANDIDATES = ['/src/app/page.tsx', '/app/page.tsx', '/src/pages/index.tsx', '/pages/index.tsx'];
+            for (const candidate of ENTRY_POINT_CANDIDATES) {
+                if (this.fileHashes.has(candidate)) {
+                    this.recentEditedPaths.push(candidate);
+                    break;
+                }
+            }
+        }
     }
 
     private async getAllSandboxFiles(
@@ -351,6 +364,8 @@ export class CodeProviderSync {
     }
 
     private shouldSync(path: string): boolean {
+        if (path === 'context.txt' || path === '/context.txt') return false; // Ignore context.txt from recursive watcher syncing loop logic since we handle it manually.
+
         // Check if path matches any exclude pattern
         const isExcluded = this.excludes.some((exc) => {
             // Check if path is within excluded directory or is the excluded item itself
@@ -542,6 +557,8 @@ export class CodeProviderSync {
                                             if (newHash !== existingHash) {
                                                 await this.fs.writeFile(localPath, file.content);
                                                 this.fileHashes.set(localPath, newHash);
+                                                this.trackRecentFile(localPath);
+                                                this.triggerContextUpdate();
                                             } else {
                                                 console.debug(
                                                     `[Sync] Skipping ${localPath} - content unchanged`,
@@ -583,6 +600,8 @@ export class CodeProviderSync {
 
                                 // Remove hash regardless
                                 this.fileHashes.delete(localPath);
+                                this.untrackRecentFile(localPath);
+                                this.triggerContextUpdate();
                             } catch (error) {
                                 console.debug(
                                     `[Sync] Error deleting ${normalizedPath} locally:`,
@@ -658,6 +677,8 @@ export class CodeProviderSync {
                                     overwrite: true,
                                 },
                             });
+                            this.trackRecentFile(path);
+                            this.triggerContextUpdate();
                         }
                         break;
                     }
@@ -684,6 +705,8 @@ export class CodeProviderSync {
                             this.fileHashes.delete(path);
                             console.debug(`[Sync] Removed hash entry for deleted file: ${path}`);
                         }
+                        this.untrackRecentFile(path);
+                        this.triggerContextUpdate();
                         break;
                     }
                     case 'rename': {
@@ -707,6 +730,9 @@ export class CodeProviderSync {
                                     this.fileHashes.delete(event.oldPath);
                                     this.fileHashes.set(path, oldHash);
                                 }
+                                this.untrackRecentFile(event.oldPath);
+                                this.trackRecentFile(path);
+                                this.triggerContextUpdate();
                             } catch (error) {
                                 console.error(`[Sync] Failed to rename in sandbox:`, error);
                                 throw error; // Re-throw to be caught by outer try-catch
@@ -724,5 +750,93 @@ export class CodeProviderSync {
                 );
             }
         });
+    }
+
+    private contextUpdateTimeout: NodeJS.Timeout | null = null;
+    private recentEditedPaths: string[] = [];
+
+    private trackRecentFile(path: string) {
+        if (path === 'context.txt' || path === '/context.txt') return;
+        const normalizedPath = path.startsWith('/') ? path : '/' + path;
+        
+        const index = this.recentEditedPaths.indexOf(normalizedPath);
+        if (index > -1) {
+            this.recentEditedPaths.splice(index, 1);
+        }
+        
+        this.recentEditedPaths.unshift(normalizedPath);
+        
+        if (this.recentEditedPaths.length > 4) {
+            this.recentEditedPaths = this.recentEditedPaths.slice(0, 4);
+        }
+    }
+
+    private untrackRecentFile(path: string) {
+        const normalizedPath = path.startsWith('/') ? path : '/' + path;
+        const index = this.recentEditedPaths.indexOf(normalizedPath);
+        if (index > -1) {
+            this.recentEditedPaths.splice(index, 1);
+        }
+    }
+    
+    private triggerContextUpdate(): void {
+        if (!this.isRunning || this.isPaused) return;
+        if (this.contextUpdateTimeout) {
+            clearTimeout(this.contextUpdateTimeout);
+        }
+        this.contextUpdateTimeout = setTimeout(() => {
+            void this.writeContextTxt();
+        }, 300); // reduced debounce from 1000ms to 300ms since it's much faster now
+    }
+    
+    private async writeContextTxt(): Promise<void> {
+        try {
+            // Very fast memory lookup instead of disk I/O
+            const allFiles = Array.from(this.fileHashes.keys());
+
+            const filteredPaths = allFiles.filter(p => {
+                const parts = p.split('/');
+                if (parts.some(part => part.startsWith('.'))) return false;
+                if (parts.some(part => ['node_modules', 'dist', 'build', 'coverage'].includes(part))) return false;
+                const fileName = parts[parts.length - 1];
+                if (!fileName) return false;
+                if (['bun.lock', 'package-lock.json', 'context.txt'].includes(fileName)) return false;
+                return true;
+            });
+
+            filteredPaths.sort((a, b) => a.localeCompare(b));
+            const tree = filteredPaths.map(p => '.' + (p.startsWith('/') ? p : '/' + p));
+
+            if (this.recentEditedPaths.length === 0) {
+                const ENTRY_POINT_CANDIDATES = ['/src/app/page.tsx', '/app/page.tsx', '/src/pages/index.tsx', '/pages/index.tsx'];
+                for (const candidate of ENTRY_POINT_CANDIDATES) {
+                    if (this.fileHashes.has(candidate) || this.fileHashes.has(candidate.substring(1))) {
+                        this.recentEditedPaths.push(candidate);
+                        break;
+                    }
+                }
+            }
+
+            // Write compact JSON: directory tree + list of recently-edited file paths.
+            // ChatContext reads this and auto-attaches the files as FileMessageContext
+            // (identical to "Add to Chat"), so no file contents need to live here.
+            const payload = JSON.stringify({ tree, files: this.recentEditedPaths }, null, 2);
+
+            const hashed = await hashContent(payload);
+            if (this.fileHashes.get('/context.txt') !== hashed && this.fileHashes.get('context.txt') !== hashed) {
+                await this.fs.writeFile('/context.txt', payload);
+                this.fileHashes.set('/context.txt', hashed);
+                await this.provider.writeFile({
+                    args: {
+                        path: 'context.txt',
+                        content: payload,
+                        overwrite: true,
+                    },
+                });
+                console.log('[Sync] Updated context.txt with', this.recentEditedPaths.length, 'recent file(s)');
+            }
+        } catch (error) {
+            console.error('[Sync] Failed to update context.txt:', error);
+        }
     }
 }

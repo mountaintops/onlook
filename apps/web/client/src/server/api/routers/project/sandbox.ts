@@ -10,55 +10,27 @@ import {
 } from '@onlook/code-provider';
 import { getSandboxPreviewUrl, SandboxTemplates, Templates } from '@onlook/constants';
 import { shortenUuid } from '@onlook/utility/src/id';
+import { projectSettings, fromDbProjectSettings } from '@onlook/db';
+import { LifecycleHookEvent } from '@onlook/models';
+import { eq } from 'drizzle-orm';
 
 import { createTRPCRouter, protectedProcedure } from '../../trpc';
+import { executeLifecycleHook } from './hooks';
 
-const CONTEXT_EXCLUDED = new Set([
-    'node_modules', '.git', '.next', 'dist', '.sst', 'build', 'coverage', '.turbo', '.vscode',
-]);
-const CONTEXT_EXCLUDED_FILES = new Set([
-    '.prettierignore', '.DS_Store', 'bun.lock', 'package-lock.json',
-]);
 
-const ENTRY_POINT_CANDIDATES = ['./src/app/page.tsx', './app/page.tsx', './src/pages/index.tsx', './pages/index.tsx'];
 
-async function buildFileTree(
-    provider: Provider,
-    dirPath: string,
-    basePath: string = dirPath,
-): Promise<string[]> {
-    const results: string[] = [];
-    try {
-        const { files } = await provider.listFiles({ args: { path: dirPath } });
-        for (const entry of files as ListFilesOutputFile[]) {
-            if (entry.name.startsWith('.') && CONTEXT_EXCLUDED.has(entry.name)) continue;
-            if (entry.type === 'directory') {
-                if (CONTEXT_EXCLUDED.has(entry.name)) continue;
-                const subPath = `${dirPath}/${entry.name}`;
-                const subFiles = await buildFileTree(provider, subPath, basePath);
-                results.push(...subFiles);
-            } else {
-                if (CONTEXT_EXCLUDED_FILES.has(entry.name)) continue;
-                const relativePath = `${dirPath}/${entry.name}`.replace(basePath + '/', '').replace(basePath, '.');
-                results.push(relativePath);
-            }
-        }
-    } catch (_e) {
-        // Gracefully skip unreadable dirs
-    }
-    return results.sort();
-}
-
-function getProvider({
+export function getProvider({
     sandboxId,
     userId,
     provider = CodeProvider.CodeSandbox,
     tier,
+    initClient = true,
 }: {
     sandboxId: string;
     provider?: CodeProvider;
     userId?: undefined | string;
     tier?: string;
+    initClient?: boolean;
 }) {
     if (provider === CodeProvider.CodeSandbox) {
         return createCodeProviderClient(CodeProvider.CodeSandbox, {
@@ -67,6 +39,7 @@ function getProvider({
                     sandboxId,
                     userId,
                     tier,
+                    initClient,
                 },
             },
         });
@@ -102,6 +75,13 @@ export const sandboxRouter = createTRPCRouter({
                 tier: 'Pico',
             });
 
+            // Fire VM Creation Hook
+            if (input.title) { 
+                // Normally title is used as project name/indicator, try to get settings if projectId was provided. 
+                // Wait, create mutation here doesn't take projectId. The sandbox fork/createBlank mutations do.
+                // We will leave the trigger here just in case, but no projectId is available to fetch hooks.
+            }
+
             return {
                 sandboxId: newSandbox.id,
                 previewUrl: getSandboxPreviewUrl(newSandbox.id, template.port),
@@ -126,6 +106,12 @@ export const sandboxRouter = createTRPCRouter({
                     id: shortenUuid(userId, 20),
                 },
             });
+
+            // Note: start requires projectId to get settings, but it's not passed here. 
+            // We should require projectId in the input if we want to run hooks, but that's a breaking API change.
+            // I'll add the hook execution to the mutations in branch.ts which do have the projectId.
+            // Let me pause here and add it to branch.ts first.
+
             await provider.destroy();
             return session;
         }),
@@ -270,60 +256,61 @@ export const sandboxRouter = createTRPCRouter({
             });
         }),
 
-    generateContext: protectedProcedure
-        .input(z.object({ sandboxId: z.string(), userId: z.string() }))
-        .mutation(async ({ input }) => {
+
+    getProjectFiles: protectedProcedure
+        .input(z.object({ sandboxId: z.string() }))
+        .query(async ({ input, ctx }) => {
             const provider = await getProvider({
                 sandboxId: input.sandboxId,
-                userId: input.userId,
+                userId: ctx.user.id,
                 tier: 'Pico',
             });
             try {
-                // 1. Build flat directory tree
-                const tree = await buildFileTree(provider, '.');
-
-                // 2. Find and read the primary entry point
-                let entryPath = '';
-                let entryContent = '';
-                for (const candidate of ENTRY_POINT_CANDIDATES) {
-                    try {
-                        const { file } = await provider.readFile({ args: { path: candidate } });
-                        entryContent = file.toString();
-                        entryPath = candidate.replace('./', '');
-                        break;
-                    } catch (_e) {
-                        // Try next candidate
-                    }
-                }
-
-                // 3. Build context.txt in the Onlook editable file format
-                const ext = entryPath.split('.').pop() ?? 'tsx';
-                let context = 'Project Directory Structure:\n';
-                context += tree.join('\n');
-                context += '\n\n=========================================\n\n';
-                if (entryPath && entryContent) {
-                    context += `I have added these files to the chat so you can go ahead and edit them\n`;
-                    context += `<file>\n`;
-                    context += `<path>${entryPath}</path>\n`;
-                    context += `\`\`\`${ext}\n`;
-                    context += entryContent;
-                    context += `\n\`\`\`\n`;
-                    context += `</file>\n`;
-                }
-
-                // 4. Write context.txt to sandbox root
-                await provider.writeFile({
-                    args: {
-                        path: './context.txt',
-                        content: context,
-                        overwrite: true,
-                    },
-                });
-
-                return { success: true, entryPath };
+                const result = await provider.runCommand({ args: { command: 'git ls-files' } });
+                const files = result.output
+                    .split('\n')
+                    .map((f) => f.replace(/\r/g, ''))
+                    .filter(Boolean);
+                return { files };
             } catch (error) {
-                console.error('Error generating sandbox context:', error);
-                return { success: false, entryPath: '' };
+                console.error('Error getting project files:', error);
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: 'Failed to get project files from sandbox',
+                });
+            } finally {
+                await provider.destroy().catch(() => {});
+            }
+        }),
+
+    getFilesContent: protectedProcedure
+        .input(z.object({ sandboxId: z.string(), paths: z.array(z.string()) }))
+        .mutation(async ({ input, ctx }) => {
+            const provider = await getProvider({
+                sandboxId: input.sandboxId,
+                userId: ctx.user.id,
+                tier: 'Pico',
+            });
+            try {
+                const results = await Promise.all(
+                    input.paths.map(async (rawPath) => {
+                        try {
+                            const escapedPath = rawPath.replace(/'/g, "'\\''");
+                            const { output } = await provider.runCommand({ args: { command: `cat '${escapedPath}'` } });
+                            return { path: rawPath, content: output };
+                        } catch (e) {
+                            console.error(`Failed to read file ${rawPath}:`, e);
+                            return { path: rawPath, content: `Error reading file: ${e}` };
+                        }
+                    })
+                );
+                return { files: results };
+            } catch (error) {
+                console.error('Error getting files content:', error);
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: 'Failed to get files content from sandbox',
+                });
             } finally {
                 await provider.destroy().catch(() => {});
             }

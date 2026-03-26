@@ -3,6 +3,28 @@ import type { Font } from '@onlook/models';
 import { convertFontString } from '@onlook/utility';
 import { useEffect, useState } from 'react';
 
+/** Map CSS keyword font-weight values to numeric strings */
+const FONT_WEIGHT_KEYWORDS: Record<string, string> = {
+    thin: '100',
+    extralight: '200',
+    'extra-light': '200',
+    light: '300',
+    normal: '400',
+    medium: '500',
+    semibold: '600',
+    'semi-bold': '600',
+    bold: '700',
+    extrabold: '800',
+    'extra-bold': '800',
+    black: '900',
+    heavy: '900',
+};
+
+const normalizeFontWeight = (value: string): string => {
+    const lower = value.toLowerCase().trim();
+    return FONT_WEIGHT_KEYWORDS[lower] ?? value;
+};
+
 export type TextAlign = 'left' | 'center' | 'right' | 'justify';
 
 interface TextState {
@@ -51,7 +73,7 @@ export const useTextControl = () => {
                 const size = parseFloat(getStyleValue('fontSize', DefaultState.fontSize.toString()));
                 return isNaN(size) ? DefaultState.fontSize : size;
             })(),
-            fontWeight: getStyleValue('fontWeight', DefaultState.fontWeight),
+            fontWeight: normalizeFontWeight(getStyleValue('fontWeight', DefaultState.fontWeight)),
             textAlign: getStyleValue('textAlign', DefaultState.textAlign) as TextAlign,
             textColor: getStyleValue('color', DefaultState.textColor),
             letterSpacing: getStyleValue('letterSpacing', DefaultState.letterSpacing),

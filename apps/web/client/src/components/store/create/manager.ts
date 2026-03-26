@@ -69,10 +69,6 @@ export class CreateManager {
                 },
             });
 
-            api.sandbox.generateContext.mutate({ sandboxId, userId }).catch((err) => {
-                console.warn('Context generation failed (non-critical):', err);
-            });
-
             return newProject;
         }
         catch (error) {
@@ -115,9 +111,6 @@ export class CreateManager {
                 sandboxUrl: previewUrl,
             });
 
-            api.sandbox.generateContext.mutate({ sandboxId, userId }).catch((err) => {
-                console.warn('Context generation failed (non-critical):', err);
-            });
 
             return newProject;
         }

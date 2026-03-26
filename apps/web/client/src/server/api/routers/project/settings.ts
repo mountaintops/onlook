@@ -1,12 +1,16 @@
 import {
     projectSettings,
     projectSettingsInsertSchema,
-    fromDbProjectSettings
+    fromDbProjectSettings,
+    toDbProjectSettings,
 } from '@onlook/db';
+import { LifecycleHookEvent } from '@onlook/models';
 import { TRPCError } from '@trpc/server';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { createTRPCRouter, protectedProcedure } from '../../trpc';
+import { executeLifecycleHook } from './hooks';
+import { getProvider } from './sandbox';
 
 export const settingsRouter = createTRPCRouter({
     get: protectedProcedure
@@ -59,5 +63,48 @@ export const settingsRouter = createTRPCRouter({
                 .delete(projectSettings)
                 .where(eq(projectSettings.projectId, input.projectId));
             return true;
+        }),
+
+    /**
+     * Execute a lifecycle hook inside the sandbox VM.
+     * Called by the client (SandboxManager) after file operations.
+     */
+    executeHook: protectedProcedure
+        .input(
+            z.object({
+                sandboxId: z.string(),
+                projectId: z.string(),
+                event: z.enum([
+                    LifecycleHookEvent.STARTUP,
+                    LifecycleHookEvent.SHUTDOWN,
+                    LifecycleHookEvent.VM_CREATION,
+                    LifecycleHookEvent.FILE_DELETE,
+                    LifecycleHookEvent.FILE_CREATE,
+                    LifecycleHookEvent.FILE_EDIT,
+                ]),
+                filePath: z.string(),
+            }),
+        )
+        .mutation(async ({ ctx, input }) => {
+            const setting = await ctx.db.query.projectSettings.findFirst({
+                where: eq(projectSettings.projectId, input.projectId),
+            });
+            const hooks = setting ? fromDbProjectSettings(setting).lifecycleHooks : undefined;
+            if (!hooks) {
+                return { ran: false, reason: 'No hooks configured' };
+            }
+
+            const provider = await getProvider({
+                sandboxId: input.sandboxId,
+                userId: ctx.user.id,
+                tier: 'Pico',
+            });
+
+            try {
+                await executeLifecycleHook(provider, hooks, input.event, input.filePath);
+                return { ran: true };
+            } finally {
+                await provider.destroy().catch(() => {});
+            }
         }),
 });
