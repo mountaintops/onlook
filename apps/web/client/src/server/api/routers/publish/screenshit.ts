@@ -15,6 +15,8 @@ import {
     screenshitDomainStatus,
     screenshitListDomains,
 } from './helpers/subdomain';
+import { deployments } from '@onlook/db';
+import { and, eq } from 'drizzle-orm';
 
 export const screenshitRouter = createTRPCRouter({
     /**
@@ -32,11 +34,35 @@ export const screenshitRouter = createTRPCRouter({
             z.object({
                 projectId: z.string(),
                 sandboxId: z.string(),
+                force: z.boolean().optional().default(false),
             }),
         )
         .mutation(async ({ ctx, input }): Promise<{ deploymentId: string; url: string; subdomainUrl?: string }> => {
-            const { projectId, sandboxId } = input;
+            const { projectId, sandboxId, force } = input;
             const userId = ctx.user.id;
+
+            // 0. Check for existing completed deployment if not forcing
+            if (!force) {
+                const existing = await ctx.db.query.deployments.findFirst({
+                    where: (deployments, { and, eq }) =>
+                        and(
+                            eq(deployments.projectId, projectId),
+                            eq(deployments.type, DeploymentType.SCREENSHIT),
+                            eq(deployments.status, DeploymentStatus.COMPLETED),
+                        ),
+                    orderBy: (deployments, { desc }) => [desc(deployments.createdAt)],
+                });
+
+                if (existing && existing.message) {
+                    const url = existing.message;
+                    console.log(`[screenshit] Reusing existing deployment: ${url}`);
+                    return {
+                        deploymentId: existing.id,
+                        url,
+                        subdomainUrl: `https://${url.replace(/^https?:\/\//, '').split('.')[0]}.weliketech.eu.org`
+                    };
+                }
+            }
 
             // 1. Create a deployment record so the UI can poll for status
             const deployment = await createDeployment({
@@ -162,9 +188,27 @@ export const screenshitRouter = createTRPCRouter({
                 subdomain: z.string().optional(),
             }),
         )
-        .mutation(async ({ input }) => {
+        .mutation(async ({ ctx, input }) => {
             const { projectId, lambdaUrl, subdomain } = input;
             const result = await screenshitAssignDomain(projectId, lambdaUrl, subdomain);
+
+            // Persist the assigned subdomain URL in the latest SCREENSHIT deployment record
+            const latestDeployment = await ctx.db.query.deployments.findFirst({
+                where: (deployments, { eq, and }) =>
+                    and(
+                        eq(deployments.projectId, projectId),
+                        eq(deployments.type, DeploymentType.SCREENSHIT)
+                    ),
+                orderBy: (deployments, { desc }) => [desc(deployments.createdAt)],
+            });
+
+            if (latestDeployment) {
+                const fullUrl = `https://${result.fullDomain}`;
+                await ctx.db.update(deployments)
+                    .set({ urls: [fullUrl] })
+                    .where(eq(deployments.id, latestDeployment.id));
+            }
+
             return {
                 hostname: result.hostname,
                 hostnameId: result.hostnameId,
@@ -186,9 +230,25 @@ export const screenshitRouter = createTRPCRouter({
                 subdomain: z.string().optional(),
             }),
         )
-        .mutation(async ({ input }) => {
+        .mutation(async ({ ctx, input }) => {
             const { projectId, subdomain } = input;
             const result = await screenshitRemoveDomain(projectId, subdomain);
+
+            // Clear the assigned subdomain URL from the deployment records
+            const deploymentsToUpdate = await ctx.db.query.deployments.findMany({
+                where: (deployments, { eq, and }) =>
+                    and(
+                        eq(deployments.projectId, projectId),
+                        eq(deployments.type, DeploymentType.SCREENSHIT)
+                    ),
+            });
+
+            for (const d of deploymentsToUpdate) {
+                await ctx.db.update(deployments)
+                    .set({ urls: [] })
+                    .where(eq(deployments.id, d.id));
+            }
+
             return { hostname: result.hostname, removed: result.removed };
         }),
 

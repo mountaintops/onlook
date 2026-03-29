@@ -10,6 +10,7 @@
 import { createAdminClient } from '@/utils/supabase/admin';
 import { createClient } from '@/utils/supabase/server';
 import { db } from '@onlook/db/src/client';
+import '@aws-sdk/signature-v4-crt';
 import type { User } from '@supabase/supabase-js';
 import { initTRPC, TRPCError } from '@trpc/server';
 import superjson from 'superjson';

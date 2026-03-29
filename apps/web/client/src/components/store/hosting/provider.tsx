@@ -27,7 +27,7 @@ interface HostingContextValue {
     cancel: (type: DeploymentType) => Promise<void>;
 
     // Screenshit Express API operations
-    deployScreenshit: (projectId: string, sandboxId: string) => Promise<{ url: string } | null>;
+    deployScreenshit: (projectId: string, sandboxId: string, force?: boolean) => Promise<{ url: string } | null>;
     deleteScreenshit: (projectId: string) => Promise<boolean>;
     isScreenshitDeploying: boolean;
     isScreenshitDeleting: boolean;
@@ -246,14 +246,14 @@ export const HostingProvider = ({ children }: HostingProviderProps) => {
         }
     };
 
-    // Screenshit: deploy
     const deployScreenshit = async (
         projectId: string,
         sandboxId: string,
+        force: boolean = false,
     ): Promise<{ url: string } | null> => {
         try {
             setSubscriptionStates(prev => ({ ...prev, [DeploymentType.SCREENSHIT]: true }));
-            const result = await runScreenshitDeploy({ projectId, sandboxId });
+            const result = await runScreenshitDeploy({ projectId, sandboxId, force });
             toast.success('Deployment complete!', { description: result.url });
             return { url: result.url };
         } catch (error) {
