@@ -31,9 +31,13 @@ export const toDbProject = (project: Project): DbProject => {
         previewImgBucket,
         updatedPreviewImgAt,
 
-        // deprecated
         sandboxId: null,
         sandboxUrl: null,
+
+        customDomain: null,
+        domainStatus: 'pending',
+        dnsTxtName: null,
+        dnsTxtValue: null,
     };
 };
 

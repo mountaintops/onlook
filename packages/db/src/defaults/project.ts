@@ -19,8 +19,12 @@ export const createDefaultProject = ({
         updatedPreviewImgAt: null,
         ...overrides,
 
-        // deprecated
         sandboxId: null,
         sandboxUrl: null,
+
+        customDomain: null,
+        domainStatus: 'pending',
+        dnsTxtName: null,
+        dnsTxtValue: null,
     } satisfies DbProject;
 };

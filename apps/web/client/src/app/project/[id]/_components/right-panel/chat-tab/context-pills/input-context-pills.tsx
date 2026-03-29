@@ -48,6 +48,7 @@ export const InputContextPills = observer(() => {
 
     const sortedContexts = useMemo(() => {
         return [...editorEngine.chat.context.context]
+            .filter((c) => c.type !== MessageContextType.FILE)
             .sort((a, b) => {
                 return typeOrder[a.type] - typeOrder[b.type];
             });

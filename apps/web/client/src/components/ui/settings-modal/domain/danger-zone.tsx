@@ -105,9 +105,9 @@ export const DangerZone = observer(() => {
                 <Separator />
                 <div className="flex flex-row gap-2 items-center">
                     <div className="flex flex-col gap-0.5">
-                        <p className="text-sm font-medium">SST Deployment</p>
+                        <p className="text-sm font-medium">Publish</p>
                         <p className="text-xs text-muted-foreground">
-                            Permanently remove the SST infrastructure for this project.
+                            Permanently remove the published infrastructure for this project.
                         </p>
                     </div>
                     <AlertDialog>
@@ -117,17 +117,17 @@ export const DangerZone = observer(() => {
                                 size="sm"
                                 variant="destructive"
                                 disabled={isScreenshitDeleting || deployments?.screenshit?.status !== DeploymentStatus.COMPLETED}
-                                id="sst-delete-btn"
+                                id="publish-delete-btn"
                             >
                                 {isScreenshitDeleting && <Icons.LoadingSpinner className="w-4 h-4 mr-2 animate-spin" />}
-                                {isScreenshitDeleting ? 'Deleting...' : 'Delete SST Deploy'}
+                                {isScreenshitDeleting ? 'Deleting...' : 'Delete Published Site'}
                             </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader>
-                                <AlertDialogTitle>Delete SST Deployment?</AlertDialogTitle>
+                                <AlertDialogTitle>Delete Published Site?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                    This will permanently remove the SST infrastructure for project{' '}
+                                    This will permanently remove the published infrastructure for project{' '}
                                     <strong>{editorEngine.projectId}</strong>. This action cannot be
                                     undone.
                                 </AlertDialogDescription>

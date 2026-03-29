@@ -278,7 +278,7 @@ const subscription0 = {
     scheduledChangeAt: null,
     endedAt: null,
     stripeCurrentPeriodStart: new Date(),
-    stripeCurrentPeriodEnd: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
+    stripeCurrentPeriodEnd: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365 * 100),
 } satisfies Subscription;
 
 const rateLimit0 = {

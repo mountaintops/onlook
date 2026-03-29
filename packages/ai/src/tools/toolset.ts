@@ -3,6 +3,7 @@ import { type InferUITools, type ToolSet } from 'ai';
 import {
     BashEditTool,
     BashReadTool,
+    CheckWebsiteTool,
     CheckErrorsTool,
     FuzzyEditFileTool,
     GlobTool,
@@ -41,6 +42,7 @@ const readOnlyToolClasses = [
     ListBranchesTool,
     ScrapeUrlTool,
     WebSearchTool,
+    CheckWebsiteTool,
     GlobTool,
     GrepTool,
     TypecheckTool,

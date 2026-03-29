@@ -9,6 +9,12 @@ import {
     screenshitDelete,
     pollScreenshitStatus,
 } from './helpers/screenshit';
+import {
+    screenshitAssignDomain,
+    screenshitRemoveDomain,
+    screenshitDomainStatus,
+    screenshitListDomains,
+} from './helpers/subdomain';
 
 export const screenshitRouter = createTRPCRouter({
     /**
@@ -28,7 +34,7 @@ export const screenshitRouter = createTRPCRouter({
                 sandboxId: z.string(),
             }),
         )
-        .mutation(async ({ ctx, input }): Promise<{ deploymentId: string; url: string }> => {
+        .mutation(async ({ ctx, input }): Promise<{ deploymentId: string; url: string; subdomainUrl?: string }> => {
             const { projectId, sandboxId } = input;
             const userId = ctx.user.id;
 
@@ -87,7 +93,7 @@ export const screenshitRouter = createTRPCRouter({
                         envVars: {},
                     });
 
-                    return { deploymentId, url };
+                    return { deploymentId, url, subdomainUrl: `https://${url.replace(/^https?:\/\//, '').split('.')[0]}.weliketech.eu.org` };
                 } finally {
                     // Always clean up the forked sandbox
                     await provider.destroy().catch(console.error);
@@ -140,5 +146,66 @@ export const screenshitRouter = createTRPCRouter({
             }
 
             return { success: true };
+        }),
+
+    /**
+     * Assign a custom subdomain to a deployed project.
+     *
+     * Creates a Cloudflare custom hostname + CloudFront KVS route
+     * via the screenshit Express API.
+     */
+    assignDomain: protectedProcedure
+        .input(
+            z.object({
+                projectId: z.string(),
+                lambdaUrl: z.string().url(),
+                subdomain: z.string().optional(),
+            }),
+        )
+        .mutation(async ({ input }) => {
+            const { projectId, lambdaUrl, subdomain } = input;
+            const result = await screenshitAssignDomain(projectId, lambdaUrl, subdomain);
+            return {
+                hostname: result.hostname,
+                hostnameId: result.hostnameId,
+                subdomain: result.subdomain,
+                fullDomain: result.fullDomain,
+                baseDomain: result.baseDomain,
+            };
+        }),
+
+    /**
+     * Remove a custom subdomain from a project.
+     *
+     * Deletes the Cloudflare custom hostname + CloudFront KVS route.
+     */
+    removeDomain: protectedProcedure
+        .input(
+            z.object({
+                projectId: z.string(),
+                subdomain: z.string().optional(),
+            }),
+        )
+        .mutation(async ({ input }) => {
+            const { projectId, subdomain } = input;
+            const result = await screenshitRemoveDomain(projectId, subdomain);
+            return { hostname: result.hostname, removed: result.removed };
+        }),
+
+    /**
+     * Check the status of a subdomain.
+     */
+    domainStatus: protectedProcedure
+        .input(z.object({ subdomain: z.string() }))
+        .query(async ({ input }) => {
+            return await screenshitDomainStatus(input.subdomain);
+        }),
+
+    /**
+     * List all active subdomains.
+     */
+    listDomains: protectedProcedure
+        .query(async () => {
+            return await screenshitListDomains();
         }),
 });

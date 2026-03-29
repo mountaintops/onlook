@@ -257,7 +257,7 @@ export const HostingProvider = ({ children }: HostingProviderProps) => {
             toast.success('Deployment complete!', { description: result.url });
             return { url: result.url };
         } catch (error) {
-            toast.error('SST deployment failed', {
+            toast.error('Publishing failed', {
                 description: error instanceof Error ? error.message : 'Unknown error',
             });
             return null;
@@ -271,10 +271,10 @@ export const HostingProvider = ({ children }: HostingProviderProps) => {
         try {
             setSubscriptionStates(prev => ({ ...prev, [DeploymentType.SCREENSHIT]: true }));
             await runScreenshitDelete({ projectId });
-            toast.success('SST deployment deleted');
+            toast.success('Published site deleted');
             return true;
         } catch (error) {
-            toast.error('Failed to delete SST deployment', {
+            toast.error('Failed to delete published site', {
                 description: error instanceof Error ? error.message : 'Unknown error',
             });
             return false;

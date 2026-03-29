@@ -152,7 +152,7 @@ export const utilsRouter = createTRPCRouter({
 
                 const searchOptions: Record<string, unknown> = {
                     type: 'auto',
-                    numResults: 10,
+                    numResults: 3,
                     contents: {
                         text: true,
                     },

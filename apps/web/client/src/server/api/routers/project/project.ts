@@ -247,7 +247,11 @@ export const projectRouter = createTRPCRouter({
         .mutation(async ({ ctx, input }) => {
             return await ctx.db.transaction(async (tx) => {
                 // 1. Insert the new project
-                const [newProject] = await tx.insert(projects).values(input.project).returning();
+                const projectData = {
+                    ...input.project,
+                    domainStatus: input.project.domainStatus as 'pending' | 'active' | 'failed' | null | undefined,
+                };
+                const [newProject] = await tx.insert(projects).values(projectData).returning();
                 if (!newProject) {
                     throw new Error('Failed to create project in database');
                 }
@@ -368,10 +372,13 @@ export const projectRouter = createTRPCRouter({
         }),
     update: protectedProcedure.input(projectUpdateSchema).mutation(async ({ ctx, input }) => {
         await verifyProjectAccess(ctx.db, ctx.user.id, input.id);
-        const [updatedProject] = await ctx.db.update(projects).set({
+        const updateData = {
             ...input,
+            domainStatus: input.domainStatus as 'pending' | 'active' | 'failed' | null | undefined,
             updatedAt: new Date(),
-        }).where(
+        };
+        
+        const [updatedProject] = await ctx.db.update(projects).set(updateData).where(
             eq(projects.id, input.id)
         ).returning();
         if (!updatedProject) {

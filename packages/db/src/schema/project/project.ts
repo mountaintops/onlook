@@ -29,6 +29,12 @@ export const projects = pgTable('projects', {
     // deprecated
     sandboxId: varchar('sandbox_id'),
     sandboxUrl: varchar('sandbox_url'),
+
+    // custom domain
+    customDomain: varchar('custom_domain').unique(),
+    domainStatus: varchar('domain_status').$type<'pending' | 'active' | 'failed'>().default('pending'),
+    dnsTxtName: varchar('dns_txt_name'),
+    dnsTxtValue: varchar('dns_txt_value'),
 }).enableRLS();
 
 export const projectInsertSchema = createInsertSchema(projects);

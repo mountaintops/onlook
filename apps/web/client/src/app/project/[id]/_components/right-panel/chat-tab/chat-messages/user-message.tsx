@@ -2,7 +2,7 @@ import React, { memo, useEffect, useRef, useState } from 'react';
 import { nanoid } from 'nanoid';
 
 import type { ChatMessage, GitMessageCheckpoint } from '@onlook/models';
-import { ChatType, MessageCheckpointType } from '@onlook/models';
+import { ChatType, MessageCheckpointType, MessageContextType } from '@onlook/models';
 import { Button } from '@onlook/ui/button';
 import {
     DropdownMenu,
@@ -227,9 +227,11 @@ const UserMessageComponent = ({ onEditMessage, message }: UserMessageProps) => {
                 <div className="relative h-6">
                     <div className="absolute top-1 right-0 left-0 flex w-full flex-row items-center justify-start overflow-auto pr-16">
                         <div className="text-micro text-foreground-secondary flex flex-row gap-3">
-                            {message.metadata?.context?.map((context) => (
-                                <SentContextPill key={nanoid()} context={context} />
-                            ))}
+                            {message.metadata?.context
+                                ?.filter((context) => context.type !== MessageContextType.FILE)
+                                .map((context) => (
+                                    <SentContextPill key={nanoid()} context={context} />
+                                ))}
                         </div>
                     </div>
                 </div>

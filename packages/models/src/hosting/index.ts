@@ -49,6 +49,7 @@ export interface PublishResponse {
 
 export enum HostingProvider {
     FREESTYLE = 'freestyle',
+    NONE = 'none',
 }
 
 export interface DeploymentFile {

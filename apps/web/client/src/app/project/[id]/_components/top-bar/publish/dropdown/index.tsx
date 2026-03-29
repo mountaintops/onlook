@@ -6,24 +6,22 @@ import { AdvancedSettingsSection } from './advanced-settings';
 import { CustomDomainSection } from './custom-domain';
 import { LoadingState } from './loading';
 import { PreviewDomainSection } from './preview-domain-section';
+import { SubdomainSection } from './subdomain-section';
 
 export const PublishDropdown = observer(() => {
-    const { isDeploying: isPreviewDeploying } = useHostingType(DeploymentType.PREVIEW);
     const { isDeploying: isCustomDeploying } = useHostingType(DeploymentType.CUSTOM);
 
     return (
         <div className="rounded-md flex flex-col text-foreground-secondary">
             {
-                isPreviewDeploying ?
-                    <LoadingState type={DeploymentType.PREVIEW} /> :
-                    <PreviewDomainSection />
-            }
-            <Separator />
-            {
                 isCustomDeploying ?
                     <LoadingState type={DeploymentType.CUSTOM} /> :
                     <CustomDomainSection />
             }
+            <Separator />
+            <PreviewDomainSection />
+            <Separator />
+            <SubdomainSection />
             <Separator />
             <AdvancedSettingsSection />
         </div>

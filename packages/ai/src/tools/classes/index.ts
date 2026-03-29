@@ -1,5 +1,6 @@
 export { BashEditTool } from './bash-edit';
 export { BashReadTool } from './bash-read';
+export { CheckWebsiteTool } from './check-website';
 export { CheckErrorsTool } from './check-errors';
 export { FuzzyEditFileTool } from './fuzzy-edit-file';
 export { GlobTool } from './glob';

@@ -64,6 +64,11 @@ export const env = createEnv({
         GITHUB_APP_ID: z.string().optional(),
         GITHUB_APP_PRIVATE_KEY: z.string().optional(),
         GITHUB_APP_SLUG: z.string().optional(),
+
+        // Cloudflare
+        CLOUDFLARE_ZONE_ID: z.string().optional(),
+        CLOUDFLARE_API_TOKEN: z.string().optional(),
+        CLOUDFLARE_SAAS_DOMAIN: z.string().optional(),
     },
     /**
      * Specify your client-side environment variables schema here. This way you can ensure the app
@@ -161,6 +166,11 @@ export const env = createEnv({
         GITHUB_APP_ID: process.env.GITHUB_APP_ID,
         GITHUB_APP_PRIVATE_KEY: process.env.GITHUB_APP_PRIVATE_KEY,
         GITHUB_APP_SLUG: process.env.GITHUB_APP_SLUG,
+
+        // Cloudflare
+        CLOUDFLARE_ZONE_ID: process.env.CLOUDFLARE_ZONE_ID,
+        CLOUDFLARE_API_TOKEN: process.env.CLOUDFLARE_API_TOKEN,
+        CLOUDFLARE_SAAS_DOMAIN: process.env.CLOUDFLARE_SAAS_DOMAIN,
     },
     /**
      * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially
