@@ -1,24 +1,12 @@
-import { useHostingType } from '@/components/store/hosting';
-import { DeploymentType } from '@onlook/models';
 import { Separator } from '@onlook/ui/separator';
 import { observer } from 'mobx-react-lite';
 import { AdvancedSettingsSection } from './advanced-settings';
-import { CustomDomainSection } from './custom-domain';
-import { LoadingState } from './loading';
 import { PreviewDomainSection } from './preview-domain-section';
 import { ScreenshitCustomDomainSection } from './screenshit-custom-domain-section';
 
 export const PublishDropdown = observer(() => {
-    const { isDeploying: isCustomDeploying } = useHostingType(DeploymentType.CUSTOM);
-
     return (
         <div className="rounded-md flex flex-col text-foreground-secondary">
-            {
-                isCustomDeploying ?
-                    <LoadingState type={DeploymentType.CUSTOM} /> :
-                    <CustomDomainSection />
-            }
-            <Separator />
             <PreviewDomainSection />
             <Separator />
             <ScreenshitCustomDomainSection />

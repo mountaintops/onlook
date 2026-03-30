@@ -23,6 +23,7 @@ const nextConfig: NextConfig = {
         ];
     },
     experimental: {
+        optimizeCss: true,
         optimizePackageImports: [
             '@onlook/ui',
             '@onlook/models',

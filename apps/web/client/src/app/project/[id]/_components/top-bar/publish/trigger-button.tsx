@@ -1,6 +1,6 @@
 import { useEditorEngine } from '@/components/store/editor';
-import { useHostingType } from '@/components/store/hosting';
-import { DeploymentStatus, DeploymentType } from '@onlook/models';
+import { useHostingContext } from '@/components/store/hosting';
+import { DeploymentStatus } from '@onlook/models';
 import { Button } from '@onlook/ui/button';
 import { DropdownMenuTrigger } from '@onlook/ui/dropdown-menu';
 import { Icons } from '@onlook/ui/icons';
@@ -9,16 +9,12 @@ import { observer } from 'mobx-react-lite';
 
 export const TriggerButton = observer(() => {
     const editorEngine = useEditorEngine();
-    const { deployment: previewDeployment, isDeploying: isPreviewDeploying } = useHostingType(DeploymentType.PREVIEW);
-    const { deployment: customDeployment, isDeploying: isCustomDeploying } = useHostingType(DeploymentType.CUSTOM);
-    const isPreviewCompleted = previewDeployment?.status === DeploymentStatus.COMPLETED;
-    const isCustomCompleted = customDeployment?.status === DeploymentStatus.COMPLETED;
-    const isPreviewFailed = previewDeployment?.status === DeploymentStatus.FAILED;
-    const isCustomFailed = customDeployment?.status === DeploymentStatus.FAILED;
+    const { deployments, isScreenshitDeploying } = useHostingContext();
 
-    const isCompleted = isPreviewCompleted || isCustomCompleted;
-    const isFailed = isPreviewFailed || isCustomFailed;
-    const isDeploying = isPreviewDeploying || isCustomDeploying;
+    const sstDeployment = deployments?.screenshit;
+    const isCompleted = sstDeployment?.status === DeploymentStatus.COMPLETED;
+    const isFailed = sstDeployment?.status === DeploymentStatus.FAILED;
+    const isDeploying = isScreenshitDeploying;
 
     let colorClasses = 'border-input bg-background hover:bg-background-onlook text-foreground-primary';
     let icon: React.ReactNode | null = <Icons.Globe className="mr-1 h-4 w-4" />;

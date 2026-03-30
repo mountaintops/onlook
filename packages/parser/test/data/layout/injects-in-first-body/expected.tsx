@@ -3,7 +3,7 @@ export default function Layout() {
   return (
     <>
             <body>
-        <Script src="https://cdn.jsdelivr.net/gh/onlook-dev/onlook@d3887f2/apps/web/client/public/onlook-preload-script.js" strategy="afterInteractive" type="module" id="onlook-preload-script"></Script>
+        {process.env.NODE_ENV === "development" && <Script src="https://cdn.jsdelivr.net/gh/onlook-dev/onlook@d3887f2/apps/web/client/public/onlook-preload-script.js" strategy="afterInteractive" type="module" id="onlook-preload-script"></Script>}
       </body>
             <body>
                 <main />

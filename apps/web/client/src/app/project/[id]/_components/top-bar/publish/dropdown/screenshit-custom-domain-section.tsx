@@ -153,7 +153,7 @@ export const ScreenshitCustomDomainSection = observer(() => {
             <div className="w-full flex flex-col gap-2">
                 <div className="flex flex-row justify-between items-center px-1">
                     <h3 className="text-sm font-medium flex items-center gap-2">
-                        Custom Domain (Lambda)
+                        Custom Domain
                     </h3>
                 </div>
 

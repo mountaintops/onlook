@@ -108,8 +108,8 @@ function addScriptImport(ast: T.File): void {
     ast.program.body.splice(insertIndex, 0, scriptImport);
 }
 
-function getPreloadScript(): T.JSXElement {
-    return t.jsxElement(
+function getPreloadScript(): T.JSXExpressionContainer {
+    const script = t.jsxElement(
         t.jsxOpeningElement(
             t.jsxIdentifier('Script'),
             [
@@ -124,20 +124,48 @@ function getPreloadScript(): T.JSXElement {
         [],
         false,
     );
+
+    return t.jsxExpressionContainer(
+        t.logicalExpression(
+            '&&',
+            t.binaryExpression(
+                '===',
+                t.memberExpression(
+                    t.memberExpression(t.identifier('process'), t.identifier('env')),
+                    t.identifier('NODE_ENV'),
+                ),
+                t.stringLiteral('development'),
+            ),
+            script,
+        ),
+    );
 }
 
 function addScriptToJSXElement(node: T.JSXElement): void {
-    const alreadyInjected = node.children.some(
-        (child) =>
-            t.isJSXElement(child) &&
-            t.isJSXIdentifier(child.openingElement.name, { name: 'Script' }) &&
-            child.openingElement.attributes.some(
+    const alreadyInjected = node.children.some((child) => {
+        if (t.isJSXElement(child) && t.isJSXIdentifier(child.openingElement.name, { name: 'Script' })) {
+            return child.openingElement.attributes.some(
                 (attr) =>
                     t.isJSXAttribute(attr) &&
                     t.isJSXIdentifier(attr.name, { name: 'src' }) &&
                     t.isStringLiteral(attr.value, { value: ONLOOK_PRELOAD_SCRIPT_SRC }),
-            ),
-    );
+            );
+        } else if (
+            t.isJSXExpressionContainer(child) &&
+            t.isLogicalExpression(child.expression) &&
+            t.isJSXElement(child.expression.right) &&
+            t.isJSXIdentifier(child.expression.right.openingElement.name, { name: 'Script' })
+        ) {
+            return child.expression.right.openingElement.attributes.some(
+                (attr) =>
+                    t.isJSXAttribute(attr) &&
+                    t.isJSXIdentifier(attr.name, { name: 'src' }) &&
+                    t.isStringLiteral(attr.value, { value: ONLOOK_PRELOAD_SCRIPT_SRC }),
+            );
+        }
+        return false;
+    });
+
     if (!alreadyInjected) {
         node.children.push(t.jsxText('\n'));
         node.children.push(getPreloadScript());
@@ -249,6 +277,14 @@ export function removeDeprecatedPreloadScripts(ast: T.File): void {
                 DEPRECATED_PRELOAD_SCRIPT_SRCS.some((deprecatedSrc) => src.value === deprecatedSrc)
             ) {
                 console.log('removing deprecated script', src.value);
+                const parent = path.parentPath;
+                if (parent.isLogicalExpression()) {
+                    const grandParent = parent.parentPath;
+                    if (grandParent.isJSXExpressionContainer()) {
+                        grandParent.remove();
+                        return;
+                    }
+                }
                 path.remove();
             }
         },
