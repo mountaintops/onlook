@@ -208,7 +208,9 @@ export const GestureScreen = observer(({ frame, isResizing }: { frame: Frame, is
     const gestureScreenClassName = useMemo(() => {
         return cn(
             'absolute inset-0 bg-transparent',
-            editorEngine.state.editorMode === EditorMode.PREVIEW && !isResizing
+            (editorEngine.state.editorMode === EditorMode.PREVIEW ||
+                editorEngine.state.editorMode === EditorMode.INTERACT) &&
+            !isResizing
                 ? 'hidden'
                 : 'visible',
             editorEngine.state.insertMode === InsertMode.INSERT_DIV && 'cursor-crosshair',

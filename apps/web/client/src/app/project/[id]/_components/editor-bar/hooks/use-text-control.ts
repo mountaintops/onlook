@@ -1,6 +1,6 @@
 import { useEditorEngine } from '@/components/store/editor';
 import type { Font } from '@onlook/models';
-import { convertFontString } from '@onlook/utility';
+import { convertFontString, toRelativePixel } from '@onlook/utility';
 import { useEffect, useState } from 'react';
 
 /** Map CSS keyword font-weight values to numeric strings */
@@ -67,19 +67,27 @@ export const useTextControl = () => {
             );
         };
 
+        const fontSizeValue = getStyleValue('fontSize', DefaultState.fontSize.toString());
+        const fontSize = toRelativePixel(fontSizeValue);
+
         return {
             fontFamily: convertFontString(getStyleValue('fontFamily', DefaultState.fontFamily)),
-            fontSize: (() => {
-                const size = parseFloat(getStyleValue('fontSize', DefaultState.fontSize.toString()));
-                return isNaN(size) ? DefaultState.fontSize : size;
-            })(),
+            fontSize: isNaN(fontSize) ? DefaultState.fontSize : fontSize,
             fontWeight: normalizeFontWeight(getStyleValue('fontWeight', DefaultState.fontWeight)),
             textAlign: getStyleValue('textAlign', DefaultState.textAlign) as TextAlign,
             textColor: getStyleValue('color', DefaultState.textColor),
-            letterSpacing: getStyleValue('letterSpacing', DefaultState.letterSpacing),
+            letterSpacing: toRelativePixel(
+                getStyleValue('letterSpacing', DefaultState.letterSpacing),
+                16,
+                fontSize,
+            ).toString(),
             capitalization: getStyleValue('textTransform', DefaultState.capitalization),
             textDecorationLine: getStyleValue('textDecorationLine', DefaultState.textDecorationLine),
-            lineHeight: getStyleValue('lineHeight', DefaultState.lineHeight),
+            lineHeight: toRelativePixel(
+                getStyleValue('lineHeight', DefaultState.lineHeight),
+                16,
+                fontSize,
+            ).toString(),
         };
     };
 

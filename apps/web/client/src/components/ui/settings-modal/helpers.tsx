@@ -6,7 +6,6 @@ export enum SettingsTabValue {
     VERSIONS = 'versions',
     ADVANCED = 'advanced',
     SITE = 'site',
-    LIFECYCLE_HOOKS = 'lifecycle-hooks',
     MCP_SERVERS = 'mcp-servers',
 }
 

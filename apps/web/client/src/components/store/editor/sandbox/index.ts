@@ -12,7 +12,6 @@ import { detectRouterConfig } from '../pages/helper';
 import { copyPreloadScriptToPublic, getLayoutPath as detectLayoutPath } from './preload-script';
 import { SessionManager } from './session';
 import { api } from '@/trpc/client';
-import { LifecycleHookEvent } from '@onlook/models';
 
 export enum PreloadScriptState {
     NOT_INJECTED = 'not-injected',
@@ -137,23 +136,10 @@ export class SandboxManager {
         return this.fs.readFile(path);
     }
 
-    private triggerHook(event: LifecycleHookEvent, path: string) {
-        api.settings.executeHook.mutate({
-            sandboxId: this.branch.sandbox.id,
-            projectId: this.branch.projectId,
-            event,
-            filePath: path,
-        }).catch((err: any) => {
-            console.error(`[SandboxManager] Failed to trigger ${event} hook for ${path}:`, err);
-        });
-    }
 
     async writeFile(path: string, content: string | Uint8Array): Promise<void> {
         if (!this.fs) throw new Error('File system not initialized');
-        const existed = await this.fs.exists(path);
         await this.fs.writeFile(path, content);
-        const event = existed ? LifecycleHookEvent.FILE_EDIT : LifecycleHookEvent.FILE_CREATE;
-        this.triggerHook(event, path);
     }
 
     listAllFiles() {
@@ -189,20 +175,16 @@ export class SandboxManager {
     async deleteFile(path: string): Promise<void> {
         if (!this.fs) throw new Error('File system not initialized');
         await this.fs.deleteFile(path);
-        this.triggerHook(LifecycleHookEvent.FILE_DELETE, path);
     }
 
     async deleteDirectory(path: string): Promise<void> {
         if (!this.fs) throw new Error('File system not initialized');
         await this.fs.deleteDirectory(path);
-        this.triggerHook(LifecycleHookEvent.FILE_DELETE, path);
     }
 
     async rename(oldPath: string, newPath: string): Promise<void> {
         if (!this.fs) throw new Error('File system not initialized');
         await this.fs.moveFile(oldPath, newPath);
-        this.triggerHook(LifecycleHookEvent.FILE_DELETE, oldPath);
-        this.triggerHook(LifecycleHookEvent.FILE_CREATE, newPath);
     }
 
     // Download the code as a zip

@@ -223,6 +223,10 @@ declare const messages: {
                     "name": "Pan",
                     "tooltip": "Pan and move around the canvas"
                 },
+                "interact": {
+                    "name": "Interact",
+                    "tooltip": "Interact with the website as if it were a real website"
+                },
                 "insertDiv": {
                     "name": "Insert Container",
                     "tooltip": "Add a new container element"

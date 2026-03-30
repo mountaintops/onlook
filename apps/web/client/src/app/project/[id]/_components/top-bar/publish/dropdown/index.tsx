@@ -6,6 +6,7 @@ import { AdvancedSettingsSection } from './advanced-settings';
 import { CustomDomainSection } from './custom-domain';
 import { LoadingState } from './loading';
 import { PreviewDomainSection } from './preview-domain-section';
+import { ScreenshitCustomDomainSection } from './screenshit-custom-domain-section';
 
 export const PublishDropdown = observer(() => {
     const { isDeploying: isCustomDeploying } = useHostingType(DeploymentType.CUSTOM);
@@ -19,6 +20,8 @@ export const PublishDropdown = observer(() => {
             }
             <Separator />
             <PreviewDomainSection />
+            <Separator />
+            <ScreenshitCustomDomainSection />
             <Separator />
             <AdvancedSettingsSection />
         </div>

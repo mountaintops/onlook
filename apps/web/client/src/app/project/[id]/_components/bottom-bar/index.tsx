@@ -33,31 +33,25 @@ const TOOLBAR_ITEMS = ({ t }: { t: ReturnType<typeof useTranslations> }) => [
         label: t(transKeys.editor.toolbar.tools.pan.name),
         tooltip: t(transKeys.editor.toolbar.tools.pan.tooltip),
     },
-    // {
-    //     mode: InsertMode.INSERT_DIV,
-    //     icon: Icons.Square,
-    //     hotkey: Hotkey.INSERT_DIV,
-    //     disabled: false,
-    //     draggable: true,
-    //     label: t(transKeys.editor.toolbar.tools.insertDiv.name),
-    //     tooltip: t(transKeys.editor.toolbar.tools.insertDiv.tooltip),
-    // },
-    // {
-    //     mode: InsertMode.INSERT_TEXT,
-    //     icon: Icons.Text,
-    //     hotkey: Hotkey.INSERT_TEXT,
-    //     disabled: false,
-    //     draggable: true,
-    //     label: t(transKeys.editor.toolbar.tools.insertText.name),
-    //     tooltip: t(transKeys.editor.toolbar.tools.insertText.tooltip),
-    // },
+    {
+        mode: EditorMode.INTERACT,
+        icon: Icons.MousePointer2,
+        hotkey: Hotkey.INTERACT,
+        disabled: false,
+        draggable: false,
+        label: t(transKeys.editor.toolbar.tools.interact.name),
+        tooltip: t(transKeys.editor.toolbar.tools.interact.tooltip),
+    },
 ];
 
 export const BottomBar = observer(() => {
     const t = useTranslations();
     const editorEngine = useEditorEngine();
     const toolbarItems = TOOLBAR_ITEMS({ t });
-    const shouldShow = editorEngine.state.editorMode === EditorMode.DESIGN || editorEngine.state.editorMode === EditorMode.PAN;
+    const shouldShow =
+        editorEngine.state.editorMode === EditorMode.DESIGN ||
+        editorEngine.state.editorMode === EditorMode.PAN ||
+        editorEngine.state.editorMode === EditorMode.INTERACT;
 
     return (
         <div className="absolute left-1/2 -translate-x-1/2 bottom-4 overflow-hidden">

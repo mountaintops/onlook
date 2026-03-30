@@ -11,11 +11,9 @@ import {
 import { getSandboxPreviewUrl, SandboxTemplates, Templates } from '@onlook/constants';
 import { shortenUuid } from '@onlook/utility/src/id';
 import { projectSettings, fromDbProjectSettings } from '@onlook/db';
-import { LifecycleHookEvent } from '@onlook/models';
 import { eq } from 'drizzle-orm';
 
 import { createTRPCRouter, protectedProcedure } from '../../trpc';
-import { executeLifecycleHook } from './hooks';
 
 
 

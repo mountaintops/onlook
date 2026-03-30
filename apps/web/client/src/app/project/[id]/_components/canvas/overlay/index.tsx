@@ -42,7 +42,9 @@ export const Overlay = observer(() => {
             className={cn(
                 'absolute top-0 left-0 h-0 w-0 pointer-events-none',
                 editorEngine.state.shouldHideOverlay ? 'opacity-0' : 'opacity-100 transition-opacity duration-150',
-                editorEngine.state.editorMode === EditorMode.PREVIEW && 'hidden',
+                (editorEngine.state.editorMode === EditorMode.PREVIEW ||
+                    editorEngine.state.editorMode === EditorMode.INTERACT) &&
+                    'hidden',
             )}
         >
             {!isTextEditing && overlayState.hoverRect && (

@@ -16,7 +16,9 @@ export const OverlayButtons = observer(() => {
     const selectedRect = editorEngine.overlay.state.clickRects[0] ?? null;
     const domId = editorEngine.elements.selected[0]?.domId;
 
-    const isPreviewMode = editorEngine.state.editorMode === EditorMode.PREVIEW;
+    const isPreviewMode =
+        editorEngine.state.editorMode === EditorMode.PREVIEW ||
+        editorEngine.state.editorMode === EditorMode.INTERACT;
     const shouldHideButton =
         !selectedRect ||
         isPreviewMode ||

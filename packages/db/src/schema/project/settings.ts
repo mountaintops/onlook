@@ -3,17 +3,6 @@ import { jsonb, pgTable, text, uuid } from 'drizzle-orm/pg-core';
 import { createInsertSchema, createUpdateSchema } from 'drizzle-zod';
 import { projects } from './project';
 
-/** Shape stored in the database for lifecycle hooks. */
-export type LifecycleHooksDb = {
-    setupScript?: string;
-    startup?: string;
-    shutdown?: string;
-    vmCreation?: string;
-    fileDelete?: string;
-    fileCreate?: string;
-    fileEdit?: string;
-};
-
 /** Shape stored in the database for MCP server configs. */
 export type McpServerConfigDb = {
     id: string;
@@ -35,7 +24,6 @@ export const projectSettings = pgTable('project_settings', {
     runCommand: text('run_command').notNull().default(''),
     buildCommand: text('build_command').notNull().default(''),
     installCommand: text('install_command').notNull().default(''),
-    lifecycleHooks: jsonb('lifecycle_hooks').$type<LifecycleHooksDb>().default({}).notNull(),
     mcpServers: jsonb('mcp_servers').$type<McpServerConfigDb[]>().default([]).notNull(),
 }).enableRLS();
 

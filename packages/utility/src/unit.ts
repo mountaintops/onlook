@@ -10,3 +10,14 @@ export function stringToParsedValue(val: string, percent = false): { num: number
     }
     return { num, unit };
 }
+
+export function toRelativePixel(val: string, rootFontSize = 16, currentFontSize?: number): number {
+    const { num, unit } = stringToParsedValue(val);
+    if (unit === 'rem') {
+        return num * rootFontSize;
+    }
+    if (unit === 'em') {
+        return num * (currentFontSize ?? rootFontSize);
+    }
+    return num;
+}

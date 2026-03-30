@@ -9,9 +9,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import { createTRPCRouter, protectedProcedure } from '../../trpc';
 import { extractCsbPort } from './helper';
-import { projectSettings, fromDbProjectSettings } from '@onlook/db';
-import { LifecycleHookEvent } from '@onlook/models';
-import { executeLifecycleHook } from './hooks';
 import { getProvider } from './sandbox';
 
 // Helper function to get existing frames in a canvas
@@ -148,16 +145,7 @@ export const branchRouter = createTRPCRouter({
                     updatedAt: new Date(),
                 };
 
-                // Fire VM Creation Hook
-                const settings = await ctx.db.query.projectSettings.findFirst({
-                    where: eq(projectSettings.projectId, sourceBranch.projectId),
-                });
-                const hooks = settings ? fromDbProjectSettings(settings).lifecycleHooks : undefined;
-                if (hooks) {
-                    const provider = await getProvider({ sandboxId, userId: ctx.user.id, tier: 'Pico' });
-                    // Do not block branch creation on hook execution
-                    executeLifecycleHook(provider, hooks, LifecycleHookEvent.VM_CREATION, '').catch(console.error);
-                }
+                // Project settings handled by DB.
 
                 return await ctx.db.transaction(async (tx) => {
                     await tx.insert(branches).values(newBranch);
@@ -303,16 +291,7 @@ export const branchRouter = createTRPCRouter({
                         updatedAt: new Date(),
                     };
 
-                    // Fire VM Creation Hook
-                    const settings = await tx.query.projectSettings.findFirst({
-                        where: eq(projectSettings.projectId, input.projectId),
-                    });
-                    const hooks = settings ? fromDbProjectSettings(settings).lifecycleHooks : undefined;
-                    if (hooks) {
-                        const provider = await getProvider({ sandboxId, userId: ctx.user.id, tier: 'Pico' });
-                        // Do not block branch creation on hook execution
-                        executeLifecycleHook(provider, hooks, LifecycleHookEvent.VM_CREATION, '').catch(console.error);
-                    }
+                    // Project settings handled by DB.
 
                     await tx.insert(branches).values(newBranch);
 

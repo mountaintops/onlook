@@ -63,7 +63,7 @@ export const PreviewDomainSection = observer(() => {
             try {
                 const url = new URL(assignedDomain);
                 const label = url.hostname.split('.')[0];
-                setSubdomainInput(label);
+                setSubdomainInput(label || '');
             } catch (e) {
                 console.error('Failed to parse assigned domain', e);
             }

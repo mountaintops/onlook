@@ -37,6 +37,7 @@ export const HotkeysArea = ({ children }: { children: ReactNode }) => {
         }
     });
     useHotkeys(Hotkey.PAN.command, () => (editorEngine.state.editorMode = EditorMode.PAN));
+    useHotkeys(Hotkey.INTERACT.command, () => (editorEngine.state.editorMode = EditorMode.INTERACT));
     useHotkeys(Hotkey.PREVIEW.command, () => (editorEngine.state.editorMode = EditorMode.PREVIEW));
 
     // Quick mode switching with CMD+1/2/3 (overrides browser defaults)

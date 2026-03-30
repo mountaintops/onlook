@@ -12,8 +12,11 @@ import {
 } from './helpers/screenshit';
 import {
     screenshitAssignDomain,
+    screenshitAssignCustomDomain,
     screenshitRemoveDomain,
+    screenshitRemoveCustomDomain,
     screenshitDomainStatus,
+    screenshitCustomDomainStatus,
     screenshitListDomains,
 } from './helpers/subdomain';
 import { deployments } from '@onlook/db';
@@ -283,6 +286,108 @@ export const screenshitRouter = createTRPCRouter({
         .input(z.object({ subdomain: z.string() }))
         .query(async ({ input }) => {
             return await screenshitDomainStatus(input.subdomain);
+        }),
+
+    /**
+     * Assign a custom domain to a deployed project.
+     */
+    assignCustomDomain: protectedProcedure
+        .input(
+            z.object({
+                projectId: z.string(),
+                lambdaUrl: z.string().url(),
+                customDomain: z.string(),
+            }),
+        )
+        .mutation(async ({ ctx, input }) => {
+            const { projectId, lambdaUrl, customDomain } = input;
+
+            const fullUrl = `https://${customDomain}`;
+            
+            // Check if any OTHER project already has this domain assigned
+            const existing = await ctx.db.query.deployments.findFirst({
+                where: (deployments, { and, ne, sql }) =>
+                    and(
+                        ne(deployments.projectId, projectId),
+                        sql`${deployments.urls} @> ARRAY[${fullUrl}]::text[]`
+                    ),
+            });
+
+            if (existing) {
+                throw new TRPCError({
+                    code: 'CONFLICT',
+                    message: `The domain "${customDomain}" is already in use by another project.`,
+                });
+            }
+
+            const result = await screenshitAssignCustomDomain(projectId, lambdaUrl, customDomain);
+
+            // Persist the assigned custom domain URL in the latest SCREENSHIT deployment record
+            const latestDeployment = await ctx.db.query.deployments.findFirst({
+                where: (deployments, { eq, and }) =>
+                    and(
+                        eq(deployments.projectId, projectId),
+                        eq(deployments.type, DeploymentType.SCREENSHIT)
+                    ),
+                orderBy: (deployments, { desc }) => [desc(deployments.createdAt)],
+            });
+
+            if (latestDeployment) {
+                // Determine existing URLs and append the new one
+                const currentUrls = latestDeployment.urls || [];
+                if (!currentUrls.includes(fullUrl)) {
+                    await ctx.db.update(deployments)
+                        .set({ urls: [...currentUrls, fullUrl] })
+                        .where(eq(deployments.id, latestDeployment.id));
+                }
+            }
+
+            return result;
+        }),
+
+    /**
+     * Remove a custom domain from a project.
+     */
+    removeCustomDomain: protectedProcedure
+        .input(
+            z.object({
+                projectId: z.string(),
+                customDomain: z.string(),
+            }),
+        )
+        .mutation(async ({ ctx, input }) => {
+            const { projectId, customDomain } = input;
+            const result = await screenshitRemoveCustomDomain(customDomain);
+            const fullUrl = `https://${customDomain}`;
+
+            // Remove the assigned custom domain URL from the deployment records
+            const deploymentsToUpdate = await ctx.db.query.deployments.findMany({
+                where: (deployments, { eq, and }) =>
+                    and(
+                        eq(deployments.projectId, projectId),
+                        eq(deployments.type, DeploymentType.SCREENSHIT)
+                    ),
+            });
+
+            for (const d of deploymentsToUpdate) {
+                const currentUrls = d.urls || [];
+                if (currentUrls.includes(fullUrl)) {
+                    await ctx.db.update(deployments)
+                        .set({ urls: currentUrls.filter(u => u !== fullUrl) })
+                        .where(eq(deployments.id, d.id));
+                }
+            }
+
+            return result;
+        }),
+
+    /**
+     * Check the status of a custom domain.
+     */
+    customDomainStatus: protectedProcedure
+        .input(z.object({ customDomain: z.string() }))
+        .query(async ({ input }) => {
+            return await screenshitCustomDomainStatus(input.customDomain);
         }),
 
     /**

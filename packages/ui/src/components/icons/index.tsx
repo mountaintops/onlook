@@ -122,6 +122,7 @@ import {
     SquareCheckIcon,
     SquareXIcon,
     Loader2Icon,
+    MousePointer2Icon,
 } from 'lucide-react';
 import { cn } from '../../utils';
 import H1Icon from './header-level-icons/h1Icon';
@@ -318,6 +319,7 @@ export const Icons = {
         <svg
             width="24"
             height="24"
+            viewBox="0 0 24 24"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
             className={className}
@@ -341,6 +343,9 @@ export const Icons = {
             />
             <path d="M1 1h22v22H1z" fill="none" />
         </svg>
+    ),
+    MousePointer2: ({ className, ...props }: IconProps) => (
+        <MousePointer2Icon className={className} {...props} />
     ),
     Spinner: ({ className, ...props }: IconProps) => <Loader2Icon className={className} {...props} />,
     ZedLogo: ({ className, ...props }: IconProps) => (
