@@ -1,6 +1,6 @@
 import { api } from '@/trpc/server';
 import { trackEvent } from '@/utils/analytics/server';
-import { createRootAgentStream } from '@onlook/ai';
+import { createRootAgentStream } from '@onlook/ai/src/server';
 import { toDbMessage } from '@onlook/db';
 import { ChatType, type ChatMessage, type ChatMetadata } from '@onlook/models';
 import { type NextRequest } from 'next/server';
@@ -74,6 +74,11 @@ export const streamResponse = async (req: NextRequest, userId: string) => {
         if (chatType === ChatType.EDIT) {
             usageRecord = await incrementUsage(req, traceId);
         }
+
+        // Fetch project settings to get MCP server configs
+        const projectSettingsData = await api.settings.get({ projectId });
+        const mcpServers = projectSettingsData?.mcpServers ?? [];
+
         const stream = await createRootAgentStream({
             chatType,
             conversationId,
@@ -81,6 +86,7 @@ export const streamResponse = async (req: NextRequest, userId: string) => {
             userId,
             traceId,
             messages,
+            mcpServers,
         });
         return stream.toUIMessageStreamResponse<ChatMessage>(
             {

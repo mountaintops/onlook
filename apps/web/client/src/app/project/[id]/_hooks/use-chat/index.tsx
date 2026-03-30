@@ -90,6 +90,7 @@ export function useChat({ conversationId, projectId, initialMessages }: UseChatP
                     chatType: type,
                     conversationId,
                     context: messageContext,
+                    projectId,
                 },
             });
             void editorEngine.chat.conversation.generateTitle(content);
@@ -101,6 +102,7 @@ export function useChat({ conversationId, projectId, initialMessages }: UseChatP
             setMessages,
             regenerate,
             conversationId,
+            projectId,
         ],
     );
 
@@ -164,6 +166,7 @@ export function useChat({ conversationId, projectId, initialMessages }: UseChatP
                 body: {
                     chatType,
                     conversationId,
+                    projectId,
                 },
             });
 
@@ -174,6 +177,7 @@ export function useChat({ conversationId, projectId, initialMessages }: UseChatP
             regenerate,
             conversationId,
             setMessages,
+            projectId,
         ],
     );
 

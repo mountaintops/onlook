@@ -20,7 +20,7 @@ const ToolCallDisplayComponent = ({
     isStream: boolean,
     applied: boolean
 }) => {
-    const toolName = toolPart.type.split('-')[1];
+    const toolName = (toolPart as any).toolName;
 
     if (isStream || (toolPart.state !== 'output-available' && toolPart.state !== 'input-available')) {
         return (

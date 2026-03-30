@@ -26,6 +26,7 @@ export type ToolHeaderProps = {
     title?: string;
     loading?: boolean;
     showStatus?: boolean;
+    isMcp?: boolean;
 };
 
 const getStatusBadge = (status: ToolUIPart['state'], showLabel: boolean = false) => {
@@ -65,6 +66,7 @@ export const ToolHeader = ({
     title,
     loading,
     showStatus = false,
+    isMcp = false,
     ...props
 }: ToolHeaderProps) => (
     <CollapsibleTrigger
@@ -82,6 +84,11 @@ export const ToolHeader = ({
             >
                 {title ? title : type}
             </span>
+            {isMcp && (
+                <Badge variant="secondary" className="px-1 text-[10px] leading-3 h-4 rounded-sm font-bold opacity-80 uppercase">
+                    MCP
+                </Badge>
+            )}
             {showStatus && getStatusBadge(state)}
         </div>
     </CollapsibleTrigger>

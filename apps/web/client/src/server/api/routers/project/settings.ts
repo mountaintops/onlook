@@ -1,6 +1,6 @@
 import {
     projectSettings,
-    projectSettingsInsertSchema,
+    projectSettingsUpdateSchema,
     fromDbProjectSettings,
     toDbProjectSettings,
 } from '@onlook/db';
@@ -32,13 +32,16 @@ export const settingsRouter = createTRPCRouter({
         .input(
             z.object({
                 projectId: z.string(),
-                settings: projectSettingsInsertSchema,
+                settings: projectSettingsUpdateSchema,
             }),
         )
         .mutation(async ({ ctx, input }) => {
             const [updatedSettings] = await ctx.db
                 .insert(projectSettings)
-                .values(input)
+                .values({
+                    ...input.settings,
+                    projectId: input.projectId,
+                })
                 .onConflictDoUpdate({
                     target: [projectSettings.projectId],
                     set: input.settings,

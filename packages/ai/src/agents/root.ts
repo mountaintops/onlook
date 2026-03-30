@@ -1,7 +1,8 @@
 import type { ToolCall } from '@ai-sdk/provider-utils';
-import { ChatType, LLMProvider, GOOGLE_MODELS, type ChatMessage, type ModelConfig } from '@onlook/models';
+import { ChatType, LLMProvider, GOOGLE_MODELS, type ChatMessage, type McpServerConfig, type ModelConfig } from '@onlook/models';
 import { NoSuchToolError, generateObject, smoothStream, stepCountIs, streamText, type ToolSet } from 'ai';
 import { convertToStreamMessages, getAskModeSystemPrompt, getCreatePageSystemPrompt, getSystemPrompt, getToolSetFromType, initModel } from '../index';
+import { McpClientManager } from '../mcp';
 
 export const createRootAgentStream = async ({
     chatType,
@@ -10,6 +11,7 @@ export const createRootAgentStream = async ({
     userId,
     traceId,
     messages,
+    mcpServers,
 }: {
     chatType: ChatType;
     conversationId: string;
@@ -17,20 +19,46 @@ export const createRootAgentStream = async ({
     userId: string;
     traceId: string;
     messages: ChatMessage[];
+    mcpServers?: McpServerConfig[];
 }) => {
     const modelConfig = getModelFromType(chatType);
     const systemPrompt = getSystemPromptFromType(chatType);
-    const toolSet = getToolSetFromType(chatType);
+    const builtInTools = getToolSetFromType(chatType);
+
+    // Connect to MCP servers and merge their tools with built-in tools
+    let mcpManager: McpClientManager | null = null;
+    let mergedTools: ToolSet = builtInTools;
+
+    if (mcpServers && mcpServers.length > 0) {
+        mcpManager = new McpClientManager(mcpServers);
+        try {
+            const mcpTools = await mcpManager.getTools();
+            mergedTools = { ...builtInTools, ...mcpTools };
+        } catch (error) {
+            console.error('[MCP] Error fetching MCP tools, using built-in tools only:', error);
+        }
+    }
+
     return streamText({
         providerOptions: modelConfig.providerOptions,
         messages: await convertToStreamMessages(messages),
         model: modelConfig.model,
         system: systemPrompt,
-        tools: toolSet,
+        tools: mergedTools,
         headers: modelConfig.headers,
         stopWhen: stepCountIs(20),
         experimental_repairToolCall: repairToolCall,
         experimental_transform: smoothStream(),
+        onFinish: async () => {
+            if (mcpManager) {
+                await mcpManager.closeAll();
+            }
+        },
+        onError: async () => {
+            if (mcpManager) {
+                await mcpManager.closeAll();
+            }
+        },
         experimental_telemetry: {
             isEnabled: true,
             metadata: {

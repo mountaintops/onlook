@@ -10,5 +10,6 @@ export const createDefaultProjectSettings = (projectId: string): DbProjectSettin
         runCommand: DefaultSettings.COMMANDS.run,
         installCommand: DefaultSettings.COMMANDS.install,
         lifecycleHooks: DEFAULT_LIFECYCLE_HOOKS,
+        mcpServers: [],
     };
 };

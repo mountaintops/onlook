@@ -2,7 +2,6 @@
 import { useEditorEngine } from '@/components/store/editor';
 import { api } from '@/trpc/react';
 import { DefaultSettings } from '@onlook/constants';
-import { toDbProjectSettings } from '@onlook/db';
 import { Button } from '@onlook/ui/button';
 import { Icons } from '@onlook/ui/icons';
 import { Input } from '@onlook/ui/input';
@@ -73,13 +72,11 @@ export const ProjectTab = observer(() => {
             if (formData.install !== installCommand || formData.run !== runCommand || formData.build !== buildCommand) {
                 await updateProjectSettings({
                     projectId: editorEngine.projectId,
-                    settings: toDbProjectSettings(editorEngine.projectId, {
-                        commands: {
-                            install: formData.install,
-                            run: formData.run,
-                            build: formData.build,
-                        },
-                    }),
+                    settings: {
+                        installCommand: formData.install,
+                        runCommand: formData.run,
+                        buildCommand: formData.build,
+                    },
                 });
             }
 

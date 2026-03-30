@@ -1,5 +1,5 @@
-import type { LifecycleHooks, ProjectSettings } from '@onlook/models';
-import type { LifecycleHooksDb, ProjectSettings as DbProjectSettings } from '../../schema';
+import type { LifecycleHooks, McpServerConfig, ProjectSettings } from '@onlook/models';
+import type { LifecycleHooksDb, McpServerConfigDb, ProjectSettings as DbProjectSettings } from '../../schema';
 
 export const fromDbProjectSettings = (dbProjectSettings: DbProjectSettings): ProjectSettings => {
     const dbHooks = dbProjectSettings.lifecycleHooks as LifecycleHooksDb | null;
@@ -15,6 +15,19 @@ export const fromDbProjectSettings = (dbProjectSettings: DbProjectSettings): Pro
           }
         : undefined;
 
+    const dbMcpServers = (dbProjectSettings.mcpServers as McpServerConfigDb[] | null) ?? [];
+    const mcpServers: McpServerConfig[] = dbMcpServers.map((s) => ({
+        id: s.id,
+        name: s.name,
+        enabled: s.enabled,
+        transport: s.transport as McpServerConfig['transport'],
+        url: s.url,
+        headers: s.headers,
+        command: s.command,
+        args: s.args,
+        env: s.env,
+    }));
+
     return {
         commands: {
             build: dbProjectSettings.buildCommand,
@@ -22,6 +35,7 @@ export const fromDbProjectSettings = (dbProjectSettings: DbProjectSettings): Pro
             install: dbProjectSettings.installCommand,
         },
         lifecycleHooks,
+        mcpServers,
     };
 };
 
@@ -39,11 +53,24 @@ export const toDbProjectSettings = (projectId: string, projectSettings: ProjectS
           }
         : {};
 
+    const mcpServers: McpServerConfigDb[] = (projectSettings.mcpServers ?? []).map((s) => ({
+        id: s.id,
+        name: s.name,
+        enabled: s.enabled,
+        transport: s.transport,
+        url: s.url,
+        headers: s.headers,
+        command: s.command,
+        args: s.args,
+        env: s.env,
+    }));
+
     return {
         projectId,
         buildCommand: projectSettings.commands.build ?? '',
         runCommand: projectSettings.commands.run ?? '',
         installCommand: projectSettings.commands.install ?? '',
         lifecycleHooks,
+        mcpServers,
     };
 };

@@ -14,6 +14,19 @@ export type LifecycleHooksDb = {
     fileEdit?: string;
 };
 
+/** Shape stored in the database for MCP server configs. */
+export type McpServerConfigDb = {
+    id: string;
+    name: string;
+    enabled: boolean;
+    transport: 'http' | 'sse' | 'stdio';
+    url?: string;
+    headers?: Record<string, string>;
+    command?: string;
+    args?: string[];
+    env?: Record<string, string>;
+};
+
 export const projectSettings = pgTable('project_settings', {
     projectId: uuid('project_id')
         .notNull()
@@ -23,6 +36,7 @@ export const projectSettings = pgTable('project_settings', {
     buildCommand: text('build_command').notNull().default(''),
     installCommand: text('install_command').notNull().default(''),
     lifecycleHooks: jsonb('lifecycle_hooks').$type<LifecycleHooksDb>().default({}).notNull(),
+    mcpServers: jsonb('mcp_servers').$type<McpServerConfigDb[]>().default([]).notNull(),
 }).enableRLS();
 
 export const projectSettingsInsertSchema = createInsertSchema(projectSettings);

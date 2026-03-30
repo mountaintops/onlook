@@ -70,6 +70,36 @@ export const PreviewDomainSection = observer(() => {
         }
     }, [assignedDomain]);
 
+    // Debounce subdomain input for status check
+    const [debouncedSubdomain, setDebouncedSubdomain] = useState(subdomainInput);
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSubdomain(subdomainInput);
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [subdomainInput]);
+
+    const { data: domainStatus } = api.publish.screenshit.domainStatus.useQuery(
+        { subdomain: sanitiseSubdomain(debouncedSubdomain) },
+        { enabled: debouncedSubdomain.length > 0 && debouncedSubdomain !== (assignedDomain ? new URL(assignedDomain).hostname.split('.')[0] : '') },
+    );
+
+    const isConflict = useMemo(() => {
+        if (!domainStatus?.cloudflare) {
+            return false;
+        }
+        // If it's already assigned to this project, it's not a conflict
+        if (assignedDomain) {
+            try {
+                const assignedHostname = new URL(assignedDomain).hostname;
+                return domainStatus.hostname !== assignedHostname;
+            } catch (e) {
+                return true;
+            }
+        }
+        return true;
+    }, [domainStatus, assignedDomain]);
+
     const effectiveSubdomain = subdomainInput.trim() ? sanitiseSubdomain(subdomainInput.trim()) : '';
     const fullDomain = `${effectiveSubdomain}.${BASE_DOMAIN}`;
     const fullUrl = `https://${fullDomain}`;
@@ -177,7 +207,13 @@ export const PreviewDomainSection = observer(() => {
                             .{BASE_DOMAIN}
                         </span>
                     </div>
-                    {effectiveSubdomain && !assignedDomain && (
+                    {isConflict && (
+                        <div className="flex items-center gap-1.5 px-1 mt-1 text-[10px] text-yellow-500 font-medium">
+                            <Icons.ExclamationTriangle className="w-3 h-3" />
+                            <span>This subdomain is already in use by another project</span>
+                        </div>
+                    )}
+                    {effectiveSubdomain && !assignedDomain && !isConflict && (
                         <p className="text-[10px] text-muted-foreground px-1 truncate">
                             → {fullUrl}
                         </p>

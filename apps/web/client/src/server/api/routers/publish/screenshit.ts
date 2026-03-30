@@ -1,5 +1,6 @@
 import { DeploymentStatus, DeploymentType } from '@onlook/models';
 import { z } from 'zod';
+import { TRPCError } from '@trpc/server';
 import { createTRPCRouter, protectedProcedure } from '../../trpc';
 import { createDeployment } from './helpers/deploy';
 import { updateDeployment } from './helpers/helpers';
@@ -190,6 +191,29 @@ export const screenshitRouter = createTRPCRouter({
         )
         .mutation(async ({ ctx, input }) => {
             const { projectId, lambdaUrl, subdomain } = input;
+
+            // 1. Check for subdomain uniqueness if provided
+            if (subdomain) {
+                const targetDomain = `${subdomain}.weliketech.eu.org`;
+                const fullUrl = `https://${targetDomain}`;
+
+                // Check if any OTHER project already has this domain assigned
+                const existing = await ctx.db.query.deployments.findFirst({
+                    where: (deployments, { and, ne, sql }) =>
+                        and(
+                            ne(deployments.projectId, projectId),
+                            sql`${deployments.urls} @> ARRAY[${fullUrl}]::text[]`
+                        ),
+                });
+
+                if (existing) {
+                    throw new TRPCError({
+                        code: 'CONFLICT',
+                        message: `The subdomain "${subdomain}" is already in use by another project.`,
+                    });
+                }
+            }
+
             const result = await screenshitAssignDomain(projectId, lambdaUrl, subdomain);
 
             // Persist the assigned subdomain URL in the latest SCREENSHIT deployment record
