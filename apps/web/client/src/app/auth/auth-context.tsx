@@ -5,7 +5,7 @@ import { SignInMethod } from '@onlook/models/auth';
 import localforage from 'localforage';
 import type { ReactNode } from 'react';
 import { createContext, useContext, useEffect, useState } from 'react';
-import { devLogin, login } from '../login/actions';
+import { devLogin, devLoginFree, login } from '../login/actions';
 
 const LAST_SIGN_IN_METHOD_KEY = 'lastSignInMethod';
 
@@ -16,6 +16,7 @@ interface AuthContextType {
     setIsAuthModalOpen: (open: boolean) => void;
     handleLogin: (method: SignInMethod.GITHUB | SignInMethod.GOOGLE, returnUrl: string | null) => Promise<void>;
     handleDevLogin: (returnUrl: string | null) => Promise<void>;
+    handleDevLoginFree: (returnUrl: string | null) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -63,8 +64,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
     }
 
+    const handleDevLoginFree = async (returnUrl: string | null) => {
+        try {
+            setSigningInMethod(SignInMethod.DEV_FREE);
+            if (returnUrl) {
+                await localforage.setItem(LocalForageKeys.RETURN_URL, returnUrl);
+            }
+            await devLoginFree();
+        } catch (error) {
+            console.error('Error signing in as free user:', error);
+        } finally {
+            setSigningInMethod(null);
+        }
+    };
+
     return (
-        <AuthContext.Provider value={{ signingInMethod, lastSignInMethod, handleLogin, handleDevLogin, isAuthModalOpen, setIsAuthModalOpen }}>
+        <AuthContext.Provider value={{ signingInMethod, lastSignInMethod, handleLogin, handleDevLogin, handleDevLoginFree, isAuthModalOpen, setIsAuthModalOpen }}>
             {children}
         </AuthContext.Provider>
     );

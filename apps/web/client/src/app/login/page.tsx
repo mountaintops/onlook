@@ -9,7 +9,7 @@ import { useTranslations } from 'next-intl';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { DevLoginButton, LoginButton } from '../_components/login-button';
+import { DevFreeLoginButton, DevLoginButton, LoginButton } from '../_components/login-button';
 
 export default function LoginPage() {
     const isDev = process.env.NODE_ENV === 'development';
@@ -50,7 +50,12 @@ export default function LoginPage() {
                             providerName="Google"
                         />
                     </div>
-                    {isDev && <DevLoginButton returnUrl={returnUrl} />}
+                    {isDev && (
+                        <div className="flex flex-col gap-1.5">
+                            <DevLoginButton returnUrl={returnUrl} />
+                            <DevFreeLoginButton returnUrl={returnUrl} />
+                        </div>
+                    )}
                     <p className="text-small text-foreground-onlook">
                         {t(transKeys.welcome.terms.agreement)}{' '}
                         <Link
