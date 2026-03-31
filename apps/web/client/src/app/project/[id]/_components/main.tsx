@@ -1,7 +1,6 @@
 'use client';
 
 import { useEditorEngine } from '@/components/store/editor';
-import { SubscriptionModal } from '@/components/ui/pricing-modal';
 import { SettingsModalWithProjects } from '@/components/ui/settings-modal/with-project';
 import { EditorAttributes } from '@onlook/constants';
 import { EditorMode } from '@onlook/models';
@@ -128,7 +127,7 @@ export const Main = observer(() => {
                 <BottomBar />
             </div>
             <SettingsModalWithProjects />
-            <SubscriptionModal />
+            
         </TooltipProvider >
     );
 });

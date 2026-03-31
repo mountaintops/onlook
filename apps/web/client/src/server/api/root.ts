@@ -10,7 +10,7 @@ import {
     publishRouter,
     sandboxRouter,
     settingsRouter,
-    subscriptionRouter,
+
     usageRouter,
     userCanvasRouter,
     userRouter,
@@ -37,7 +37,7 @@ export const appRouter = createTRPCRouter({
     member: memberRouter,
     domain: domainRouter,
     github: githubRouter,
-    subscription: subscriptionRouter,
+
     usage: usageRouter,
     publish: publishRouter,
 });

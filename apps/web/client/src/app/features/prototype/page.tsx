@@ -7,7 +7,6 @@ import { Button } from '@onlook/ui/button';
 import { Icons } from '@onlook/ui/icons';
 
 import { CreateManagerProvider } from '@/components/store/create';
-import { SubscriptionModal } from '@/components/ui/pricing-modal';
 import { NonProjectSettingsModal } from '@/components/ui/settings-modal/non-project';
 import { ExternalRoutes, Routes } from '@/utils/constants';
 import { ButtonLink } from '../../_components/button-link';
@@ -369,7 +368,7 @@ export default function PrototypeFeaturesPage() {
                 />
                 <PrototypeFAQSection />
                 <NonProjectSettingsModal />
-                <SubscriptionModal />
+                
             </WebsiteLayout>
         </CreateManagerProvider>
     );

@@ -1,7 +1,6 @@
 'use client';
 
 import { CreateManagerProvider } from '@/components/store/create';
-import { SubscriptionModal } from '@/components/ui/pricing-modal';
 import { NonProjectSettingsModal } from '@/components/ui/settings-modal/non-project';
 import { ExternalRoutes, Routes } from '@/utils/constants';
 import { Button } from '@onlook/ui/button';
@@ -419,7 +418,7 @@ export default function VibeCodingWorkflowPage() {
                 />
 
                 <NonProjectSettingsModal />
-                <SubscriptionModal />
+                
             </WebsiteLayout>
         </CreateManagerProvider>
     );

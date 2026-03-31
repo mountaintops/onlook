@@ -11,12 +11,11 @@ const useCustomDomain = () => {
     const editorEngine = useEditorEngine();
     const stateManager = useStateManager();
     const [isLoading, setIsLoading] = useState(false);
-    const { data: subscription } = api.subscription.get.useQuery();
+
     const { data: customDomain } = api.domain.custom.get.useQuery({ projectId: editorEngine.projectId });
     const { deployment, publish: runPublish, isDeploying } = useHostingType(DeploymentType.CUSTOM);
 
-    const product = subscription?.product;
-    const isPro = product?.type === ProductType.PRO;
+    const isPro = true;
 
     const openCustomDomain = (): void => {
         editorEngine.state.publishOpen = false;

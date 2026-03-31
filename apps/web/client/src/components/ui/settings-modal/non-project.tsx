@@ -8,7 +8,7 @@ import { observer } from 'mobx-react-lite';
 import { AnimatePresence, motion } from 'motion/react';
 import { SettingsTabValue, type SettingTab } from './helpers';
 import { PreferencesTab } from './preferences-tab';
-import { SubscriptionTab } from './subscription-tab';
+
 
 export const NonProjectSettingsModal = observer(() => {
     const stateManager = useStateManager();
@@ -19,11 +19,7 @@ export const NonProjectSettingsModal = observer(() => {
             icon: <Icons.Person className="mr-2 h-4 w-4" />,
             component: <PreferencesTab />,
         },
-        {
-            label: SettingsTabValue.SUBSCRIPTION,
-            icon: <Icons.CreditCard className="mr-2 h-4 w-4" />,
-            component: <SubscriptionTab />,
-        },
+
     ]
 
     return (

@@ -1,7 +1,6 @@
 'use client';
 
 import { CreateManagerProvider } from '@/components/store/create';
-import { SubscriptionModal } from '@/components/ui/pricing-modal';
 import { NonProjectSettingsModal } from '@/components/ui/settings-modal/non-project';
 import { ExternalRoutes } from '@/utils/constants';
 import { BuilderFeaturesHero } from '../../_components/hero/builder-features-hero';
@@ -81,7 +80,7 @@ export default function BuilderFeaturesPage() {
                 />
                 <FAQSection faqs={builderFaqs} />
                 <NonProjectSettingsModal />
-                <SubscriptionModal />
+                
             </WebsiteLayout>
         </CreateManagerProvider>
     );
