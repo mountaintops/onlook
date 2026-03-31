@@ -13,7 +13,7 @@ import { shortenUuid } from '@onlook/utility/src/id';
 import { projectSettings, fromDbProjectSettings } from '@onlook/db';
 import { eq } from 'drizzle-orm';
 
-import { createTRPCRouter, protectedProcedure } from '../../trpc';
+import { createTRPCRouter, protectedProcedure, publicProcedure } from '../../trpc';
 
 
 
@@ -51,7 +51,7 @@ export function getProvider({
 }
 
 export const sandboxRouter = createTRPCRouter({
-    create: protectedProcedure
+    create: publicProcedure
         .input(
             z.object({
                 title: z.string().optional(),
@@ -86,14 +86,14 @@ export const sandboxRouter = createTRPCRouter({
             };
         }),
 
-    start: protectedProcedure
+    start: publicProcedure
         .input(
             z.object({
                 sandboxId: z.string(),
             }),
         )
         .mutation(async ({ input, ctx }) => {
-            const userId = ctx.user.id;
+            const userId = ctx.user?.id ?? 'guest-user-id';
             const provider = await getProvider({
                 sandboxId: input.sandboxId,
                 userId,
@@ -127,7 +127,7 @@ export const sandboxRouter = createTRPCRouter({
                 await provider.destroy().catch(() => {});
             }
         }),
-    list: protectedProcedure.input(z.object({ sandboxId: z.string() })).query(async ({ input }) => {
+    list: publicProcedure.input(z.object({ sandboxId: z.string() })).query(async ({ input }) => {
         const provider = await getProvider({ sandboxId: input.sandboxId, tier: 'Pico' });
         const res = await provider.listProjects({});
         // TODO future iteration of code provider abstraction will need this code to be refactored

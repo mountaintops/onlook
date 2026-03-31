@@ -10,7 +10,7 @@
 import { createAdminClient } from '@/utils/supabase/admin';
 import { createClient } from '@/utils/supabase/server';
 import { db } from '@onlook/db/src/client';
-import '@aws-sdk/signature-v4-crt';
+// import '@aws-sdk/signature-v4-crt';
 import type { User } from '@supabase/supabase-js';
 import { initTRPC, TRPCError } from '@trpc/server';
 import superjson from 'superjson';
@@ -34,16 +34,16 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
     const {
         data: { user },
         error,
-    } = await supabase.auth.getUser();
+    } = await supabase.auth.getUser().catch(() => ({ data: { user: null }, error: null }));
 
     if (error) {
-        throw new TRPCError({ code: 'UNAUTHORIZED', message: error.message });
+        console.warn('[TRPC] Supabase auth error:', error.message);
     }
 
     return {
         db,
         supabase,
-        user,
+        user: user ?? null,
         ...opts,
     };
 };

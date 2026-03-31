@@ -5,12 +5,37 @@ import { extractNames } from '@onlook/utility';
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { createTRPCRouter, protectedProcedure } from '../../trpc';
+import { createTRPCRouter, protectedProcedure, publicProcedure } from '../../trpc';
 import { userSettingsRouter } from './user-settings';
 
 export const userRouter = createTRPCRouter({
-    get: protectedProcedure.query(async ({ ctx }) => {
-        const authUser = ctx.user;
+    get: publicProcedure.query(async ({ ctx }) => {
+        let authUser = ctx.user;
+
+        // If not authenticated via Supabase, attempt to find or create a default guest user
+        if (!authUser) {
+            console.log('[TRPC] User not authenticated. Attempting auto-registration...');
+            const existingDefaultUser = await ctx.db.query.users.findFirst({
+                where: eq(users.email, 'guest@onlook.dev'),
+            });
+
+            if (existingDefaultUser) {
+                return fromDbUser(existingDefaultUser);
+            }
+
+            // Create a default guest user
+            const [newDefaultUser] = await ctx.db.insert(users).values({
+                id: crypto.randomUUID(),
+                email: 'guest@onlook.dev',
+                displayName: 'Guest User',
+                firstName: 'Guest',
+                lastName: 'User',
+                avatarUrl: null,
+            }).returning();
+
+            return newDefaultUser ? fromDbUser(newDefaultUser) : null;
+        }
+
         const existingUser = await ctx.db.query.users.findFirst({
             where: eq(users.id, authUser.id),
         });
@@ -144,7 +169,10 @@ export const userRouter = createTRPCRouter({
     }),
 });
 
-function getUserName(authUser: SupabaseUser) {
+function getUserName(authUser: SupabaseUser | null) {
+    if (!authUser) {
+        return { displayName: 'Guest User', firstName: 'Guest', lastName: 'User' };
+    }
     const displayName: string | undefined = authUser.user_metadata.name ?? authUser.user_metadata.display_name ?? authUser.user_metadata.full_name ?? authUser.user_metadata.first_name ?? authUser.user_metadata.last_name ?? authUser.user_metadata.given_name ?? authUser.user_metadata.family_name;
     const { firstName, lastName } = extractNames(displayName ?? '');
     return {
