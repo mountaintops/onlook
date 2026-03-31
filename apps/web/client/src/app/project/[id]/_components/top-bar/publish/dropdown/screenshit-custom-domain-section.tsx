@@ -21,6 +21,19 @@ function getHostname(urlStr: string) {
     }
 }
 
+// Extract the "Host" part for DNS providers like GoDaddy/Namecheap
+function getDnsHost(txtName: string, hostname: string) {
+    if (!txtName || !hostname) return txtName;
+    // GoDaddy usually manages the root domain (last two parts)
+    const parts = hostname.split('.');
+    if (parts.length < 2) return txtName;
+    const rootDomain = parts.slice(-2).join('.');
+    if (txtName.endsWith('.' + rootDomain)) {
+        return txtName.slice(0, -(rootDomain.length + 1));
+    }
+    return txtName;
+}
+
 export const ScreenshitCustomDomainItem = ({ 
     domainUrl, 
     onRemove 
@@ -31,13 +44,18 @@ export const ScreenshitCustomDomainItem = ({
     const hostname = getHostname(domainUrl);
     const { data: statusData, isLoading, refetch } = api.publish.screenshit.customDomainStatus.useQuery(
         { customDomain: hostname },
-        { enabled: !!hostname, refetchInterval: (query) => query.state.data?.cloudflare?.status === 'active' ? false : 10000 }
+        { enabled: !!hostname, refetchInterval: (query) => query.state.data?.status === 'active' ? false : 10000 }
     );
 
-    const isPending = statusData?.cloudflare?.status !== 'active';
-    const txtName = statusData?.cloudflare?.ownership_verification?.name;
+    const isIssuing = statusData?.status === 'issuing_certificate';
+    const isPending = statusData?.status !== 'active' && !isIssuing;
+
+    const dnsHost = useMemo(() => {
+        if (!statusData?.cloudflare?.ownership_verification?.name) return '';
+        return getDnsHost(statusData.cloudflare.ownership_verification.name, hostname);
+    }, [statusData, hostname]);
+
     const txtValue = statusData?.cloudflare?.ownership_verification?.value;
-    // CNAME will always be proxy-fallback.weliketech.eu.org based on our screenshit config
     const cnameTarget = 'proxy-fallback.weliketech.eu.org';
 
     return (
@@ -53,36 +71,58 @@ export const ScreenshitCustomDomainItem = ({
                 <div className="text-muted-foreground flex items-center gap-1">
                     <Icons.LoadingSpinner className="h-3 w-3 animate-spin"/> Loading status...
                 </div>
-            ) : isPending ? (
-                <div className="flex flex-col gap-2 mt-2 bg-yellow-500/10 p-2 rounded border border-yellow-500/20">
-                    <div className="flex items-center gap-2">
-                        <Icons.ExclamationTriangle className="w-3 h-3 text-yellow-500" />
-                        <span className="font-semibold text-yellow-500">Pending Verification</span>
-                        <Button variant="ghost" size="sm" className="h-5 text-[10px] ml-auto" onClick={() => refetch()}>
+            ) : isIssuing ? (
+                <div className="flex flex-col gap-2 mt-1 p-2 rounded-sm bg-blue-500/10 border border-blue-500/20">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 font-medium text-blue-400">
+                            <Icons.Check className="w-3 h-3" />
+                            <span>DNS Verified!</span>
+                        </div>
+                        <Button variant="ghost" size="sm" className="h-5 px-1 text-[10px]" onClick={() => refetch()}>
                             Refresh
                         </Button>
                     </div>
-                    <p className="text-muted-foreground text-[10px]">Add these DNS records to your domain provider to verify ownership and route traffic:</p>
-                    <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 font-mono text-[10px]">
-                        <span className="text-foreground shrink-0 font-bold">Type</span>
-                        <span className="text-foreground font-bold">Name / Target</span>
-
-                        <span className="text-muted-foreground shrink-0 mt-1">TXT</span>
-                        <div className="flex flex-col overflow-hidden mt-1 gap-1">
-                            <span className="truncate" title={txtName}>{txtName}</span>
-                            <span className="text-muted-foreground break-all bg-black/20 p-1 rounded selection:bg-blue-500/30">{txtValue}</span>
+                    <p className="text-[10px] text-blue-200/70 leading-normal italic">
+                        Success! Cloudflare is now issuing your security certificate (SSL). This typically takes 2-5 minutes.
+                    </p>
+                </div>
+            ) : isPending ? (
+                <div className="flex flex-col gap-2 mt-2 bg-yellow-500/10 p-2 rounded border border-yellow-500/20">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 font-semibold text-yellow-500">
+                            <Icons.ExclamationTriangle className="w-3 h-3" />
+                            <span>Verification Required</span>
                         </div>
+                        <Button variant="ghost" size="sm" className="h-5 px-1 text-[10px]" onClick={() => refetch()}>
+                            Refresh
+                        </Button>
+                    </div>
+                    
+                    <div className="flex flex-col gap-3 mt-1">
+                        <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 font-mono text-[10px]">
+                            <span className="text-muted-foreground shrink-0">TXT</span>
+                            <div className="flex flex-col overflow-hidden gap-1">
+                                <div className="flex flex-col gap-0.5">
+                                    <span className="text-[9px] text-yellow-500/70">GoDaddy Host:</span>
+                                    <span className="font-bold text-foreground bg-yellow-500/20 px-1 rounded w-fit select-all">{dnsHost}</span>
+                                </div>
+                                <div className="mt-1">
+                                    <span className="text-[9px] text-muted-foreground">Value:</span>
+                                    <span className="text-muted-foreground break-all bg-black/20 p-1 rounded block select-all mt-0.5">{txtValue}</span>
+                                </div>
+                            </div>
 
-                        <span className="text-muted-foreground shrink-0 mt-2">CNAME<br/><span className="text-[8px]">(or ALIAS/ANAME for root domains)</span></span>
-                        <div className="flex flex-col mt-2 gap-1 overflow-hidden">
-                            <span>@ or www</span>
-                            <span className="text-muted-foreground truncate bg-black/20 p-1 rounded selection:bg-blue-500/30" title={cnameTarget}>{cnameTarget}</span>
+                            <span className="text-muted-foreground shrink-0 border-t border-yellow-500/10 pt-2">CNAME</span>
+                            <div className="flex flex-col gap-1 overflow-hidden border-t border-yellow-500/10 pt-2">
+                                <span className="text-[9px] text-muted-foreground">Target:</span>
+                                <span className="text-muted-foreground truncate bg-black/20 p-1 rounded block mt-0.5 select-all" title={cnameTarget}>{cnameTarget}</span>
+                            </div>
                         </div>
                     </div>
                 </div>
             ) : (
-                <div className="flex items-center gap-1 text-green-500 font-medium">
-                    <Icons.CheckCircled className="w-3 h-3" />
+                <div className="flex items-center gap-1 text-green-500 font-medium p-1">
+                    <Icons.Check className="w-3 h-3" />
                     Active
                 </div>
             )}
