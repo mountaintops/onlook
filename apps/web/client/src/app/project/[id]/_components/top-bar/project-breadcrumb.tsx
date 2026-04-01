@@ -29,7 +29,8 @@ export const ProjectBreadcrumb = observer(() => {
     const stateManager = useStateManager();
     const posthog = usePostHog();
     const { data: project } = api.project.get.useQuery({ projectId: editorEngine.projectId });
-    const isPro = true;
+    const { data: subscription } = api.subscription.get.useQuery();
+    const isPro = subscription?.product.type === ProductType.PRO;
     const t = useTranslations();
     const closeTimeoutRef = useRef<Timer | null>(null);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -154,7 +155,7 @@ export const ProjectBreadcrumb = observer(() => {
                                     ? t(transKeys.projects.actions.downloadingCode)
                                     : t(transKeys.projects.actions.downloadCode)}
                             </div>
-
+                            <Badge variant="secondary" className="ml-2 text-xs bg-blue-400 text-white rounded-full p-0.5 px-1.5">PRO</Badge>
                         </div>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />

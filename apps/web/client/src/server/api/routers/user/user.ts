@@ -36,64 +36,20 @@ export const userRouter = createTRPCRouter({
             return newDefaultUser ? fromDbUser(newDefaultUser) : null;
         }
 
-        const existingUser = await ctx.db.query.users.findFirst({
+        const user = await ctx.db.query.users.findFirst({
             where: eq(users.id, authUser.id),
         });
 
         const { displayName, firstName, lastName } = getUserName(authUser);
-        const userData = {
-            id: authUser.id,
-            firstName,
-            lastName,
-            displayName,
-            email: authUser.email ?? '',
-            avatarUrl: authUser.user_metadata.avatar_url ?? authUser.user_metadata.avatarUrl,
-        };
-
-        // If user doesn't exist in our DB, create them
-        if (!existingUser) {
-            const [newUser] = await ctx.db
-                .insert(users)
-                .values(userData)
-                .onConflictDoUpdate({
-                    target: [users.id],
-                    set: {
-                        ...userData,
-                        updatedAt: new Date(),
-                    },
-                }).returning();
-
-            await trackEvent({
-                distinctId: authUser.id,
-                event: 'user_first_signup',
-                properties: {
-                    email: userData.email,
-                    firstName: userData.firstName,
-                    lastName: userData.lastName,
-                    displayName: userData.displayName,
-                    source: 'web beta',
-                },
-            });
-
-            await callUserWebhook({
-                email: userData.email,
-                firstName: userData.firstName,
-                lastName: userData.lastName,
-                source: 'web beta',
-                subscribed: false,
-            });
-
-            return newUser ? fromDbUser(newUser) : null;
-        }
-
-        return fromDbUser({
-            ...existingUser,
-            firstName: existingUser.firstName ?? firstName,
-            lastName: existingUser.lastName ?? lastName,
-            displayName: existingUser.displayName ?? displayName,
-            email: existingUser.email ?? authUser.email,
-            avatarUrl: existingUser.avatarUrl ?? authUser.user_metadata.avatar_url ?? authUser.user_metadata.avatarUrl,
-        });
+        const userData = user ? fromDbUser({
+            ...user,
+            firstName: user.firstName ?? firstName,
+            lastName: user.lastName ?? lastName,
+            displayName: user.displayName ?? displayName,
+            email: user.email ?? authUser.email,
+            avatarUrl: user.avatarUrl ?? authUser.user_metadata.avatarUrl,
+        }) : null;
+        return userData;
     }),
     getById: protectedProcedure.input(z.string()).query(async ({ ctx, input }) => {
         const user = await ctx.db.query.users.findFirst({

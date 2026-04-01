@@ -16,7 +16,7 @@ import { PreferencesTab } from './preferences-tab';
 import { ProjectTab } from './project';
 import { SiteTab } from './site';
 import { PageTab } from './site/page';
-
+import { SubscriptionTab } from './subscription-tab';
 import { VersionsTab } from './versions';
 import { McpServersTab } from './project/mcp-servers-tab';
 
@@ -70,7 +70,11 @@ export const SettingsModalWithProjects = observer(() => {
             icon: <Icons.Person className="mr-2 h-4 w-4" />,
             component: <PreferencesTab />,
         },
-
+        {
+            label: SettingsTabValue.SUBSCRIPTION,
+            icon: <Icons.CreditCard className="mr-2 h-4 w-4" />,
+            component: <SubscriptionTab />,
+        },
     ];
 
     const projectTabs: SettingTab[] = [

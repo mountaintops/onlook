@@ -55,10 +55,9 @@ export const HostingProvider = ({ children }: HostingProviderProps) => {
 
     // API hooks for all deployment types
     const previewQuery = api.publish.deployment.getByType.useQuery({
-        projectId: editorEngine.projectId ?? '',
+        projectId: editorEngine.projectId,
         type: DeploymentType.PREVIEW,
     }, {
-        enabled: !!editorEngine.projectId,
         refetchInterval: subscriptionStates[DeploymentType.PREVIEW] ? 1000 : false,
     });
 
@@ -66,7 +65,6 @@ export const HostingProvider = ({ children }: HostingProviderProps) => {
         projectId: editorEngine.projectId,
         type: DeploymentType.CUSTOM,
     }, {
-        enabled: !!editorEngine.projectId,
         refetchInterval: subscriptionStates[DeploymentType.CUSTOM] ? 1000 : false,
     });
 
@@ -74,7 +72,6 @@ export const HostingProvider = ({ children }: HostingProviderProps) => {
         projectId: editorEngine.projectId,
         type: DeploymentType.UNPUBLISH_PREVIEW,
     }, {
-        enabled: !!editorEngine.projectId,
         refetchInterval: subscriptionStates[DeploymentType.UNPUBLISH_PREVIEW] ? 1000 : false,
     });
 
@@ -82,7 +79,6 @@ export const HostingProvider = ({ children }: HostingProviderProps) => {
         projectId: editorEngine.projectId,
         type: DeploymentType.UNPUBLISH_CUSTOM,
     }, {
-        enabled: !!editorEngine.projectId,
         refetchInterval: subscriptionStates[DeploymentType.UNPUBLISH_CUSTOM] ? 1000 : false,
     });
 
@@ -90,7 +86,6 @@ export const HostingProvider = ({ children }: HostingProviderProps) => {
         projectId: editorEngine.projectId,
         type: DeploymentType.SCREENSHIT,
     }, {
-        enabled: !!editorEngine.projectId,
         refetchInterval: subscriptionStates[DeploymentType.SCREENSHIT] ? 1000 : false,
     });
 

@@ -2,6 +2,7 @@ export enum SettingsTabValue {
     DOMAIN = 'domain',
     PROJECT = 'project',
     PREFERENCES = 'account',
+    SUBSCRIPTION = 'subscription',
     VERSIONS = 'versions',
     ADVANCED = 'advanced',
     SITE = 'site',

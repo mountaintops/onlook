@@ -1,6 +1,7 @@
 'use client';
 
 import { CreateManagerProvider } from '@/components/store/create';
+import { SubscriptionModal } from '@/components/ui/pricing-modal';
 import { NonProjectSettingsModal } from '@/components/ui/settings-modal/non-project';
 import { ExternalRoutes } from '@/utils/constants';
 import { AiFeaturesHero } from '../../_components/hero/ai-features-hero';
@@ -27,7 +28,7 @@ const aiFaqs = [
     },
     {
         question: 'Is Onlook free to use?',
-        answer: "Yes! Onlook is completely free to use. There are no message limits or subscription tiers.",
+        answer: "Onlook is free for your first prompt, but you're limited by the number of messages you can send. Please see our Pricing page for more details.",
     },
     {
         question: 'What is the difference between Onlook and other design tools?',
@@ -78,7 +79,7 @@ export default function AiFeaturesPage() {
                 />
                 <FAQSection faqs={aiFaqs} />
                 <NonProjectSettingsModal />
-                
+                <SubscriptionModal />
             </WebsiteLayout>
         </CreateManagerProvider>
     );
