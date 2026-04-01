@@ -33,11 +33,6 @@ export const toDbProject = (project: Project): DbProject => {
 
         sandboxId: null,
         sandboxUrl: null,
-
-        customDomain: null,
-        domainStatus: 'pending',
-        dnsTxtName: null,
-        dnsTxtValue: null,
     };
 };
 

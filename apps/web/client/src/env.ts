@@ -14,9 +14,6 @@ export const env = createEnv({
         RESEND_API_KEY: z.string().optional(),
         FREESTYLE_API_KEY: z.string().optional(),
 
-        // Screenshit Express deploy API
-        SCREENSHIT_API_URL: z.string().url().optional(),
-        SCREENSHIT_API_KEY: z.string().optional(),
 
         // Stripe
         STRIPE_WEBHOOK_SECRET: z.string().optional(),
@@ -97,9 +94,6 @@ export const env = createEnv({
         RESEND_API_KEY: process.env.RESEND_API_KEY,
         NEXT_PUBLIC_FEATURE_COLLABORATION: process.env.NEXT_PUBLIC_FEATURE_COLLABORATION,
 
-        // Screenshit
-        SCREENSHIT_API_URL: process.env.SCREENSHIT_API_URL,
-        SCREENSHIT_API_KEY: process.env.SCREENSHIT_API_KEY,
 
         // Supabase
         SUPABASE_DATABASE_URL: process.env.SUPABASE_DATABASE_URL,

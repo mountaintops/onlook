@@ -91,7 +91,7 @@ export const userRouter = createTRPCRouter({
             firstName: existingUser.firstName ?? firstName,
             lastName: existingUser.lastName ?? lastName,
             displayName: existingUser.displayName ?? displayName,
-            email: existingUser.email ?? authUser.email,
+            email: existingUser.email ?? authUser.email ?? '',
             avatarUrl: existingUser.avatarUrl ?? authUser.user_metadata.avatar_url ?? authUser.user_metadata.avatarUrl,
         });
     }),

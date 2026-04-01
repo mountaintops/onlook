@@ -1,13 +1,11 @@
 import { createCallerFactory, createTRPCRouter } from '~/server/api/trpc';
 import {
     chatRouter,
-    domainRouter,
     frameRouter,
     githubRouter,
     invitationRouter,
     memberRouter,
     projectRouter,
-    publishRouter,
     sandboxRouter,
     settingsRouter,
 
@@ -35,11 +33,8 @@ export const appRouter = createTRPCRouter({
     userCanvas: userCanvasRouter,
     utils: utilsRouter,
     member: memberRouter,
-    domain: domainRouter,
     github: githubRouter,
-
     usage: usageRouter,
-    publish: publishRouter,
 });
 
 // export type definition of API

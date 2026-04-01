@@ -21,10 +21,5 @@ export const createDefaultProject = ({
 
         sandboxId: null,
         sandboxUrl: null,
-
-        customDomain: null,
-        domainStatus: 'pending',
-        dnsTxtName: null,
-        dnsTxtValue: null,
     } satisfies DbProject;
 };

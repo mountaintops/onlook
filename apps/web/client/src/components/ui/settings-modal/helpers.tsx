@@ -1,10 +1,8 @@
 export enum SettingsTabValue {
-    DOMAIN = 'domain',
     PROJECT = 'project',
     PREFERENCES = 'account',
     VERSIONS = 'versions',
     ADVANCED = 'advanced',
-    SITE = 'site',
     MCP_SERVERS = 'mcp-servers',
 }
 

@@ -4,7 +4,6 @@ import { createInsertSchema, createUpdateSchema } from 'drizzle-zod';
 import { z } from 'zod';
 import { canvases } from '../canvas';
 import { conversations, PROJECT_CONVERSATION_RELATION_NAME } from '../chat';
-import { PREVIEW_DOMAIN_PROJECT_RELATION_NAME, previewDomains, PROJECT_CUSTOM_DOMAIN_PROJECT_RELATION_NAME, projectCustomDomains } from '../domain';
 import { userProjects } from '../user';
 import { branches, PROJECT_BRANCH_RELATION_NAME } from './branch';
 import { projectInvitations } from './invitation';
@@ -30,11 +29,6 @@ export const projects = pgTable('projects', {
     sandboxId: varchar('sandbox_id'),
     sandboxUrl: varchar('sandbox_url'),
 
-    // custom domain
-    customDomain: varchar('custom_domain').unique(),
-    domainStatus: varchar('domain_status').$type<'pending' | 'active' | 'failed'>().default('pending'),
-    dnsTxtName: varchar('dns_txt_name'),
-    dnsTxtValue: varchar('dns_txt_value'),
 }).enableRLS();
 
 export const projectInsertSchema = createInsertSchema(projects);
@@ -52,12 +46,6 @@ export const projectRelations = relations(projects, ({ one, many }) => ({
         relationName: PROJECT_CONVERSATION_RELATION_NAME,
     }),
     projectInvitations: many(projectInvitations),
-    projectCustomDomains: many(projectCustomDomains, {
-        relationName: PROJECT_CUSTOM_DOMAIN_PROJECT_RELATION_NAME,
-    }),
-    previewDomains: many(previewDomains, {
-        relationName: PREVIEW_DOMAIN_PROJECT_RELATION_NAME,
-    }),
     settings: one(projectSettings, {
         fields: [projects.id],
         references: [projectSettings.projectId],

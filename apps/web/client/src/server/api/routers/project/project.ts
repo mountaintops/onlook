@@ -249,7 +249,6 @@ export const projectRouter = createTRPCRouter({
                 // 1. Insert the new project
                 const projectData = {
                     ...input.project,
-                    domainStatus: input.project.domainStatus as 'pending' | 'active' | 'failed' | null | undefined,
                 };
                 const [newProject] = await tx.insert(projects).values(projectData).returning();
                 if (!newProject) {
@@ -374,7 +373,6 @@ export const projectRouter = createTRPCRouter({
         await verifyProjectAccess(ctx.db, ctx.user.id, input.id);
         const updateData = {
             ...input,
-            domainStatus: input.domainStatus as 'pending' | 'active' | 'failed' | null | undefined,
             updatedAt: new Date(),
         };
         

@@ -18,7 +18,6 @@ import { Members } from '../members';
 import { BranchDisplay } from './branch';
 import { ModeToggle } from './mode-toggle';
 import { ProjectBreadcrumb } from './project-breadcrumb';
-import { PublishButton } from './publish';
 import { SandboxControls } from './sandbox-controls';
 
 export const TopBar = observer(() => {
@@ -116,7 +115,6 @@ export const TopBar = observer(() => {
                     </TooltipContent>
                 </Tooltip>
                 <SandboxControls />
-                <PublishButton />
             </div>
         </div>
     );

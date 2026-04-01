@@ -10,59 +10,19 @@ import { capitalizeFirstLetter } from '@onlook/utility';
 import { observer } from 'mobx-react-lite';
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import DomainTab from './domain';
 import { SettingsTabValue, type SettingTab } from './helpers';
 import { PreferencesTab } from './preferences-tab';
 import { ProjectTab } from './project';
-import { SiteTab } from './site';
-import { PageTab } from './site/page';
 
 import { VersionsTab } from './versions';
 import { McpServersTab } from './project/mcp-servers-tab';
 
-function TruncatedLabelWithTooltip({ label }: { label: string }) {
-    const [isTruncated, setIsTruncated] = useState(false);
-    const spanRef = useRef<HTMLSpanElement>(null);
-    useEffect(() => {
-        const el = spanRef.current;
-        if (el) {
-            setIsTruncated(el.scrollWidth > el.clientWidth);
-        }
-    }, [label]);
-    return isTruncated ? (
-        <Tooltip>
-            <TooltipTrigger asChild>
-                <span ref={spanRef} className="truncate">
-                    {label}
-                </span>
-            </TooltipTrigger>
-            <TooltipContent side='right'>
-                {label}
-            </TooltipContent>
-        </Tooltip>
-    ) : (
-        <span ref={spanRef} className="truncate">{label}</span>
-    );
-}
 
 export const SettingsModalWithProjects = observer(() => {
     const editorEngine = useEditorEngine();
     const stateManager = useStateManager();
     const pagesManager = editorEngine.pages;
 
-    const flattenPages = useMemo(() => {
-        return pagesManager.tree.reduce((acc, page) => {
-            const flattenNode = (node: typeof page) => {
-                if (node.children?.length) {
-                    node.children.forEach((child) => flattenNode(child));
-                } else {
-                    acc.push(node);
-                }
-            };
-            flattenNode(page);
-            return acc;
-        }, [] as PageNode[]);
-    }, [pagesManager.tree]);
 
     const globalTabs: SettingTab[] = [
         {
@@ -74,16 +34,6 @@ export const SettingsModalWithProjects = observer(() => {
     ];
 
     const projectTabs: SettingTab[] = [
-        {
-            label: SettingsTabValue.SITE,
-            icon: <Icons.File className="mr-2 h-4 w-4" />,
-            component: <SiteTab />,
-        },
-        {
-            label: SettingsTabValue.DOMAIN,
-            icon: <Icons.Globe className="mr-2 h-4 w-4" />,
-            component: <DomainTab />,
-        },
         {
             label: SettingsTabValue.PROJECT,
             icon: <Icons.Gear className="mr-2 h-4 w-4" />,
@@ -101,15 +51,8 @@ export const SettingsModalWithProjects = observer(() => {
         },
     ];
 
-    const pagesTabs: SettingTab[] = flattenPages
-        .filter((page) => page.path !== '/')
-        .map((page) => ({
-            label: page.path,
-            icon: <Icons.File className="mr-2 h-4 min-w-4" />,
-            component: <PageTab metadata={page.metadata} path={page.path} />,
-        }));
 
-    const tabs = [...globalTabs, ...pagesTabs, ...projectTabs];
+    const tabs = [...globalTabs, ...projectTabs];
 
     // TODO: use file system like code tab
     useEffect(() => {
@@ -190,37 +133,6 @@ export const SettingsModalWithProjects = observer(() => {
                                             ))}
                                         </div>
                                         <Separator />
-                                        {pagesTabs.length > 0 && (
-                                            <>
-                                                <div className="shrink-0 w-48 space-y-1 p-5 text-regularPlus">
-                                                    <p className="text-muted-foreground text-smallPlus ml-2.5 mt-2 mb-2">
-                                                        Pages Settings
-                                                    </p>
-                                                    {pagesTabs.map((tab) => (
-                                                        <Button
-                                                            key={tab.label}
-                                                            variant="ghost"
-                                                            className={cn(
-                                                                'w-full justify-start px-0 hover:bg-transparent',
-                                                                'truncate',
-                                                                stateManager.settingsTab ===
-                                                                    tab.label
-                                                                    ? 'text-foreground-active'
-                                                                    : 'text-muted-foreground',
-                                                            )}
-                                                            onClick={() =>
-                                                            (stateManager.settingsTab =
-                                                                tab.label)
-                                                            }
-                                                        >
-                                                            {tab.icon}
-                                                            <TruncatedLabelWithTooltip label={capitalizeFirstLetter(tab.label.toLowerCase())} />
-                                                        </Button>
-                                                    ))}
-                                                </div>
-                                                <Separator />
-                                            </>
-                                        )}
                                         <div className="shrink-0 w-48 space-y-1 p-5 text-regularPlus">
                                             <p className="text-muted-foreground text-smallPlus ml-2.5 mt-2 mb-2">
                                                 Global Settings
