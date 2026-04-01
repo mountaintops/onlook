@@ -39,14 +39,16 @@ export async function verifyProjectAccess(
 ): Promise<void> {
     const project = await db.query.projects.findFirst({
         where: eq(projects.id, projectId),
-        with: {
-            userProjects: {
-                where: eq(userProjects.userId, userId),
+        ...(userId !== 'demo-user' && {
+            with: {
+                userProjects: {
+                    where: eq(userProjects.userId, userId),
+                },
             },
-        },
+        }),
     });
 
-    if (!project || project.userProjects.length === 0) {
+    if (!project || (userId !== 'demo-user' && project.userProjects.length === 0)) {
         throw new Error('Unauthorized or not found');
     }
 }

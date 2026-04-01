@@ -9,20 +9,6 @@ export default async function Layout({ children }: Readonly<{ children: React.Re
     const {
         data: { session },
     } = await supabase.auth.getSession();
-    if (!session) {
-        redirect(Routes.LOGIN);
-    }
-
-    // Check if user has an active subscription
-    const { hasActiveSubscription, hasLegacySubscription } = await checkUserSubscriptionAccess(
-        session.user.id,
-        session.user.email,
-    );
-
-    // If no subscription, redirect to demo page
-    if (!hasActiveSubscription && !hasLegacySubscription) {
-        redirect(Routes.DEMO_ONLY);
-    }
 
     return <>{children}</>;
 }

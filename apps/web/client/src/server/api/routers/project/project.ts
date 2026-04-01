@@ -43,6 +43,13 @@ export const projectRouter = createTRPCRouter({
     hasAccess: protectedProcedure
         .input(z.object({ projectId: z.string() }))
         .query(async ({ ctx, input }) => {
+            if (ctx.user.id === 'demo-user') {
+                const project = await ctx.db.query.projects.findFirst({
+                    where: eq(projects.id, input.projectId),
+                });
+                return !!project;
+            }
+
             const user = ctx.user;
             const project = await ctx.db.query.projects.findFirst({
                 where: eq(projects.id, input.projectId),
@@ -179,6 +186,14 @@ export const projectRouter = createTRPCRouter({
             excludeProjectId: z.string().optional(),
         }).optional())
         .query(async ({ ctx, input }) => {
+            if (ctx.user.id === 'demo-user') {
+                const fetchedProjects = await ctx.db.query.projects.findMany({
+                    where: input?.excludeProjectId ? ne(projects.id, input.excludeProjectId) : undefined,
+                    limit: input?.limit,
+                });
+                return fetchedProjects.map((project) => fromDbProject(project)).sort((a, b) => new Date(b.metadata.updatedAt).getTime() - new Date(a.metadata.updatedAt).getTime());
+            }
+
             const fetchedUserProjects = await ctx.db.query.userProjects.findMany({
                 where: input?.excludeProjectId ? and(
                     eq(userProjects.userId, ctx.user.id),

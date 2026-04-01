@@ -22,11 +22,6 @@ export default function AuthRedirect() {
             const returnUrl = await localforage.getItem<string>(LocalForageKeys.RETURN_URL);
             await localforage.removeItem(LocalForageKeys.RETURN_URL);
 
-            // If user has no active subscription or legacy subscription, redirect to demo-only page
-            if (!subscription && !legacySubscription) {
-                router.replace(Routes.DEMO_ONLY);
-                return;
-            }
 
             // Otherwise, redirect to their intended destination
             const sanitizedUrl = sanitizeReturnUrl(returnUrl);
