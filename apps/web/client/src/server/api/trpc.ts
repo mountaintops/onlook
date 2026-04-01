@@ -39,10 +39,22 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
         console.warn('[TRPC] Supabase auth error:', error.message);
     }
 
+    // Mock "demo user" if not authenticated
+    const finalUser = user ?? {
+        id: 'demo-user',
+        email: 'demo@onlook.com',
+        app_metadata: {},
+        user_metadata: {
+            full_name: 'Demo User',
+        },
+        aud: 'authenticated',
+        created_at: new Date().toISOString(),
+    } as User;
+
     return {
         db,
         supabase,
-        user: user ?? null,
+        user: finalUser,
         ...opts,
     };
 };
