@@ -112,24 +112,19 @@ export const PreviewDomainSection = observer(() => {
         }
 
         try {
-            // 1. Deploy/Update the project
-            const deployResult = await deployScreenshit(editorEngine.projectId, sandboxId, forceRedeploy);
+            // 1. Deploy/Update the project with the optional subdomain
+            const deployResult = await deployScreenshit(
+                editorEngine.projectId,
+                sandboxId,
+                forceRedeploy,
+                effectiveSubdomain,
+            );
+            
             if (!deployResult?.url) {
                 throw new Error('Deployment failed - no URL returned');
             }
 
-            // 2. Automatically assign the subdomain
-            if (effectiveSubdomain) {
-                setIsAssigning(true);
-                await assignDomain({
-                    projectId: editorEngine.projectId,
-                    lambdaUrl: deployResult.url,
-                    subdomain: effectiveSubdomain,
-                });
-                toast.success('Project published and subdomain assigned!');
-            } else {
-                toast.success('Project published!');
-            }
+            toast.success('Project published!');
             // Reset force redeploy after success
             setForceRedeploy(false);
         } catch (err) {

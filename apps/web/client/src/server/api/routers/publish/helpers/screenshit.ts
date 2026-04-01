@@ -108,12 +108,16 @@ export async function screenshitDeploy(
     provider: Provider,
     projectId: string,
     customDomain?: string,
+    subdomain?: string,
 ): Promise<ScreenshitJobResponse> {
     const zipBuffer = await zipProjectFromProvider(provider);
     const apiBase = getApiBase();
     let url = `${apiBase}/deploy?projectId=${encodeURIComponent(projectId)}`;
     if (customDomain) {
         url += `&customDomain=${encodeURIComponent(customDomain)}`;
+    }
+    if (subdomain) {
+        url += `&subdomain=${encodeURIComponent(subdomain)}`;
     }
 
     const response = await fetch(url, {
@@ -140,7 +144,11 @@ export async function screenshitDeploy(
 
 interface PollResponse {
     status: string;
-    result?: { url?: string };
+    result?: { 
+        url?: string;
+        subdomain?: string;
+        customDomain?: string;
+    };
     error?: string;
     logs?: string[];
 }
@@ -175,7 +183,9 @@ export async function pollScreenshitStatus(jobId: string, expectUrl = true): Pro
         const status = poll.status;
 
         if (status === 'completed' || status === 'success') {
-            const deployedUrl = poll.result?.url ?? '';
+            const result = poll.result;
+            const deployedUrl = result?.url || (result?.subdomain ? `https://${result.subdomain}` : '');
+            
             if (expectUrl && !deployedUrl) {
                 throw new Error(`screenshit deploy completed but no URL was returned (jobId: ${jobId})`);
             }

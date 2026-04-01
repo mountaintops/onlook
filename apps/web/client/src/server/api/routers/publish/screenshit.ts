@@ -40,10 +40,11 @@ export const screenshitRouter = createTRPCRouter({
                 sandboxId: z.string(),
                 force: z.boolean().optional().default(false),
                 customDomain: z.string().optional(),
+                subdomain: z.string().optional(),
             }),
         )
         .mutation(async ({ ctx, input }): Promise<{ deploymentId: string; url: string; subdomainUrl?: string }> => {
-            const { projectId, sandboxId, force, customDomain } = input;
+            const { projectId, sandboxId, force, customDomain, subdomain } = input;
             const userId = ctx.user.id;
 
             // 0. Check for existing completed deployment if not forcing
@@ -61,10 +62,12 @@ export const screenshitRouter = createTRPCRouter({
                 if (existing && existing.message) {
                     const url = existing.message;
                     console.log(`[screenshit] Reusing existing deployment: ${url}`);
+                    const finalSubdomain = subdomain || url.replace(/^https?:\/\//, '').split('.')[0];
+                    const subdomainUrl = customDomain ? `https://${customDomain}` : `https://${finalSubdomain}.weliketech.eu.org`;
                     return {
                         deploymentId: existing.id,
                         url,
-                        subdomainUrl: `https://${url.replace(/^https?:\/\//, '').split('.')[0]}.weliketech.eu.org`
+                        subdomainUrl,
                     };
                 }
             }
@@ -102,7 +105,7 @@ export const screenshitRouter = createTRPCRouter({
                     });
 
                     // 3. Zip & upload
-                    const { jobId } = await screenshitDeploy(provider, projectId, customDomain);
+                    const { jobId } = await screenshitDeploy(provider, projectId, customDomain, subdomain);
 
                     await updateDeployment(ctx.db, {
                         id: deploymentId,
@@ -124,7 +127,14 @@ export const screenshitRouter = createTRPCRouter({
                         envVars: {},
                     });
 
-                    const subdomainUrl = customDomain ? `https://${customDomain}` : `https://${url.replace(/^https?:\/\//, '').split('.')[0]}.weliketech.eu.org`;
+                    const finalSubdomain = subdomain || url.replace(/^https?:\/\//, '').split('.')[0];
+                    const subdomainUrl = customDomain ? `https://${customDomain}` : `https://${finalSubdomain}.weliketech.eu.org`;
+
+                    // Persist the assigned URL in the deployment record
+                    await ctx.db.update(deployments)
+                        .set({ urls: [subdomainUrl] })
+                        .where(eq(deployments.id, deploymentId));
+
                     return { deploymentId, url, subdomainUrl };
                 } finally {
                     // Always clean up the forked sandbox
@@ -387,9 +397,9 @@ export const screenshitRouter = createTRPCRouter({
      * Check the status of a custom domain.
      */
     customDomainStatus: protectedProcedure
-        .input(z.object({ customDomain: z.string() }))
+        .input(z.object({ customDomain: z.string(), trigger: z.boolean().optional() }))
         .query(async ({ input }) => {
-            return await screenshitCustomDomainStatus(input.customDomain);
+            return await screenshitCustomDomainStatus(input.customDomain, input.trigger);
         }),
 
     /**

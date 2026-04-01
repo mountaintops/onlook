@@ -251,9 +251,11 @@ export async function screenshitRemoveCustomDomain(
  */
 export async function screenshitCustomDomainStatus(
     domain: string,
+    trigger = false,
 ): Promise<CustomDomainStatusResponse> {
     const apiBase = getApiBase();
-    const url = `${apiBase}/domain/custom/verify/${encodeURIComponent(domain)}`;
+    let url = `${apiBase}/domain/custom/verify/${encodeURIComponent(domain)}`;
+    if (trigger) url += '?trigger=true';
 
     const response = await fetch(url, {
         headers: {
