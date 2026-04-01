@@ -5,7 +5,7 @@ import { ClientTool } from '../models/client';
 import { BRANCH_ID_SCHEMA } from '../shared/type';
 
 export class SandboxTool extends ClientTool {
-    static readonly ALLOWED_SANDBOX_COMMANDS = z.enum(['restart_dev_server', 'read_dev_server_logs']);
+    static readonly ALLOWED_SANDBOX_COMMANDS = z.enum(['restart_dev_server', 'read_dev_server_logs', 'screenshot']);
     static readonly toolName = 'sandbox';
     static readonly description = 'Execute commands in a sandboxed environment';
     static readonly parameters = z.object({
@@ -31,6 +31,13 @@ export class SandboxTool extends ClientTool {
             } else if (args.command === 'read_dev_server_logs') {
                 const logs = await sandbox.session.readDevServerLogs();
                 return logs;
+            } else if (args.command === 'screenshot') {
+                const result = await editorEngine.screenshot.capture(true);
+                if (result?.success) {
+                    return 'Screenshot captured successfully';
+                } else {
+                    return 'Failed to capture screenshot: ' + (result?.error || 'Unknown error');
+                }
             } else {
                 throw new Error('Invalid command');
             }

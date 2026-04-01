@@ -22,18 +22,18 @@ export class ScreenshotManager {
 
     // 10 second debounce
     captureScreenshot = debounce(
-        this.debouncedCaptureScreenshot,
+        () => this.capture(),
         10000,
     );
 
-    private async debouncedCaptureScreenshot() {
+    async capture(force = false) {
         if (this.isCapturing) {
             return;
         }
         this.isCapturing = true;
         try {
-            // If the screenshot was captured less than 30 minutes ago, skip capturing
-            if (this.lastScreenshotAt) {
+            // If the screenshot was captured less than 30 minutes ago, skip capturing unless forced
+            if (!force && this.lastScreenshotAt) {
                 const thirtyMinutesAgo = subMinutes(new Date(), 30);
                 if (isAfter(this.lastScreenshotAt, thirtyMinutesAgo)) {
                     return;
@@ -44,6 +44,7 @@ export class ScreenshotManager {
                 throw new Error('Failed to capture screenshot');
             }
             this.lastScreenshotAt = new Date();
+            return result;
         } catch (error) {
             console.error('Error capturing screenshot', error);
         } finally {

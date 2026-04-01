@@ -51,6 +51,10 @@ export const ScreenshitCustomDomainItem = ({
     domainUrl, 
     onRemove 
 }: { 
+    domainUrl: string;
+    onRemove: (hostname: string) => void;
+}) => {
+    const hostname = getHostname(domainUrl);
     const [shouldTrigger, setShouldTrigger] = useState(false);
     const { data: statusData, isLoading, refetch } = api.publish.screenshit.customDomainStatus.useQuery(
         { customDomain: hostname, trigger: shouldTrigger },
