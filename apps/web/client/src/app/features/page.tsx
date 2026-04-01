@@ -1,6 +1,7 @@
 'use client';
 
 import { CreateManagerProvider } from '@/components/store/create';
+import { SubscriptionModal } from '@/components/ui/pricing-modal';
 import { NonProjectSettingsModal } from '@/components/ui/settings-modal/non-project';
 import { ExternalRoutes } from '@/utils/constants';
 import { FeaturesHero } from '../_components/hero/features-hero';
@@ -79,7 +80,7 @@ export default function FeaturesPage() {
                     href={ExternalRoutes.BOOK_DEMO}
                 />
                 <NonProjectSettingsModal />
-                
+                <SubscriptionModal />
             </WebsiteLayout>
         </CreateManagerProvider>
     );

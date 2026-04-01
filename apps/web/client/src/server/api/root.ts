@@ -8,7 +8,7 @@ import {
     projectRouter,
     sandboxRouter,
     settingsRouter,
-
+    subscriptionRouter,
     usageRouter,
     userCanvasRouter,
     userRouter,
@@ -34,6 +34,7 @@ export const appRouter = createTRPCRouter({
     utils: utilsRouter,
     member: memberRouter,
     github: githubRouter,
+    subscription: subscriptionRouter,
     usage: usageRouter,
 });
 
