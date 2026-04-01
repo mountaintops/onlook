@@ -58,27 +58,20 @@ export interface DomainListItem {
     status: string;
 }
 
-export interface CustomDomainAssignResponse {
+export interface CustomDomainStatusResponse {
     success: boolean;
-    hostname: string;
-    hostnameId: string;
-    fullDomain: string;
-    lambdaUrl: string;
-    fallbackDomain: string;
-    ownership_verification: any;
-    ssl_validation: any;
     status: string;
+    sslStatus: string;
+    cnameTarget?: string;
+    txtOwnership?: {
+        name: string;
+        value: string;
+    };
+    txtSsl?: {
+        name: string;
+        value: string;
+    };
     error?: string;
-}
-
-export interface CustomDomainStatusResponse extends DomainStatusResponse {
-    domain?: string;
-    cloudflare: {
-        id: string;
-        status: string;
-        ssl: unknown;
-        ownership_verification?: any;
-    } | null;
 }
 
 export interface DomainListResponse {
@@ -187,16 +180,16 @@ export async function screenshitDomainStatus(
 }
 
 /**
- * Assign a custom domain to a project by calling POST /domain/custom/assign
+ * Initiate a custom domain setup by calling POST /domain/custom/setup
  * on the screenshit Express API.
  */
 export async function screenshitAssignCustomDomain(
     projectId: string,
     lambdaUrl: string,
     customDomain: string,
-): Promise<CustomDomainAssignResponse> {
+): Promise<CustomDomainStatusResponse> {
     const apiBase = getApiBase();
-    const url = `${apiBase}/domain/custom/assign`;
+    const url = `${apiBase}/domain/custom/setup`;
 
     const response = await fetch(url, {
         method: 'POST',
@@ -207,18 +200,18 @@ export async function screenshitAssignCustomDomain(
         body: JSON.stringify({
             projectId,
             lambdaUrl,
-            customDomain,
+            domain: customDomain,
         }),
     });
 
     if (!response.ok) {
         const body = await response.text().catch(() => '');
-        throw new Error(`/domain/custom/assign failed (HTTP ${response.status}): ${body}`);
+        throw new Error(`/domain/custom/setup failed (HTTP ${response.status}): ${body}`);
     }
 
-    const json = (await response.json()) as CustomDomainAssignResponse;
+    const json = (await response.json()) as CustomDomainStatusResponse;
     if (!json.success) {
-        throw new Error(`/domain/custom/assign failed: ${json.error || 'unknown error'}`);
+        throw new Error(`/domain/custom/setup failed: ${json.error || 'unknown error'}`);
     }
     return json;
 }
@@ -254,13 +247,13 @@ export async function screenshitRemoveCustomDomain(
 }
 
 /**
- * Check the status of a custom domain by calling GET /domain/status?domain=...
+ * Check the status of a custom domain by calling GET /domain/custom/verify/:domain
  */
 export async function screenshitCustomDomainStatus(
     domain: string,
 ): Promise<CustomDomainStatusResponse> {
     const apiBase = getApiBase();
-    const url = `${apiBase}/domain/status?domain=${encodeURIComponent(domain)}`;
+    const url = `${apiBase}/domain/custom/verify/${encodeURIComponent(domain)}`;
 
     const response = await fetch(url, {
         headers: {
@@ -270,7 +263,7 @@ export async function screenshitCustomDomainStatus(
 
     if (!response.ok) {
         const body = await response.text().catch(() => '');
-        throw new Error(`/domain/status failed (HTTP ${response.status}): ${body}`);
+        throw new Error(`/domain/custom/verify failed (HTTP ${response.status}): ${body}`);
     }
 
     return (await response.json()) as CustomDomainStatusResponse;

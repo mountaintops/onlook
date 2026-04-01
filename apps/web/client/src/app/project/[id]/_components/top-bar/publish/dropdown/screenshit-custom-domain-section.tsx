@@ -47,16 +47,21 @@ export const ScreenshitCustomDomainItem = ({
         { enabled: !!hostname, refetchInterval: (query) => query.state.data?.status === 'active' ? false : 10000 }
     );
 
-    const isIssuing = statusData?.status === 'issuing_certificate';
-    const isPending = statusData?.status !== 'active' && !isIssuing;
+    const isActive = statusData?.status === 'active' && statusData?.sslStatus === 'active';
+    const isIssuing = statusData?.status === 'active' && statusData?.sslStatus !== 'active';
+    const isPending = !isActive && !isIssuing;
 
-    const dnsHost = useMemo(() => {
-        if (!statusData?.cloudflare?.ownership_verification?.name) return '';
-        return getDnsHost(statusData.cloudflare.ownership_verification.name, hostname);
+    const ownershipDnsHost = useMemo(() => {
+        if (!statusData?.txtOwnership?.name) return '';
+        return getDnsHost(statusData.txtOwnership.name, hostname);
     }, [statusData, hostname]);
 
-    const txtValue = statusData?.cloudflare?.ownership_verification?.value;
-    const cnameTarget = 'proxy-fallback.weliketech.eu.org';
+    const sslDnsHost = useMemo(() => {
+        if (!statusData?.txtSsl?.name) return '';
+        return getDnsHost(statusData.txtSsl.name, hostname);
+    }, [statusData, hostname]);
+
+    const cnameTarget = statusData?.cnameTarget || 'proxy-fallback.weliketech.eu.org';
 
     return (
         <div className="flex flex-col gap-2 p-2 border border-border rounded text-xs bg-background">
@@ -99,24 +104,43 @@ export const ScreenshitCustomDomainItem = ({
                     </div>
                     
                     <div className="flex flex-col gap-3 mt-1">
-                        <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 font-mono text-[10px]">
-                            <span className="text-muted-foreground shrink-0">TXT</span>
-                            <div className="flex flex-col overflow-hidden gap-1">
+                        <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-3 font-mono text-[10px]">
+                            {/* CNAME RECORD */}
+                            <span className="text-muted-foreground shrink-0 font-bold">CNAME</span>
+                            <div className="flex flex-col gap-1 overflow-hidden">
+                                <span className="text-[9px] text-muted-foreground uppercase font-semibold">Target:</span>
+                                <span className="text-muted-foreground truncate bg-black/20 p-1 rounded block select-all" title={cnameTarget}>{cnameTarget}</span>
+                            </div>
+
+                            {/* OWNERSHIP TXT RECORD */}
+                            <span className="text-muted-foreground shrink-0 border-t border-yellow-500/10 pt-2 font-bold">TXT</span>
+                            <div className="flex flex-col overflow-hidden gap-2 border-t border-yellow-500/10 pt-2">
                                 <div className="flex flex-col gap-0.5">
-                                    <span className="text-[9px] text-yellow-500/70">GoDaddy Host:</span>
-                                    <span className="font-bold text-foreground bg-yellow-500/20 px-1 rounded w-fit select-all">{dnsHost}</span>
+                                    <span className="text-[9px] text-yellow-500/70 uppercase font-semibold">Ownership Host:</span>
+                                    <span className="font-bold text-foreground bg-yellow-500/20 px-1 rounded w-fit select-all">{ownershipDnsHost}</span>
                                 </div>
-                                <div className="mt-1">
-                                    <span className="text-[9px] text-muted-foreground">Value:</span>
-                                    <span className="text-muted-foreground break-all bg-black/20 p-1 rounded block select-all mt-0.5">{txtValue}</span>
+                                <div className="">
+                                    <span className="text-[9px] text-muted-foreground uppercase font-semibold">Value:</span>
+                                    <span className="text-muted-foreground break-all bg-black/20 p-1 rounded block select-all mt-0.5">{statusData?.txtOwnership?.value || 'N/A'}</span>
                                 </div>
                             </div>
 
-                            <span className="text-muted-foreground shrink-0 border-t border-yellow-500/10 pt-2">CNAME</span>
-                            <div className="flex flex-col gap-1 overflow-hidden border-t border-yellow-500/10 pt-2">
-                                <span className="text-[9px] text-muted-foreground">Target:</span>
-                                <span className="text-muted-foreground truncate bg-black/20 p-1 rounded block mt-0.5 select-all" title={cnameTarget}>{cnameTarget}</span>
-                            </div>
+                            {/* SSL TXT RECORD (if available) */}
+                            {statusData?.txtSsl?.value && (
+                                <>
+                                    <span className="text-muted-foreground shrink-0 border-t border-yellow-500/10 pt-2 font-bold">TXT</span>
+                                    <div className="flex flex-col overflow-hidden gap-2 border-t border-yellow-500/10 pt-2">
+                                        <div className="flex flex-col gap-0.5">
+                                            <span className="text-[9px] text-yellow-500/70 uppercase font-semibold">SSL Challenge Host:</span>
+                                            <span className="font-bold text-foreground bg-yellow-500/20 px-1 rounded w-fit select-all">{sslDnsHost}</span>
+                                        </div>
+                                        <div className="">
+                                            <span className="text-[9px] text-muted-foreground uppercase font-semibold">Value:</span>
+                                            <span className="text-muted-foreground break-all bg-black/20 p-1 rounded block select-all mt-0.5">{statusData.txtSsl.value}</span>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>

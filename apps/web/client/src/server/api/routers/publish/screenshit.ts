@@ -39,10 +39,11 @@ export const screenshitRouter = createTRPCRouter({
                 projectId: z.string(),
                 sandboxId: z.string(),
                 force: z.boolean().optional().default(false),
+                customDomain: z.string().optional(),
             }),
         )
         .mutation(async ({ ctx, input }): Promise<{ deploymentId: string; url: string; subdomainUrl?: string }> => {
-            const { projectId, sandboxId, force } = input;
+            const { projectId, sandboxId, force, customDomain } = input;
             const userId = ctx.user.id;
 
             // 0. Check for existing completed deployment if not forcing
@@ -101,7 +102,7 @@ export const screenshitRouter = createTRPCRouter({
                     });
 
                     // 3. Zip & upload
-                    const { jobId } = await screenshitDeploy(provider, projectId);
+                    const { jobId } = await screenshitDeploy(provider, projectId, customDomain);
 
                     await updateDeployment(ctx.db, {
                         id: deploymentId,
@@ -123,7 +124,8 @@ export const screenshitRouter = createTRPCRouter({
                         envVars: {},
                     });
 
-                    return { deploymentId, url, subdomainUrl: `https://${url.replace(/^https?:\/\//, '').split('.')[0]}.weliketech.eu.org` };
+                    const subdomainUrl = customDomain ? `https://${customDomain}` : `https://${url.replace(/^https?:\/\//, '').split('.')[0]}.weliketech.eu.org`;
+                    return { deploymentId, url, subdomainUrl };
                 } finally {
                     // Always clean up the forked sandbox
                     await provider.destroy().catch(console.error);

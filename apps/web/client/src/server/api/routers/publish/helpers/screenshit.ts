@@ -107,10 +107,14 @@ export interface ScreenshitJobResponse {
 export async function screenshitDeploy(
     provider: Provider,
     projectId: string,
+    customDomain?: string,
 ): Promise<ScreenshitJobResponse> {
     const zipBuffer = await zipProjectFromProvider(provider);
     const apiBase = getApiBase();
-    const url = `${apiBase}/deploy?projectId=${encodeURIComponent(projectId)}`;
+    let url = `${apiBase}/deploy?projectId=${encodeURIComponent(projectId)}`;
+    if (customDomain) {
+        url += `&customDomain=${encodeURIComponent(customDomain)}`;
+    }
 
     const response = await fetch(url, {
         method: 'POST',
