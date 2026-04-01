@@ -11,27 +11,24 @@ import {
     pollScreenshitStatus,
 } from './helpers/screenshit';
 import {
-    screenshitAssignDomain,
-    screenshitAssignCustomDomain,
-    screenshitRemoveDomain,
-    screenshitRemoveCustomDomain,
-    screenshitDomainStatus,
+    screenshitInitCustomDomain,
     screenshitCustomDomainStatus,
-    screenshitListDomains,
 } from './helpers/subdomain';
-import { deployments } from '@onlook/db';
-import { and, eq } from 'drizzle-orm';
+import { deployments, userProjects } from '@onlook/db';
+import { eq } from 'drizzle-orm';
 
 export const screenshitRouter = createTRPCRouter({
     /**
      * Deploy a project to the screenshit Express API.
      *
-     * Flow:
+     * Flow (mirrors deploy.ts):
      *   1. Create a PENDING deployment record in the DB.
      *   2. Fork the sandbox to get a read-only Provider.
-     *   3. Zip & POST to /deploy → receive jobId.
+     *   3. Zip & POST to /deploy[?customDomain=Y] → receive jobId.
+     *      The server automatically assigns {projectId}.weliketech.eu.org as subdomain.
+     *      If customDomain is provided (and already CF-verified), it is also routed.
      *   4. Poll /deploy/status/:jobId until completed or failed.
-     *   5. Update the deployment record and return { deploymentId, url }.
+     *   5. Update the deployment record: lambdaUrl in message, public URLs in urls.
      */
     deploy: protectedProcedure
         .input(
@@ -39,10 +36,17 @@ export const screenshitRouter = createTRPCRouter({
                 projectId: z.string(),
                 sandboxId: z.string(),
                 force: z.boolean().optional().default(false),
+                /**
+                 * Optional: custom domain to activate routing for.
+                 * Must already be CF-verified via setupCustomDomain + customDomainStatus.
+                 */
+                customDomain: z.string().optional(),
+                /** Remove the custom domain from the project that currently owns it. */
+                removeOld: z.boolean().optional().default(false),
             }),
         )
-        .mutation(async ({ ctx, input }): Promise<{ deploymentId: string; url: string; subdomainUrl?: string }> => {
-            const { projectId, sandboxId, force } = input;
+        .mutation(async ({ ctx, input }): Promise<{ deploymentId: string; url: string; subdomainUrl: string }> => {
+            const { projectId, sandboxId, force, customDomain, removeOld } = input;
             const userId = ctx.user.id;
 
             // 0. Check for existing completed deployment if not forcing
@@ -58,13 +62,10 @@ export const screenshitRouter = createTRPCRouter({
                 });
 
                 if (existing && existing.message) {
-                    const url = existing.message;
-                    console.log(`[screenshit] Reusing existing deployment: ${url}`);
-                    return {
-                        deploymentId: existing.id,
-                        url,
-                        subdomainUrl: `https://${url.replace(/^https?:\/\//, '').split('.')[0]}.weliketech.eu.org`
-                    };
+                    const lambdaUrl = existing.message;
+                    const subdomainUrl = (existing.urls ?? []).find(u => u.includes('weliketech.eu.org')) ?? '';
+                    console.log(`[screenshit] Reusing existing deployment: ${lambdaUrl}`);
+                    return { deploymentId: existing.id, url: lambdaUrl, subdomainUrl };
                 }
             }
 
@@ -100,8 +101,11 @@ export const screenshitRouter = createTRPCRouter({
                         envVars: {},
                     });
 
-                    // 3. Zip & upload
-                    const { jobId } = await screenshitDeploy(provider, projectId);
+                    // 3. Zip & upload (with optional custom domain)
+                    const { jobId } = await screenshitDeploy(provider, projectId, {
+                        customDomain,
+                        removeOld,
+                    });
 
                     await updateDeployment(ctx.db, {
                         id: deploymentId,
@@ -111,19 +115,32 @@ export const screenshitRouter = createTRPCRouter({
                         envVars: {},
                     });
 
-                    // 4. Poll until done
-                    const url = await pollScreenshitStatus(jobId);
+                    // 4. Poll until done — result contains lambdaUrl + subdomain
+                    const { url: lambdaUrl, subdomain } = await pollScreenshitStatus(jobId);
 
-                    // 5. Mark completed
+                    // Build the list of public URLs (subdomain + custom domain if provided)
+                    const publicUrls: string[] = [];
+                    if (subdomain) publicUrls.push(`https://${subdomain}`);
+                    if (customDomain) publicUrls.push(`https://${customDomain}`);
+
+                    // 5. Mark completed; store lambdaUrl in message, public URLs in urls
                     await updateDeployment(ctx.db, {
                         id: deploymentId,
                         status: DeploymentStatus.COMPLETED,
-                        message: url,
+                        message: lambdaUrl,
                         progress: 100,
                         envVars: {},
                     });
 
-                    return { deploymentId, url, subdomainUrl: `https://${url.replace(/^https?:\/\//, '').split('.')[0]}.weliketech.eu.org` };
+                    // Persist public URL list
+                    if (publicUrls.length > 0) {
+                        await ctx.db.update(deployments)
+                            .set({ urls: publicUrls })
+                            .where(eq(deployments.id, deploymentId));
+                    }
+
+                    const subdomainUrl = subdomain ? `https://${subdomain}` : '';
+                    return { deploymentId, url: lambdaUrl, subdomainUrl };
                 } finally {
                     // Always clean up the forked sandbox
                     await provider.destroy().catch(console.error);
@@ -142,11 +159,6 @@ export const screenshitRouter = createTRPCRouter({
 
     /**
      * Delete a project's SST deployment.
-     *
-     * Flow:
-     *   1. DELETE /delete?projectId=<id> → receive jobId.
-     *   2. Poll until completed or failed.
-     *   3. Return { success: true }.
      */
     delete: protectedProcedure
         .input(z.object({ projectId: z.string() }))
@@ -154,10 +166,10 @@ export const screenshitRouter = createTRPCRouter({
             const { projectId } = input;
 
             const { jobId } = await screenshitDelete(projectId);
-            // Poll so that the mutation only resolves once the deletion is truly finished
+            // Poll so the mutation only resolves once deletion is truly finished
             await pollScreenshitStatus(jobId, false);
 
-            // Mark the deployment as cancelled in the database so the UI hides the URL
+            // Mark the deployment as cancelled in the database
             const existingDeployment = await ctx.db.query.deployments.findFirst({
                 where: (deployments, { eq, and }) =>
                     and(
@@ -166,7 +178,7 @@ export const screenshitRouter = createTRPCRouter({
                     ),
                 orderBy: (deployments, { desc }) => [desc(deployments.createdAt)],
             });
-            
+
             if (existingDeployment) {
                 await updateDeployment(ctx.db, {
                     id: existingDeployment.id,
@@ -179,133 +191,29 @@ export const screenshitRouter = createTRPCRouter({
         }),
 
     /**
-     * Assign a custom subdomain to a deployed project.
+     * Step 1 of custom domain setup: initialise a Cloudflare for SaaS hostname.
      *
-     * Creates a Cloudflare custom hostname + CloudFront KVS route
-     * via the screenshit Express API.
-     */
-    assignDomain: protectedProcedure
-        .input(
-            z.object({
-                projectId: z.string(),
-                lambdaUrl: z.string().url(),
-                subdomain: z.string().optional(),
-            }),
-        )
-        .mutation(async ({ ctx, input }) => {
-            const { projectId, lambdaUrl, subdomain } = input;
-
-            // 1. Check for subdomain uniqueness if provided
-            if (subdomain) {
-                const targetDomain = `${subdomain}.weliketech.eu.org`;
-                const fullUrl = `https://${targetDomain}`;
-
-                // Check if any OTHER project already has this domain assigned
-                const existing = await ctx.db.query.deployments.findFirst({
-                    where: (deployments, { and, ne, sql }) =>
-                        and(
-                            ne(deployments.projectId, projectId),
-                            sql`${deployments.urls} @> ARRAY[${fullUrl}]::text[]`
-                        ),
-                });
-
-                if (existing) {
-                    throw new TRPCError({
-                        code: 'CONFLICT',
-                        message: `The subdomain "${subdomain}" is already in use by another project.`,
-                    });
-                }
-            }
-
-            const result = await screenshitAssignDomain(projectId, lambdaUrl, subdomain);
-
-            // Persist the assigned subdomain URL in the latest SCREENSHIT deployment record
-            const latestDeployment = await ctx.db.query.deployments.findFirst({
-                where: (deployments, { eq, and }) =>
-                    and(
-                        eq(deployments.projectId, projectId),
-                        eq(deployments.type, DeploymentType.SCREENSHIT)
-                    ),
-                orderBy: (deployments, { desc }) => [desc(deployments.createdAt)],
-            });
-
-            if (latestDeployment) {
-                const fullUrl = `https://${result.fullDomain}`;
-                await ctx.db.update(deployments)
-                    .set({ urls: [fullUrl] })
-                    .where(eq(deployments.id, latestDeployment.id));
-            }
-
-            return {
-                hostname: result.hostname,
-                hostnameId: result.hostnameId,
-                subdomain: result.subdomain,
-                fullDomain: result.fullDomain,
-                baseDomain: result.baseDomain,
-            };
-        }),
-
-    /**
-     * Remove a custom subdomain from a project.
+     * Mirrors deploy.ts: POST /domain/custom.
+     * Returns DNS records the user must configure in their registrar.
+     * After verification, call deploy() again with customDomain set to activate routing.
      *
-     * Deletes the Cloudflare custom hostname + CloudFront KVS route.
+     * Conflict resolution (same user owns domain on another project):
+     *   - forceRemoveOld: false → returns { conflict: true, conflictingProjectId, ownedByCurrentUser: true }
+     *   - forceRemoveOld: true  → re-deploys with removeOld=true to migrate the domain
      */
-    removeDomain: protectedProcedure
+    setupCustomDomain: protectedProcedure
         .input(
             z.object({
                 projectId: z.string(),
-                subdomain: z.string().optional(),
-            }),
-        )
-        .mutation(async ({ ctx, input }) => {
-            const { projectId, subdomain } = input;
-            const result = await screenshitRemoveDomain(projectId, subdomain);
-
-            // Clear the assigned subdomain URL from the deployment records
-            const deploymentsToUpdate = await ctx.db.query.deployments.findMany({
-                where: (deployments, { eq, and }) =>
-                    and(
-                        eq(deployments.projectId, projectId),
-                        eq(deployments.type, DeploymentType.SCREENSHIT)
-                    ),
-            });
-
-            for (const d of deploymentsToUpdate) {
-                await ctx.db.update(deployments)
-                    .set({ urls: [] })
-                    .where(eq(deployments.id, d.id));
-            }
-
-            return { hostname: result.hostname, removed: result.removed };
-        }),
-
-    /**
-     * Check the status of a subdomain.
-     */
-    domainStatus: protectedProcedure
-        .input(z.object({ subdomain: z.string() }))
-        .query(async ({ input }) => {
-            return await screenshitDomainStatus(input.subdomain);
-        }),
-
-    /**
-     * Assign a custom domain to a deployed project.
-     */
-    assignCustomDomain: protectedProcedure
-        .input(
-            z.object({
-                projectId: z.string(),
-                lambdaUrl: z.string().url(),
                 customDomain: z.string(),
             }),
         )
         .mutation(async ({ ctx, input }) => {
-            const { projectId, lambdaUrl, customDomain } = input;
-
+            const { projectId, customDomain } = input;
             const fullUrl = `https://${customDomain}`;
-            
-            // Check if any OTHER project already has this domain assigned
-            const existing = await ctx.db.query.deployments.findFirst({
+
+            // Check if any OTHER project has this domain already
+            const existingDeployment = await ctx.db.query.deployments.findFirst({
                 where: (deployments, { and, ne, sql }) =>
                     and(
                         ne(deployments.projectId, projectId),
@@ -313,40 +221,51 @@ export const screenshitRouter = createTRPCRouter({
                     ),
             });
 
-            if (existing) {
-                throw new TRPCError({
-                    code: 'CONFLICT',
-                    message: `The domain "${customDomain}" is already in use by another project.`,
+            if (existingDeployment) {
+                const ownerRecord = await ctx.db.query.userProjects.findFirst({
+                    where: (up, { and, eq }) =>
+                        and(
+                            eq(up.projectId, existingDeployment.projectId),
+                            eq(up.userId, ctx.user.id),
+                        ),
                 });
-            }
 
-            const result = await screenshitAssignCustomDomain(projectId, lambdaUrl, customDomain);
-
-            // Persist the assigned custom domain URL in the latest SCREENSHIT deployment record
-            const latestDeployment = await ctx.db.query.deployments.findFirst({
-                where: (deployments, { eq, and }) =>
-                    and(
-                        eq(deployments.projectId, projectId),
-                        eq(deployments.type, DeploymentType.SCREENSHIT)
-                    ),
-                orderBy: (deployments, { desc }) => [desc(deployments.createdAt)],
-            });
-
-            if (latestDeployment) {
-                // Determine existing URLs and append the new one
-                const currentUrls = latestDeployment.urls || [];
-                if (!currentUrls.includes(fullUrl)) {
-                    await ctx.db.update(deployments)
-                        .set({ urls: [...currentUrls, fullUrl] })
-                        .where(eq(deployments.id, latestDeployment.id));
+                if (!ownerRecord) {
+                    throw new TRPCError({
+                        code: 'CONFLICT',
+                        message: `The domain "${customDomain}" is already in use by another project.`,
+                    });
                 }
+
+                // Same user — return conflict info so UI can offer opt-in
+                return {
+                    conflict: true as const,
+                    conflictingProjectId: existingDeployment.projectId,
+                    ownedByCurrentUser: true as const,
+                };
             }
 
-            return result;
+            // No conflict: initialise the CF hostname and return verification records
+            const result = await screenshitInitCustomDomain(customDomain);
+            return { conflict: false as const, ...result };
+        }),
+
+    /**
+     * Step 2 of custom domain setup: poll until the custom domain is verified.
+     * Wraps GET /domain/custom/status/:domain.
+     */
+    customDomainStatus: protectedProcedure
+        .input(z.object({ customDomain: z.string() }))
+        .query(async ({ input }) => {
+            return await screenshitCustomDomainStatus(input.customDomain);
         }),
 
     /**
      * Remove a custom domain from a project.
+     * Clears the domain URL from Onlook's deployment records.
+     *
+     * Note: the Cloudflare worker routing entry for this domain will remain
+     * until the project is next deployed (no dedicated remove endpoint exists).
      */
     removeCustomDomain: protectedProcedure
         .input(
@@ -357,15 +276,13 @@ export const screenshitRouter = createTRPCRouter({
         )
         .mutation(async ({ ctx, input }) => {
             const { projectId, customDomain } = input;
-            const result = await screenshitRemoveCustomDomain(customDomain);
             const fullUrl = `https://${customDomain}`;
 
-            // Remove the assigned custom domain URL from the deployment records
             const deploymentsToUpdate = await ctx.db.query.deployments.findMany({
-                where: (deployments, { eq, and }) =>
+                where: (d, { eq, and }) =>
                     and(
-                        eq(deployments.projectId, projectId),
-                        eq(deployments.type, DeploymentType.SCREENSHIT)
+                        eq(d.projectId, projectId),
+                        eq(d.type, DeploymentType.SCREENSHIT)
                     ),
             });
 
@@ -378,23 +295,6 @@ export const screenshitRouter = createTRPCRouter({
                 }
             }
 
-            return result;
-        }),
-
-    /**
-     * Check the status of a custom domain.
-     */
-    customDomainStatus: protectedProcedure
-        .input(z.object({ customDomain: z.string() }))
-        .query(async ({ input }) => {
-            return await screenshitCustomDomainStatus(input.customDomain);
-        }),
-
-    /**
-     * List all active subdomains.
-     */
-    listDomains: protectedProcedure
-        .query(async () => {
-            return await screenshitListDomains();
+            return { success: true, customDomain };
         }),
 });

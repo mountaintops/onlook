@@ -20,247 +20,96 @@ function getApiKey(): string {
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-export interface DomainAssignResponse {
+/**
+ * Response from POST /domain/custom.
+ * Contains the Cloudflare verification records the user must add to their DNS.
+ */
+export interface CustomDomainSetupResponse {
     success: boolean;
-    hostname: string;
-    hostnameId: string;
-    subdomain: string;
-    fullDomain: string;
-    lambdaUrl: string;
-    baseDomain: string;
-    error?: string;
-}
-
-export interface DomainRemoveResponse {
-    success: boolean;
-    hostname: string;
-    removed: boolean;
-    error?: string;
-}
-
-export interface DomainStatusResponse {
-    success: boolean;
-    hostname: string;
-    subdomain: string;
-    cloudflare: {
-        id: string;
-        status: string;
-        ssl: unknown;
-    } | null;
-    kvsTarget: string | null;
-    error?: string;
-}
-
-export interface DomainListItem {
     id: string;
-    hostname: string;
-    subdomain: string;
+    /** Overall custom hostname status: "active", "pending", etc. */
     status: string;
-}
-
-export interface CustomDomainAssignResponse {
-    success: boolean;
-    hostname: string;
-    hostnameId: string;
-    fullDomain: string;
-    lambdaUrl: string;
-    fallbackDomain: string;
-    ownership_verification: any;
-    ssl_validation: any;
-    status: string;
+    /** SSL certificate status: "active", "pending_validation", "issuing_certificate", etc. */
+    sslStatus: string;
+    /** TXT record for domain ownership verification */
+    txtOwnership: { name?: string; value?: string };
+    /** TXT record for SSL certificate validation */
+    txtSsl: { name?: string; value?: string };
+    /** CNAME target the user must point their domain to */
+    cnameTarget: string;
     error?: string;
 }
 
-export interface CustomDomainStatusResponse extends DomainStatusResponse {
-    domain?: string;
-    cloudflare: {
+/**
+ * Response from GET /domain/custom/status/:domain.
+ */
+export interface CustomDomainStatusResponse {
+    success: boolean;
+    /** Overall custom hostname status: "active", "pending", "issuing_certificate", etc. */
+    status?: string;
+    /** SSL certificate status */
+    sslStatus?: string;
+    txtOwnership?: { name?: string; value?: string };
+    txtSsl?: { name?: string; value?: string };
+    cloudflare?: {
         id: string;
         status: string;
         ssl: unknown;
-        ownership_verification?: any;
+        ownership_verification?: { name?: string; value?: string };
     } | null;
-}
-
-export interface DomainListResponse {
-    success: boolean;
-    baseDomain: string;
-    hostnames: DomainListItem[];
     error?: string;
 }
 
 // ── API Functions ──────────────────────────────────────────────────────────────
 
 /**
- * Assign a subdomain to a project by calling POST /domain/assign
- * on the screenshit Express API.
+ * Initialise a Cloudflare for SaaS custom hostname.
  *
- * This creates a Cloudflare custom hostname and writes a KVS routing rule.
+ * Mirrors deploy.ts step 1: POST /domain/custom.
+ * Returns verification records (TXT + CNAME) the user must add to their DNS
+ * provider before the domain can be activated.
+ *
+ * After the domain is verified (status === "active"), call screenshitDeploy()
+ * with the customDomain option to activate worker routing for the project.
  */
-export async function screenshitAssignDomain(
-    projectId: string,
-    lambdaUrl: string,
-    subdomain?: string,
-): Promise<DomainAssignResponse> {
-    const apiBase = getApiBase();
-    const url = `${apiBase}/domain/assign`;
-
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${getApiKey()}`,
-        },
-        body: JSON.stringify({
-            projectId,
-            lambdaUrl,
-            ...(subdomain ? { subdomain } : {}),
-        }),
-    });
-
-    if (!response.ok) {
-        const body = await response.text().catch(() => '');
-        throw new Error(`/domain/assign failed (HTTP ${response.status}): ${body}`);
-    }
-
-    const json = (await response.json()) as DomainAssignResponse;
-    if (!json.success) {
-        throw new Error(`/domain/assign failed: ${json.error || 'unknown error'}`);
-    }
-    return json;
-}
-
-/**
- * Remove a subdomain from a project by calling DELETE /domain/remove
- * on the screenshit Express API.
- */
-export async function screenshitRemoveDomain(
-    projectId: string,
-    subdomain?: string,
-): Promise<DomainRemoveResponse> {
-    const apiBase = getApiBase();
-    const params = new URLSearchParams({ projectId });
-    if (subdomain) params.set('subdomain', subdomain);
-    const url = `${apiBase}/domain/remove?${params.toString()}`;
-
-    const response = await fetch(url, {
-        method: 'DELETE',
-        headers: {
-            Accept: 'application/json',
-            Authorization: `Bearer ${getApiKey()}`,
-        },
-    });
-
-    if (!response.ok) {
-        const body = await response.text().catch(() => '');
-        throw new Error(`/domain/remove failed (HTTP ${response.status}): ${body}`);
-    }
-
-    const json = (await response.json()) as DomainRemoveResponse;
-    if (!json.success) {
-        throw new Error(`/domain/remove failed: ${json.error || 'unknown error'}`);
-    }
-    return json;
-}
-
-/**
- * Check the status of a subdomain by calling GET /domain/status
- * on the screenshit Express API.
- */
-export async function screenshitDomainStatus(
-    subdomain: string,
-): Promise<DomainStatusResponse> {
-    const apiBase = getApiBase();
-    const url = `${apiBase}/domain/status?subdomain=${encodeURIComponent(subdomain)}`;
-
-    const response = await fetch(url, {
-        headers: {
-            Authorization: `Bearer ${getApiKey()}`,
-        },
-    });
-
-    if (!response.ok) {
-        const body = await response.text().catch(() => '');
-        throw new Error(`/domain/status failed (HTTP ${response.status}): ${body}`);
-    }
-
-    return (await response.json()) as DomainStatusResponse;
-}
-
-/**
- * Assign a custom domain to a project by calling POST /domain/custom/assign
- * on the screenshit Express API.
- */
-export async function screenshitAssignCustomDomain(
-    projectId: string,
-    lambdaUrl: string,
-    customDomain: string,
-): Promise<CustomDomainAssignResponse> {
-    const apiBase = getApiBase();
-    const url = `${apiBase}/domain/custom/assign`;
-
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${getApiKey()}`,
-        },
-        body: JSON.stringify({
-            projectId,
-            lambdaUrl,
-            customDomain,
-        }),
-    });
-
-    if (!response.ok) {
-        const body = await response.text().catch(() => '');
-        throw new Error(`/domain/custom/assign failed (HTTP ${response.status}): ${body}`);
-    }
-
-    const json = (await response.json()) as CustomDomainAssignResponse;
-    if (!json.success) {
-        throw new Error(`/domain/custom/assign failed: ${json.error || 'unknown error'}`);
-    }
-    return json;
-}
-
-/**
- * Remove a custom domain from a project by calling DELETE /domain/custom/remove
- */
-export async function screenshitRemoveCustomDomain(
+export async function screenshitInitCustomDomain(
     domain: string,
-): Promise<DomainRemoveResponse> {
+): Promise<CustomDomainSetupResponse> {
     const apiBase = getApiBase();
-    const params = new URLSearchParams({ domain });
-    const url = `${apiBase}/domain/custom/remove?${params.toString()}`;
+    const url = `${apiBase}/domain/custom`;
 
     const response = await fetch(url, {
-        method: 'DELETE',
+        method: 'POST',
         headers: {
-            Accept: 'application/json',
+            'Content-Type': 'application/json',
             Authorization: `Bearer ${getApiKey()}`,
         },
+        body: JSON.stringify({ domain }),
     });
 
     if (!response.ok) {
         const body = await response.text().catch(() => '');
-        throw new Error(`/domain/custom/remove failed (HTTP ${response.status}): ${body}`);
+        throw new Error(`/domain/custom failed (HTTP ${response.status}): ${body}`);
     }
 
-    const json = (await response.json()) as DomainRemoveResponse;
+    const json = (await response.json()) as CustomDomainSetupResponse;
     if (!json.success) {
-        throw new Error(`/domain/custom/remove failed: ${json.error || 'unknown error'}`);
+        throw new Error(`/domain/custom failed: ${json.error || 'unknown error'}`);
     }
     return json;
 }
 
 /**
- * Check the status of a custom domain by calling GET /domain/status?domain=...
+ * Check the verification status of a custom domain.
+ *
+ * Mirrors deploy.ts step 2: GET /domain/custom/status/:domain.
+ * Poll until status === "active" && sslStatus === "active" before deploying.
  */
 export async function screenshitCustomDomainStatus(
     domain: string,
 ): Promise<CustomDomainStatusResponse> {
     const apiBase = getApiBase();
-    const url = `${apiBase}/domain/status?domain=${encodeURIComponent(domain)}`;
+    const url = `${apiBase}/domain/custom/status/${encodeURIComponent(domain)}`;
 
     const response = await fetch(url, {
         headers: {
@@ -270,30 +119,8 @@ export async function screenshitCustomDomainStatus(
 
     if (!response.ok) {
         const body = await response.text().catch(() => '');
-        throw new Error(`/domain/status failed (HTTP ${response.status}): ${body}`);
+        throw new Error(`/domain/custom/status failed (HTTP ${response.status}): ${body}`);
     }
 
     return (await response.json()) as CustomDomainStatusResponse;
-}
-
-/**
- * List all active subdomains by calling GET /domain/list
- * on the screenshit Express API.
- */
-export async function screenshitListDomains(): Promise<DomainListResponse> {
-    const apiBase = getApiBase();
-    const url = `${apiBase}/domain/list`;
-
-    const response = await fetch(url, {
-        headers: {
-            Authorization: `Bearer ${getApiKey()}`,
-        },
-    });
-
-    if (!response.ok) {
-        const body = await response.text().catch(() => '');
-        throw new Error(`/domain/list failed (HTTP ${response.status}): ${body}`);
-    }
-
-    return (await response.json()) as DomainListResponse;
 }

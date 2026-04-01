@@ -75,13 +75,10 @@ async function walkAndAppend(
                 const { file } = await provider.readFile({ args: { path: `./${relPath}` } });
                 let content: Buffer;
                 if (file.type === 'binary') {
-                    // Binary files from CodeSandbox provider's toString() are base64 encoded
-                    // But if it's already a Uint8Array, we can just use it.
-                    content = (file.content as any) instanceof Uint8Array 
+                    content = (file.content as any) instanceof Uint8Array
                         ? Buffer.from(file.content as unknown as Uint8Array)
                         : Buffer.from(typeof file.content === 'string' ? file.content : file.toString(), 'base64');
                 } else {
-                    // Text files
                     content = (file.content as any) instanceof Uint8Array
                         ? Buffer.from(file.content as unknown as Uint8Array)
                         : Buffer.from(typeof file.content === 'string' ? file.content : file.toString(), 'utf8');
@@ -100,17 +97,31 @@ export interface ScreenshitJobResponse {
     url?: string;
 }
 
+export interface DeployOptions {
+    /** Custom domain to route alongside the project subdomain. Must be Cloudflare-verified first. */
+    customDomain?: string;
+    /** If true, detaches the custom domain from whichever other project currently uses it. */
+    removeOld?: boolean;
+}
+
 /**
  * Zip the sandbox project and POST it to the screenshit /deploy endpoint.
- * Returns the initial server response containing a jobId for polling.
+ * Mirrors the deploy.ts CLI: projectId maps to subdomain automatically;
+ * pass customDomain to also wire up worker routing for a custom domain.
  */
 export async function screenshitDeploy(
     provider: Provider,
     projectId: string,
+    opts: DeployOptions = {},
 ): Promise<ScreenshitJobResponse> {
     const zipBuffer = await zipProjectFromProvider(provider);
     const apiBase = getApiBase();
-    const url = `${apiBase}/deploy?projectId=${encodeURIComponent(projectId)}`;
+
+    let url = `${apiBase}/deploy?projectId=${encodeURIComponent(projectId)}`;
+    if (opts.customDomain) {
+        url += `&customDomain=${encodeURIComponent(opts.customDomain)}`;
+        if (opts.removeOld) url += '&removeOld=true';
+    }
 
     const response = await fetch(url, {
         method: 'POST',
@@ -134,18 +145,33 @@ export async function screenshitDeploy(
     return json;
 }
 
+export interface PollResult {
+    /** Lambda URL (internal, used for routing and storage). */
+    url: string;
+    /** Public subdomain assigned by the server, e.g. projectId.weliketech.eu.org */
+    subdomain: string;
+}
+
 interface PollResponse {
     status: string;
-    result?: { url?: string };
+    result?: {
+        /** New field: Lambda URL returned by provisionProject */
+        lambdaUrl?: string;
+        /** Legacy field for backwards compat */
+        url?: string;
+        /** Public subdomain, e.g. projectId.weliketech.eu.org */
+        subdomain?: string;
+    };
     error?: string;
     logs?: string[];
 }
 
 /**
  * Poll GET /deploy/status/:jobId until status is "completed" or "failed".
- * Returns the deployed URL on success, throws a descriptive error on failure.
+ * Returns { url: lambdaUrl, subdomain } on success, throws on failure.
+ * Pass expectUrl=false for delete jobs where no URL is expected.
  */
-export async function pollScreenshitStatus(jobId: string, expectUrl = true): Promise<string> {
+export async function pollScreenshitStatus(jobId: string, expectUrl = true): Promise<PollResult> {
     const apiBase = getApiBase();
     const statusUrl = `${apiBase}/deploy/status/${encodeURIComponent(jobId)}`;
     const started = Date.now();
@@ -171,11 +197,13 @@ export async function pollScreenshitStatus(jobId: string, expectUrl = true): Pro
         const status = poll.status;
 
         if (status === 'completed' || status === 'success') {
-            const deployedUrl = poll.result?.url ?? '';
+            // Prefer lambdaUrl (new field) over url (legacy field)
+            const deployedUrl = poll.result?.lambdaUrl ?? poll.result?.url ?? '';
+            const subdomain = poll.result?.subdomain ?? '';
             if (expectUrl && !deployedUrl) {
                 throw new Error(`screenshit deploy completed but no URL was returned (jobId: ${jobId})`);
             }
-            return deployedUrl;
+            return { url: deployedUrl, subdomain };
         }
 
         if (status === 'failed') {

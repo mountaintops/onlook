@@ -130,15 +130,24 @@ export const ScreenshitCustomDomainItem = ({
     );
 };
 
+/** State for a pending same-user domain conflict awaiting confirmation. */
+interface DomainConflict {
+    domain: string;
+    lambdaUrl: string;
+    conflictingProjectId: string;
+}
+
 export const ScreenshitCustomDomainSection = observer(() => {
     const editorEngine = useEditorEngine();
     const { deployments, refetch } = useHostingContext();
     const sstDeployment = deployments?.screenshit;
-    
+
     const [domainInput, setDomainInput] = useState('');
     const [isAssigning, setIsAssigning] = useState(false);
+    /** Set when the API returns conflict: true (same user owns the domain elsewhere). */
+    const [pendingConflict, setPendingConflict] = useState<DomainConflict | null>(null);
 
-    const { mutateAsync: assignDomain } = api.publish.screenshit.assignCustomDomain.useMutation();
+    const { mutateAsync: setupDomain } = api.publish.screenshit.setupCustomDomain.useMutation();
     const { mutateAsync: removeDomain } = api.publish.screenshit.removeCustomDomain.useMutation();
 
     const customDomains = useMemo(() => {
@@ -146,30 +155,77 @@ export const ScreenshitCustomDomainSection = observer(() => {
         return sstDeployment.urls.filter(url => !url.endsWith('.weliketech.eu.org'));
     }, [sstDeployment?.urls]);
 
+    const getLambdaUrl = () => {
+        const url = sstDeployment?.status === DeploymentStatus.COMPLETED ? sstDeployment.message : null;
+        if (!url) {
+            toast.error("You must publish the project first before adding a custom domain.");
+        }
+        return url;
+    };
+
     const handleAddDomain = async () => {
         if (!domainInput.trim()) return;
-        
-        const lambdaUrl = sstDeployment?.status === DeploymentStatus.COMPLETED ? sstDeployment.message : null;
-        if (!lambdaUrl) {
-            toast.error("You must publish the project first before adding a custom domain.");
-            return;
-        }
+        const lambdaUrl = getLambdaUrl();
+        if (!lambdaUrl) return;
 
         setIsAssigning(true);
         try {
-            await assignDomain({
+            const result = await setupDomain({
                 projectId: editorEngine.projectId,
-                lambdaUrl,
                 customDomain: domainInput.trim().toLowerCase(),
             });
-            toast.success("Custom domain added! Please configure your DNS.");
+
+            if ('conflict' in result && result.conflict && result.ownedByCurrentUser) {
+                // Same user already uses this domain on another project — show opt-in prompt
+                setPendingConflict({
+                    domain: domainInput.trim().toLowerCase(),
+                    lambdaUrl,
+                    conflictingProjectId: result.conflictingProjectId,
+                });
+                return;
+            }
+
+            if ('conflict' in result && !result.conflict) {
+                const { status, sslStatus } = result;
+                if (status === 'active' && sslStatus === 'active') {
+                    toast.success("Domain already verified! Re-deploy your project to activate it.");
+                } else {
+                    toast.success("Domain setup started! Configure your DNS records below, then re-deploy to activate.");
+                }
+            }
             setDomainInput('');
             refetch(DeploymentType.SCREENSHIT);
         } catch (err: any) {
-            toast.error(err.message || 'Failed to add custom domain');
+            toast.error(err.message || 'Failed to set up custom domain');
         } finally {
             setIsAssigning(false);
         }
+    };
+
+    /** User confirmed they want to migrate the domain away from the old project. */
+    const handleConfirmMigrate = async () => {
+        if (!pendingConflict) return;
+        setIsAssigning(true);
+        try {
+            // Init the CF hostname (idempotent) then ask user to re-deploy with removeOld
+            await setupDomain({
+                projectId: editorEngine.projectId,
+                customDomain: pendingConflict.domain,
+            });
+            toast.success(`Domain setup complete! Re-deploy your project with "Remove old" to migrate it.`);
+            setDomainInput('');
+            setPendingConflict(null);
+            refetch(DeploymentType.SCREENSHIT);
+        } catch (err: any) {
+            toast.error(err.message || 'Failed to migrate domain');
+        } finally {
+            setIsAssigning(false);
+        }
+    };
+
+    const handleCancelConflict = () => {
+        setPendingConflict(null);
+        setIsAssigning(false);
     };
 
     const handleRemoveDomain = async (domain: string) => {
@@ -199,34 +255,75 @@ export const ScreenshitCustomDomainSection = observer(() => {
 
                 <div className="space-y-2 mt-2">
                     {customDomains.length > 0 && customDomains.map(url => (
-                        <ScreenshitCustomDomainItem 
-                            key={url} 
-                            domainUrl={url} 
-                            onRemove={handleRemoveDomain} 
+                        <ScreenshitCustomDomainItem
+                            key={url}
+                            domainUrl={url}
+                            onRemove={handleRemoveDomain}
                         />
                     ))}
                 </div>
 
-                <div className="flex gap-2 items-center w-full mt-2">
-                    <Input
-                        type="text"
-                        className="flex-1 h-8 text-xs bg-background"
-                        placeholder="yourdomain.com"
-                        value={domainInput}
-                        onChange={(e) => setDomainInput(e.target.value)}
-                        disabled={isAssigning}
-                        onKeyDown={(e) => e.key === 'Enter' && handleAddDomain()}
-                    />
-                    <Button 
-                        variant="secondary" 
-                        size="sm" 
-                        className="h-8" 
-                        onClick={handleAddDomain} 
-                        disabled={isAssigning || !domainInput.trim()}
-                    >
-                        {isAssigning ? <Icons.LoadingSpinner className="h-3 w-3 animate-spin"/> : 'Add'}
-                    </Button>
-                </div>
+                {/* Same-user conflict confirmation panel */}
+                {pendingConflict ? (
+                    <div className="mt-2 p-3 rounded border border-yellow-500/30 bg-yellow-500/10 flex flex-col gap-3">
+                        <div className="flex items-start gap-2">
+                            <Icons.ExclamationTriangle className="w-3.5 h-3.5 text-yellow-500 shrink-0 mt-0.5" />
+                            <p className="text-xs text-foreground leading-normal">
+                                <span className="font-semibold text-yellow-400">{pendingConflict.domain}</span>
+                                {' '}is already connected to one of your other projects.
+                                Do you want to move it to this project instead?
+                            </p>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground leading-normal pl-5">
+                            The domain will be removed from project{' '}
+                            <span className="font-mono text-foreground/70">{pendingConflict.conflictingProjectId}</span>
+                            {' '}and reassigned here.
+                        </p>
+                        <div className="flex gap-2 justify-end">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs"
+                                onClick={handleCancelConflict}
+                                disabled={isAssigning}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                variant="default"
+                                size="sm"
+                                className="h-7 text-xs bg-yellow-600 hover:bg-yellow-700 text-white"
+                                onClick={handleConfirmMigrate}
+                                disabled={isAssigning}
+                            >
+                                {isAssigning
+                                    ? <Icons.LoadingSpinner className="h-3 w-3 animate-spin" />
+                                    : 'Move Domain'}
+                            </Button>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="flex gap-2 items-center w-full mt-2">
+                        <Input
+                            type="text"
+                            className="flex-1 h-8 text-xs bg-background"
+                            placeholder="yourdomain.com"
+                            value={domainInput}
+                            onChange={(e) => setDomainInput(e.target.value)}
+                            disabled={isAssigning}
+                            onKeyDown={(e) => e.key === 'Enter' && handleAddDomain()}
+                        />
+                        <Button
+                            variant="secondary"
+                            size="sm"
+                            className="h-8"
+                            onClick={handleAddDomain}
+                            disabled={isAssigning || !domainInput.trim()}
+                        >
+                            {isAssigning ? <Icons.LoadingSpinner className="h-3 w-3 animate-spin" /> : 'Add'}
+                        </Button>
+                    </div>
+                )}
             </div>
         </div>
     );
