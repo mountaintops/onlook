@@ -12,6 +12,7 @@ export const createRootAgentStream = async ({
     traceId,
     messages,
     mcpServers,
+    chatModel,
 }: {
     chatType: ChatType;
     conversationId: string;
@@ -20,8 +21,9 @@ export const createRootAgentStream = async ({
     traceId: string;
     messages: ChatMessage[];
     mcpServers?: McpServerConfig[];
+    chatModel?: any;
 }) => {
-    const modelConfig = getModelFromType(chatType);
+    const modelConfig = getModelFromType(chatType, chatModel);
     const systemPrompt = getSystemPromptFromType(chatType);
     const builtInTools = getToolSetFromType(chatType);
 
@@ -39,12 +41,14 @@ export const createRootAgentStream = async ({
         }
     }
 
+    const isGemma3 = chatModel?.model === GOOGLE_MODELS.GEMMA_3_27B;
+
     return streamText({
         providerOptions: modelConfig.providerOptions,
         messages: await convertToStreamMessages(messages),
         model: modelConfig.model,
         system: systemPrompt,
-        tools: mergedTools,
+        tools: isGemma3 ? undefined : mergedTools,
         headers: modelConfig.headers,
         stopWhen: stepCountIs(20),
         experimental_repairToolCall: repairToolCall,
@@ -86,7 +90,14 @@ const getSystemPromptFromType = (chatType: ChatType): string => {
     }
 }
 
-const getModelFromType = (chatType: ChatType): ModelConfig => {
+const getModelFromType = (chatType: ChatType, chatModel?: any): ModelConfig => {
+    if (chatModel && chatModel.provider && chatModel.model) {
+        return initModel({
+            provider: chatModel.provider,
+            model: chatModel.model,
+        });
+    }
+
     switch (chatType) {
         case ChatType.CREATE:
         case ChatType.FIX:

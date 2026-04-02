@@ -53,11 +53,12 @@ export async function POST(req: NextRequest) {
 
 export const streamResponse = async (req: NextRequest, userId: string) => {
     const body = await req.json();
-    const { messages, chatType, conversationId, projectId } = body as {
+    const { messages, chatType, conversationId, projectId, chatModel } = body as {
         messages: ChatMessage[],
         chatType: ChatType,
         conversationId: string,
         projectId: string,
+        chatModel?: any,
     };
     // Updating the usage record and rate limit is done here to avoid
     // abuse in the case where a single user sends many concurrent requests.
@@ -87,6 +88,7 @@ export const streamResponse = async (req: NextRequest, userId: string) => {
             traceId,
             messages,
             mcpServers,
+            chatModel,
         });
         return stream.toUIMessageStreamResponse<ChatMessage>(
             {

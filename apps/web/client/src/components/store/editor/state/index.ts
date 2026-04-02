@@ -4,7 +4,10 @@ import {
     ChatType,
     EditorMode,
     InsertMode,
-    type LeftPanelTabValue
+    type LeftPanelTabValue,
+    LLMProvider,
+    GOOGLE_MODELS,
+    type InitialModelPayload
 } from '@onlook/models';
 import { debounce } from 'lodash';
 import { makeAutoObservable } from 'mobx';
@@ -25,6 +28,10 @@ export class StateManager {
     manageBranchId: string | null = null;
 
     chatMode: ChatType = ChatType.EDIT;
+    chatModel: InitialModelPayload = {
+        provider: LLMProvider.GOOGLE,
+        model: GOOGLE_MODELS.GEMINI_3_1_FLASH_LITE_PREVIEW,
+    };
 
     constructor() {
         makeAutoObservable(this);

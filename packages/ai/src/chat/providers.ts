@@ -2,17 +2,22 @@ import {
     LLMProvider,
     MODEL_MAX_TOKENS,
     GOOGLE_MODELS,
+    MISTRAL_MODELS,
     type InitialModelPayload,
     type ModelConfig
 } from '@onlook/models';
 import { assertNever } from '@onlook/utility';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { createMistral } from '@ai-sdk/mistral';
 import type { LanguageModel } from 'ai';
 
 export function initModel({
     provider: requestedProvider,
-    model: requestedModel,
+    model: incomingModel,
 }: InitialModelPayload): ModelConfig {
+    const requestedModel = incomingModel === 'mistral-small-4' 
+        ? MISTRAL_MODELS.MISTRAL_SMALL_2603 
+        : incomingModel;
     let model: LanguageModel;
     let providerOptions: Record<string, any> | undefined;
     let headers: Record<string, string> | undefined;
@@ -20,11 +25,14 @@ export function initModel({
 
     switch (requestedProvider) {
         case LLMProvider.GOOGLE:
-            model = getGoogleProvider(requestedModel);
+            model = getGoogleProvider(requestedModel as GOOGLE_MODELS);
             headers = {
                 'HTTP-Referer': 'https://onlook.com',
                 'X-Title': 'Onlook',
             };
+            break;
+        case LLMProvider.MISTRAL:
+            model = getMistralProvider(requestedModel as MISTRAL_MODELS);
             break;
         default:
             assertNever(requestedProvider);
@@ -44,4 +52,12 @@ function getGoogleProvider(model: GOOGLE_MODELS): LanguageModel {
     }
     const google = createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY });
     return google(model);
+}
+
+function getMistralProvider(model: MISTRAL_MODELS): LanguageModel {
+    if (!process.env.MISTRAL_API_KEY) {
+        throw new Error('MISTRAL_API_KEY must be set');
+    }
+    const mistral = createMistral({ apiKey: process.env.MISTRAL_API_KEY });
+    return mistral(model);
 }

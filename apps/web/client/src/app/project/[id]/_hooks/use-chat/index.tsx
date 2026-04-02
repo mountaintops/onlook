@@ -85,12 +85,17 @@ export function useChat({ conversationId, projectId, initialMessages }: UseChatP
             const newMessage = getUserChatMessageFromString(content, messageContext, conversationId);
             setMessages(jsonClone([...messagesRef.current, newMessage]));
 
+            console.log(
+                `Chatting with AI model: ${editorEngine.state.chatModel?.displayName || `${editorEngine.state.chatModel?.provider} / ${editorEngine.state.chatModel?.model}`}`,
+            );
+
             void regenerate({
                 body: {
                     chatType: type,
                     conversationId,
                     context: messageContext,
                     projectId,
+                    chatModel: editorEngine.state.chatModel,
                 },
             });
             void editorEngine.chat.conversation.generateTitle(content);
@@ -162,11 +167,16 @@ export function useChat({ conversationId, projectId, initialMessages }: UseChatP
 
             setMessages(jsonClone([...updatedMessages, message]));
 
+            console.log(
+                `Chatting with AI model: ${editorEngine.state.chatModel?.displayName || `${editorEngine.state.chatModel?.provider} / ${editorEngine.state.chatModel?.model}`}`,
+            );
+
             void regenerate({
                 body: {
                     chatType,
                     conversationId,
                     projectId,
+                    chatModel: editorEngine.state.chatModel,
                 },
             });
 
