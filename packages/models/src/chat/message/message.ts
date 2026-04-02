@@ -11,6 +11,7 @@ export type ChatMetadata = {
     finishReason?: FinishReason;
     usage?: LanguageModelUsage;
     error?: string;
+    chatModel?: any;
 };
 
 export type ChatProviderMetadata = Record<string, Record<string, JSONValue>>;

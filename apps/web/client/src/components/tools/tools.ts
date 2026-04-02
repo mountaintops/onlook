@@ -19,7 +19,7 @@ export async function handleToolCall(toolCall: ToolCall<string, unknown>, editor
 
             if (isBuiltInTool) {
                 toast.error(`Tool "${toolName}" not available in ${currentChatMode.toLowerCase()} mode`, {
-                    description: `Switch to build mode to use this tool.`,
+                    description: `Switch mode to use this tool.`,
                     duration: 2000,
                 });
                 throw new Error(`Tool "${toolName}" is not available in ${currentChatMode} mode`);

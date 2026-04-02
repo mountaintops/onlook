@@ -22,11 +22,13 @@ const nextConfig: NextConfig = {
             },
         ];
     },
+    transpilePackages: ['@onlook/ai'],
     experimental: {
         optimizeCss: true,
         optimizePackageImports: [
             '@onlook/ui',
             '@onlook/models',
+            '@onlook/ai',
             'lucide-react',
             'date-fns',
             'recharts',

@@ -5,7 +5,8 @@ import { api } from '@/trpc/react';
 import { type Deployment } from '@onlook/db';
 import { DeploymentStatus, DeploymentType } from '@onlook/models';
 import { toast } from '@onlook/ui/sonner';
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { reaction } from 'mobx';
 
 interface PublishParams {
     projectId: string;
@@ -27,7 +28,7 @@ interface HostingContextValue {
     cancel: (type: DeploymentType) => Promise<void>;
 
     // Screenshit Express API operations
-    deployScreenshit: (projectId: string, sandboxId: string, force?: boolean, subdomain?: string) => Promise<{ url: string } | null>;
+    deployScreenshit: (projectId: string, sandboxId: string, force?: boolean, subdomain?: string, update?: boolean) => Promise<{ url: string } | null>;
     deleteScreenshit: (projectId: string) => Promise<boolean>;
     isScreenshitDeploying: boolean;
     isScreenshitDeleting: boolean;
@@ -251,10 +252,11 @@ export const HostingProvider = ({ children }: HostingProviderProps) => {
         sandboxId: string,
         force: boolean = false,
         subdomain?: string,
+        update: boolean = false,
     ): Promise<{ url: string } | null> => {
         try {
             setSubscriptionStates(prev => ({ ...prev, [DeploymentType.SCREENSHIT]: true }));
-            const result = await runScreenshitDeploy({ projectId, sandboxId, force, subdomain });
+            const result = await runScreenshitDeploy({ projectId, sandboxId, force, subdomain, update });
             toast.success('Deployment complete!', { description: result.url });
             return { url: result.url };
         } catch (error) {
@@ -266,6 +268,55 @@ export const HostingProvider = ({ children }: HostingProviderProps) => {
             refetch(DeploymentType.SCREENSHIT);
         }
     };
+
+    // ── Auto-update reaction ──────────────────────────────────────────────────
+    // Lives here (not in the popup component) so it works even when the popup is closed.
+    // Watches editorEngine.history.length via MobX reaction; debounces 2 s before deploying.
+    const autoUpdateDeployRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => {
+        const dispose = reaction(
+            () => ({
+                historyLen: editorEngine.history.length,
+                autoUpdate: editorEngine.state.autoUpdatePublish,
+            }),
+            ({ historyLen, autoUpdate }, prev) => {
+                if (!autoUpdate) return;
+                if (historyLen <= prev.historyLen) return; // ignore undo / clear
+
+                // Get sandbox + subdomain from current screenshit deployment
+                const sstDeployment = screenshitQuery.data;
+                const isPublished = sstDeployment?.status === DeploymentStatus.COMPLETED
+                    && sstDeployment.urls && sstDeployment.urls.length > 0;
+                if (!isPublished) return;
+
+                const sandboxId = editorEngine.branches?.activeBranch?.sandbox?.id;
+                if (!sandboxId) return;
+
+                // Derive subdomain from the current assigned URL
+                const assignedUrl = sstDeployment?.urls?.[0];
+                if (!assignedUrl) return;
+                let subdomain: string | undefined;
+                try {
+                    subdomain = new URL(assignedUrl).hostname.split('.')[0];
+                } catch { /* ignore */ }
+
+                // Debounce: wait 2 s after the last change before deploying
+                if (autoUpdateDeployRef.current) clearTimeout(autoUpdateDeployRef.current);
+                autoUpdateDeployRef.current = setTimeout(() => {
+                    deployScreenshit(editorEngine.projectId, sandboxId, true /* force re-deploy */, subdomain, true /* update path */)
+                        .then(() => toast.success('Auto-updated!'));
+                }, 2000);
+            },
+        );
+
+        return () => {
+            dispose();
+            if (autoUpdateDeployRef.current) clearTimeout(autoUpdateDeployRef.current);
+        };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // run once — reaction tracks observables internally
+    // ─────────────────────────────────────────────────────────────────────────
 
     // Screenshit: delete
     const deleteScreenshit = async (projectId: string): Promise<boolean> => {

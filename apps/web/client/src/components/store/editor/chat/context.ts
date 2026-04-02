@@ -103,6 +103,7 @@ export class ChatContext {
             case ChatType.EDIT:
             case ChatType.CREATE:
             case ChatType.ASK:
+            case ChatType.ARCHITECT:
                 return await this.getChatEditContext();
             case ChatType.FIX:
                 return this.getErrorContext();

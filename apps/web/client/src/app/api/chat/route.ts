@@ -96,8 +96,9 @@ export const streamResponse = async (req: NextRequest, userId: string) => {
         }
 
         let stream;
+        let selectedModel;
         try {
-            stream = await createRootAgentStream({
+            const result = await createRootAgentStream({
                 chatType,
                 conversationId,
                 projectId,
@@ -107,6 +108,8 @@ export const streamResponse = async (req: NextRequest, userId: string) => {
                 mcpServers,
                 chatModel,
             });
+            stream = result.stream;
+            selectedModel = result.model;
         } catch (err) {
             if (isGLM5) releaseLock(MODAL_GLM5_LOCK_KEY);
             throw err;
@@ -124,6 +127,7 @@ export const streamResponse = async (req: NextRequest, userId: string) => {
                         checkpoints: [],
                         finishReason: part.type === 'finish-step' ? part.finishReason : undefined,
                         usage: part.type === 'finish-step' ? part.usage : undefined,
+                        chatModel: selectedModel,
                     } satisfies ChatMetadata;
                 },
                 onFinish: async ({ messages: finalMessages }) => {

@@ -101,13 +101,13 @@ const UserMessageComponent = ({ onEditMessage, message }: UserMessageProps) => {
     };
 
     const handleRetry = async () => {
-        toast.promise(onEditMessage(message.id, getUserMessageContent(message), ChatType.EDIT), {
+        toast.promise(onEditMessage(message.id, getUserMessageContent(message), editorEngine.state.chatMode), {
             error: 'Failed to resubmit message',
         });
     };
 
     const sendMessage = async (newContent: string) => {
-        toast.promise(onEditMessage(message.id, newContent, ChatType.EDIT), {
+        toast.promise(onEditMessage(message.id, newContent, editorEngine.state.chatMode), {
             loading: 'Editing message...',
             success: 'Message resubmitted successfully',
             error: 'Failed to resubmit message',

@@ -42,10 +42,11 @@ export const screenshitRouter = createTRPCRouter({
                 force: z.boolean().optional().default(false),
                 customDomain: z.string().optional(),
                 subdomain: z.string().optional(),
+                update: z.boolean().optional().default(false),
             }),
         )
         .mutation(async ({ ctx, input }): Promise<{ deploymentId: string; url: string; subdomainUrl?: string }> => {
-            const { projectId, sandboxId, force, customDomain, subdomain } = input;
+            const { projectId, sandboxId, force, customDomain, subdomain, update } = input;
             const userId = ctx.user.id;
 
             // 0. Check for existing completed deployment if not forcing
@@ -106,7 +107,7 @@ export const screenshitRouter = createTRPCRouter({
                     });
 
                     // 3. Zip & upload
-                    const { jobId } = await screenshitDeploy(provider, projectId, customDomain, subdomain);
+                    const { jobId } = await screenshitDeploy(provider, projectId, customDomain, subdomain, update);
 
                     await updateDeployment(ctx.db, {
                         id: deploymentId,

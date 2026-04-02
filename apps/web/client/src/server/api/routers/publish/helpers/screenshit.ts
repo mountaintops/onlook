@@ -109,6 +109,7 @@ export async function screenshitDeploy(
     projectId: string,
     customDomain?: string,
     subdomain?: string,
+    update = false,
 ): Promise<ScreenshitJobResponse> {
     const zipBuffer = await zipProjectFromProvider(provider);
     const apiBase = getApiBase();
@@ -118,6 +119,9 @@ export async function screenshitDeploy(
     }
     if (subdomain) {
         url += `&subdomain=${encodeURIComponent(subdomain)}`;
+    }
+    if (update) {
+        url += `&update=true`;
     }
 
     const response = await fetch(url, {

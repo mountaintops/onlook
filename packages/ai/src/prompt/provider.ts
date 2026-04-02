@@ -40,6 +40,10 @@ export function getAskModeSystemPrompt() {
     return prompt;
 }
 
+export function getArchitectModeClassificationPrompt(content: string) {
+    return `this prompt [${content}] is about to be given to a coder, what level of complexity is the task, small, medium or large. reply only one word`;
+}
+
 export function getExampleConversation(
     conversation: {
         role: string;

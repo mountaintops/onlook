@@ -27,10 +27,12 @@ export const ChatModeToggle = observer(({ chatMode, onChatModeChange, disabled =
     }, []);
 
         const getCurrentModeIcon = () => {
+            if (chatMode === ChatType.ARCHITECT) return Icons.Sparkles;
             return chatMode === ChatType.EDIT ? Icons.Build : Icons.Ask;
         };
 
         const getCurrentModeLabel = () => {
+            if (chatMode === ChatType.ARCHITECT) return 'Architect';
             return chatMode === ChatType.EDIT ? 'Build' : 'Ask';
         };
 
@@ -63,14 +65,14 @@ export const ChatModeToggle = observer(({ chatMode, onChatModeChange, disabled =
                                     'w-4 h-4',
                                     disabled 
                                         ? 'text-foreground-tertiary' 
-                                        : chatMode === ChatType.ASK
+                                        : chatMode === ChatType.ASK || chatMode === ChatType.ARCHITECT
                                             ? 'text-blue-200'
                                             : 'text-foreground-secondary group-hover:text-foreground'
                                 )} 
                             />
                             <span className={cn(
                                 "text-xs font-medium",
-                                chatMode === ChatType.ASK && "text-blue-200"
+                                (chatMode === ChatType.ASK || chatMode === ChatType.ARCHITECT) && "text-blue-200"
                             )}>
                                 {getCurrentModeLabel()}
                             </span>
@@ -97,6 +99,16 @@ export const ChatModeToggle = observer(({ chatMode, onChatModeChange, disabled =
                 >
                     <Icons.Ask className="w-4 h-4" />
                     <span>Ask</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                    onClick={() => onChatModeChange(ChatType.ARCHITECT)}
+                    className={cn(
+                        'flex items-center gap-2 px-3 py-2',
+                        chatMode === ChatType.ARCHITECT && 'bg-background-onlook'
+                    )}
+                >
+                    <Icons.Sparkles className="w-4 h-4 text-blue-200" />
+                    <span className="text-blue-200 font-medium">Architect</span>
                 </DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>

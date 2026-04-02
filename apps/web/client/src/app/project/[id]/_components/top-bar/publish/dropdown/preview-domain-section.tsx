@@ -1,18 +1,22 @@
 import { useEditorEngine } from '@/components/store/editor';
-import { useHostingContext, useHostingType } from '@/components/store/hosting';
+import { useHostingContext } from '@/components/store/hosting';
 import { DeploymentStatus, DeploymentType } from '@onlook/models';
 import { Button } from '@onlook/ui/button';
 import { Icons } from '@onlook/ui/icons/index';
 import { Input } from '@onlook/ui/input';
 import { Checkbox } from '@onlook/ui/checkbox';
 import { Label } from '@onlook/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@onlook/ui/select';
 import { toast } from '@onlook/ui/sonner';
 import { observer } from 'mobx-react-lite';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { UrlSection } from './url';
 import { api } from '@/trpc/react';
 
-const BASE_DOMAIN = 'weliketech.eu.org';
+const AVAILABLE_DOMAINS = [
+    { value: 'weliketech.eu.org', label: '.weliketech.eu.org' },
+    { value: 'website.dpdns.org', label: '.website.dpdns.org' },
+];
 
 function sanitiseSubdomain(value: string): string {
     return value
@@ -40,13 +44,30 @@ export const PreviewDomainSection = observer(() => {
         return null;
     }, [sstDeployment]);
 
+    const isPublished = !!assignedDomain;
+
     const [subdomainInput, setSubdomainInput] = useState('');
+    const [selectedDomain, setSelectedDomain] = useState(AVAILABLE_DOMAINS[0]?.value ?? 'weliketech.eu.org');
+    const [selectedBranchId, setSelectedBranchId] = useState<string>('');
     const [isAssigning, setIsAssigning] = useState(false);
-    const [forceRedeploy, setForceRedeploy] = useState(false);
+
+    // Persist auto-update across popup open/close via MobX state
+    const autoUpdate = editorEngine.state.autoUpdatePublish;
+    const setAutoUpdate = (v: boolean) => { editorEngine.state.autoUpdatePublish = v; };
+
+    // Keep a ref to the latest publishSst so useCallback always calls the fresh version
+    const publishSstRef = useRef<() => Promise<void>>(async () => {});
 
     // tRPC mutations
     const { mutateAsync: assignDomain } = api.publish.screenshit.assignDomain.useMutation();
     const { mutateAsync: removeDomain } = api.publish.screenshit.removeDomain.useMutation();
+
+    // Set default branch from active branch
+    useEffect(() => {
+        if (!selectedBranchId && editorEngine.branches?.activeBranch?.id) {
+            setSelectedBranchId(editorEngine.branches.activeBranch.id);
+        }
+    }, [editorEngine.branches?.activeBranch?.id]);
 
     // Generate a default subdomain when user data is available
     useEffect(() => {
@@ -57,18 +78,32 @@ export const PreviewDomainSection = observer(() => {
         }
     }, [user, assignedDomain]);
 
-    // If we have an assigned domain, pre-fill it (just the label part)
+    // If we have an assigned domain, pre-fill the subdomain label and detect the domain suffix
     useEffect(() => {
         if (assignedDomain) {
             try {
                 const url = new URL(assignedDomain);
-                const label = url.hostname.split('.')[0];
+                const hostname = url.hostname;
+
+                // Detect which of the available domains this belongs to
+                for (const d of AVAILABLE_DOMAINS) {
+                    if (hostname.endsWith('.' + d.value)) {
+                        setSelectedDomain(d.value);
+                        const label = hostname.slice(0, -(d.value.length + 1));
+                        setSubdomainInput(label || '');
+                        return;
+                    }
+                }
+
+                // Fallback: just use the first label
+                const label = hostname.split('.')[0];
                 setSubdomainInput(label || '');
             } catch (e) {
                 console.error('Failed to parse assigned domain', e);
             }
         }
     }, [assignedDomain]);
+
 
     // Debounce subdomain input for status check
     const [debouncedSubdomain, setDebouncedSubdomain] = useState(subdomainInput);
@@ -81,14 +116,31 @@ export const PreviewDomainSection = observer(() => {
 
     const { data: domainStatus } = api.publish.screenshit.domainStatus.useQuery(
         { subdomain: sanitiseSubdomain(debouncedSubdomain) },
-        { enabled: debouncedSubdomain.length > 0 && debouncedSubdomain !== (assignedDomain ? new URL(assignedDomain).hostname.split('.')[0] : '') },
+        {
+            enabled:
+                debouncedSubdomain.length > 0 &&
+                debouncedSubdomain !==
+                    (assignedDomain
+                        ? (() => {
+                              try {
+                                  const h = new URL(assignedDomain).hostname;
+                                  for (const d of AVAILABLE_DOMAINS) {
+                                      if (h.endsWith('.' + d.value))
+                                          return h.slice(0, -(d.value.length + 1));
+                                  }
+                                  return h.split('.')[0];
+                              } catch {
+                                  return '';
+                              }
+                          })()
+                        : ''),
+        },
     );
 
     const isConflict = useMemo(() => {
         if (!domainStatus?.cloudflare) {
             return false;
         }
-        // If it's already assigned to this project, it's not a conflict
         if (assignedDomain) {
             try {
                 const assignedHostname = new URL(assignedDomain).hostname;
@@ -101,41 +153,51 @@ export const PreviewDomainSection = observer(() => {
     }, [domainStatus, assignedDomain]);
 
     const effectiveSubdomain = subdomainInput.trim() ? sanitiseSubdomain(subdomainInput.trim()) : '';
-    const fullDomain = `${effectiveSubdomain}.${BASE_DOMAIN}`;
+    const fullDomain = `${effectiveSubdomain}.${selectedDomain}`;
     const fullUrl = `https://${fullDomain}`;
 
-    const publishSst = async (): Promise<void> => {
-        const sandboxId = editorEngine.branches?.activeBranch?.sandbox?.id;
+    // Resolve sandbox from the selected branch
+    const resolvedSandboxId = useMemo(() => {
+        if (!editorEngine.branches?.allBranches) return editorEngine.branches?.activeBranch?.sandbox?.id;
+        const branch = editorEngine.branches.allBranches.find((b: any) => b.id === selectedBranchId);
+        return branch?.sandbox?.id ?? editorEngine.branches?.activeBranch?.sandbox?.id;
+    }, [selectedBranchId, editorEngine.branches?.allBranches, editorEngine.branches?.activeBranch]);
+
+    const publishSst = useCallback(async (): Promise<void> => {
+        const sandboxId = resolvedSandboxId;
         if (!sandboxId) {
             toast.error('No active sandbox found for publish');
             return;
         }
 
         try {
-            // 1. Deploy/Update the project with the optional subdomain
             const deployResult = await deployScreenshit(
                 editorEngine.projectId,
                 sandboxId,
-                forceRedeploy,
+                isPublished,
                 effectiveSubdomain,
+                isPublished,
             );
-            
+
             if (!deployResult?.url) {
                 throw new Error('Deployment failed - no URL returned');
             }
 
-            toast.success('Project published!');
-            // Reset force redeploy after success
-            setForceRedeploy(false);
+            toast.success(isPublished ? 'Site updated!' : 'Project published!');
         } catch (err) {
-            toast.error('Publishing failed', {
+            toast.error(isPublished ? 'Update failed' : 'Publishing failed', {
                 description: err instanceof Error ? err.message : 'Unknown error',
             });
         } finally {
             setIsAssigning(false);
             refetch(DeploymentType.SCREENSHIT);
         }
-    };
+    }, [deployScreenshit, editorEngine.projectId, resolvedSandboxId, effectiveSubdomain, isPublished, refetch]);
+
+    // Keep the ref up-to-date so the reaction always calls the latest version
+    useEffect(() => {
+        publishSstRef.current = publishSst;
+    }, [publishSst]);
 
     const handleRemove = async () => {
         if (!assignedDomain) return;
@@ -157,6 +219,7 @@ export const PreviewDomainSection = observer(() => {
     };
 
     const isWorking = isScreenshitDeploying || isAssigning;
+    const allBranches = editorEngine.branches?.allBranches ?? [];
 
     return (
         <div className="p-4 flex flex-col items-center gap-4">
@@ -185,6 +248,35 @@ export const PreviewDomainSection = observer(() => {
                     </div>
                 )}
 
+                {/* Branch selector */}
+                {allBranches.length > 1 && (
+                    <div className="space-y-1.5 mt-1">
+                        <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold px-1">
+                            Branch
+                        </label>
+                        <Select
+                            value={selectedBranchId}
+                            onValueChange={setSelectedBranchId}
+                            disabled={isWorking}
+                        >
+                            <SelectTrigger className="h-8 text-xs">
+                                <SelectValue placeholder="Select branch" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {allBranches.map((branch: any) => (
+                                    <SelectItem key={branch.id} value={branch.id} className="text-xs">
+                                        <span className="flex items-center gap-2">
+                                            <Icons.Branch className="w-3 h-3 text-muted-foreground" />
+                                            {branch.name}
+                                        </span>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                )}
+
+                {/* Subdomain input + domain selector */}
                 <div className="space-y-1.5 mt-2">
                     <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold px-1">
                         Subdomain
@@ -192,15 +284,28 @@ export const PreviewDomainSection = observer(() => {
                     <div className="flex items-center gap-1">
                         <Input
                             type="text"
-                            className="flex-1 h-8 text-xs font-mono"
+                            className="flex-1 h-8 text-xs font-mono min-w-0"
                             placeholder="my-subdomain"
                             value={subdomainInput}
                             onChange={(e) => setSubdomainInput(e.target.value)}
                             disabled={isWorking}
                         />
-                        <span className="text-xs text-muted-foreground whitespace-nowrap">
-                            .{BASE_DOMAIN}
-                        </span>
+                        <Select
+                            value={selectedDomain}
+                            onValueChange={setSelectedDomain}
+                            disabled={isWorking}
+                        >
+                            <SelectTrigger className="h-8 text-xs w-auto shrink-0 font-mono px-2">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent align="end">
+                                {AVAILABLE_DOMAINS.map((d) => (
+                                    <SelectItem key={d.value} value={d.value} className="text-xs font-mono">
+                                        {d.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
                     {isConflict && (
                         <div className="flex items-center gap-1.5 px-1 mt-1 text-[10px] text-yellow-500 font-medium">
@@ -215,18 +320,19 @@ export const PreviewDomainSection = observer(() => {
                     )}
                 </div>
 
+                {/* Auto-update checkbox */}
                 <div className="flex items-center space-x-2 px-1 mt-1">
                     <Checkbox
-                        id="force-redeploy"
-                        checked={forceRedeploy}
-                        onCheckedChange={(checked) => setForceRedeploy(!!checked)}
-                        disabled={isWorking || !computedSstUrl}
+                        id="auto-update"
+                        checked={autoUpdate}
+                        onCheckedChange={(checked) => setAutoUpdate(!!checked)}
+                        disabled={isWorking || !isPublished}
                     />
                     <Label
-                        htmlFor="force-redeploy"
+                        htmlFor="auto-update"
                         className="text-[10px] text-muted-foreground cursor-pointer"
                     >
-                        Redeploy full project
+                        Auto-update — redeploy when code changes
                     </Label>
                 </div>
 
@@ -240,7 +346,7 @@ export const PreviewDomainSection = observer(() => {
                     {isWorking && (
                         <Icons.LoadingSpinner className="w-4 h-4 mr-2 animate-spin" />
                     )}
-                    {isWorking ? 'Publishing...' : 'Publish'}
+                    {isWorking ? (isPublished ? 'Updating...' : 'Publishing...') : isPublished ? 'Update' : 'Publish'}
                 </Button>
             </div>
         </div>
