@@ -51,7 +51,6 @@ export class GitManager {
             }
             return false;
         } catch (error) {
-            console.error('[GitManager] Error checking if repository is initialized:', error);
             return false;
         }
     }
@@ -62,7 +61,6 @@ export class GitManager {
     async ensureGitConfig(): Promise<boolean> {
         try {
             if (!this.sandbox.session) {
-                console.error('[GitManager] No sandbox session available for config');
                 return false;
             }
 
@@ -78,14 +76,10 @@ export class GitManager {
                 return true;
             }
 
-            console.log('[GitManager] Configuring git user for the first time...');
 
             // Set user.name if not configured
             if (!hasName) {
                 const nameConfigResult = await this.runCommand('git config --global user.name "Onlook"');
-                if (!nameConfigResult.success) {
-                    console.error('[GitManager] Failed to set git user.name:', nameConfigResult.error);
-                }
             }
 
             // Set user.email if not configured
@@ -93,14 +87,10 @@ export class GitManager {
                 const emailConfigResult = await this.runCommand(
                     `git config --global user.email "${SUPPORT_EMAIL}"`,
                 );
-                if (!emailConfigResult.success) {
-                    console.error('[GitManager] Failed to set git user.email:', emailConfigResult.error);
-                }
             }
 
             return true;
         } catch (error) {
-            console.error('[GitManager] Failed to ensure git config:', error);
             return false;
         }
     }
@@ -178,19 +168,16 @@ export class GitManager {
         const sanitizedMessage = sanitizeCommitMessage(message);
         const escapedMessage = prepareCommitMessage(sanitizedMessage);
         
-        console.log(`[GitManager] Attempting to commit: "${sanitizedMessage.substring(0, 50)}..."`);
         
         const result = await this.runCommand(
             `git commit --allow-empty --no-verify -m ${escapedMessage}`,
         );
 
         if (result.success) {
-            console.log('[GitManager] Commit successful, waiting for filesystem to settle...');
             // Wait a tiny bit for git state to settle
             await new Promise((resolve) => setTimeout(resolve, 200));
             await this.listCommits();
         } else {
-            console.error('[GitManager] Commit failed:', result.error);
         }
         return result;
     }
@@ -225,7 +212,6 @@ export class GitManager {
             // Check if repo exists first to avoid unnecessary errors
             const isInit = await this.isRepoInitialized();
             if (!isInit) {
-                console.log('[GitManager] Repo not initialized, skipping listCommits');
                 this.commits = [];
                 return [];
             }
@@ -240,7 +226,6 @@ export class GitManager {
                     if (result.success && result.output) {
                         const parsedCommits = this.parseGitLog(result.output);
                         
-                        console.log(`[GitManager] Successfully listed ${parsedCommits.length} commits`);
 
                         // Enhance commits with display names from notes
                         if (parsedCommits.length > 0) {
@@ -265,12 +250,10 @@ export class GitManager {
                     const errorStr = result.error || '';
                     if (errorStr.includes('does not have any commits yet') || 
                         errorStr.includes('fatal: bad default revision \'HEAD\'')) {
-                        console.log('[GitManager] Repository is empty (no commits yet)');
                         this.commits = [];
                         return [];
                     }
 
-                    console.warn(`[GitManager] listCommits failed (attempt ${attempt + 1}):`, result.error);
                     lastError = new Error(`Git command failed: ${result.error || 'Unknown error'}`);
 
                     if (attempt < maxRetries) {
@@ -385,7 +368,6 @@ export class GitManager {
         const cleanOutput = this.formatGitLogOutput(rawOutput);
 
         if (!cleanOutput) {
-            console.warn('[GitManager] Empty clean output from git log');
             return [];
         }
 
@@ -394,7 +376,6 @@ export class GitManager {
         // Split by COMMIT_START and COMMIT_END markers
         const commitBlocks = cleanOutput.split('COMMIT_START').filter((block) => block.trim());
 
-        console.log(`[GitManager] Parsing git log: found ${commitBlocks.length} blocks. Raw output length: ${rawOutput.length}`);
 
         for (const block of commitBlocks) {
             try {
@@ -405,10 +386,6 @@ export class GitManager {
                 const rawLines = cleanBlock.split('\n');
                 const headerLines = rawLines.map(l => l.trim()).filter(l => l.length > 0);
 
-                if (headerLines.length < 3) {
-                    console.warn('[GitManager] skipping block, too few headers:', headerLines.length, cleanBlock.substring(0, 100));
-                    continue;
-                }
 
                 // The first 3 non-empty lines are always hash, author, date
                 const hash = headerLines[0];
@@ -419,10 +396,6 @@ export class GitManager {
                 const dateIndex = rawLines.findIndex(l => l.trim() === dateLine);
                 const message = rawLines.slice(dateIndex + 1).join('\n').trim();
 
-                if (!hash || !authorLine || !dateLine) {
-                    console.warn('[GitManager] Missing required fields in block:', { hash, authorLine, dateLine });
-                    continue;
-                }
 
                 // Parse author name and email
                 const authorMatch = /^(.+?)\s*<(.+?)>$/.exec(authorLine);
@@ -437,7 +410,6 @@ export class GitManager {
                         timestamp = Math.floor(Date.now() / 1000);
                     }
                 } catch (error) {
-                    console.warn('[GitManager] Failed to parse commit date:', dateLine, error);
                     timestamp = Math.floor(Date.now() / 1000);
                 }
 
@@ -454,11 +426,9 @@ export class GitManager {
                     displayName: displayMessage,
                 });
             } catch (error) {
-                console.error('[GitManager] Error parsing commit block:', error, block.substring(0, 100));
             }
         }
 
-        console.log(`[GitManager] Successfully parsed ${commits.length} commits`);
         return commits;
     }
 

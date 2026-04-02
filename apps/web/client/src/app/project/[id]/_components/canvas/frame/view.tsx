@@ -12,6 +12,7 @@ import type {
     PromisifiedPendpalChildMethods,
 } from '@onlook/penpal';
 import { PENPAL_PARENT_CHANNEL } from '@onlook/penpal';
+import { SystemTheme } from '@onlook/models';
 import { WebPreview, WebPreviewBody } from '@onlook/ui/ai-elements';
 import { Icons } from '@onlook/ui/icons';
 import { ProgressWithInterval } from '@onlook/ui/progress-with-interval';
@@ -70,7 +71,7 @@ export const FrameComponent = observer(
                 reloadIframe,
                 onConnectionFailed,
                 onConnectionSuccess,
-                penpalTimeoutMs = 5000,
+                penpalTimeoutMs = 10000,
                 isInDragSelection = false,
                 ...restProps
             },
@@ -89,15 +90,11 @@ export const FrameComponent = observer(
             const setupPenpalConnection = () => {
                 try {
                     if (!iframeRef.current?.contentWindow) {
-                        console.error(`${PENPAL_PARENT_CHANNEL} (${frame.id}) - No iframe found`);
                         onConnectionFailed();
                         return;
                     }
 
                     if (isConnecting.current) {
-                        console.log(
-                            `${PENPAL_PARENT_CHANNEL} (${frame.id}) - Connection already in progress`,
-                        );
                         return;
                     }
                     isConnecting.current = true;
@@ -145,22 +142,15 @@ export const FrameComponent = observer(
                         }, penpalTimeoutMs);
                     });
 
-                    console.log(`${PENPAL_PARENT_CHANNEL} (${frame.id}) - Handshake starting...`);
                     // Race the connection promise against the timeout
                     Promise.race([connection.promise, timeoutPromise])
                         .then((child) => {
                             isConnecting.current = false;
                             if (!child) {
-                                console.error(
-                                    `${PENPAL_PARENT_CHANNEL} (${frame.id}) - Connection failed: child is null`,
-                                );
                                 onConnectionFailed();
                                 return;
                             }
 
-                            console.log(
-                                `${PENPAL_PARENT_CHANNEL} (${frame.id}) - Penpal connection set`,
-                            );
 
                             const remote = child as unknown as PenpalChildMethods;
                             setPenpalChild(remote);
@@ -169,20 +159,20 @@ export const FrameComponent = observer(
                             remote.handleBodyReady();
                             remote.processDom();
 
+                            // Delay initial theme application to avoid hydration mismatch
+                            setTimeout(() => {
+                                remote.setTheme((frame.theme as SystemTheme) || SystemTheme.LIGHT);
+                            }, 500);
+
                             // Notify parent of successful connection
                             onConnectionSuccess();
                         })
                         .catch((error) => {
                             isConnecting.current = false;
-                            console.error(
-                                `${PENPAL_PARENT_CHANNEL} (${frame.id}) - Failed to setup penpal connection:`,
-                                error,
-                            );
                             onConnectionFailed();
                         });
                 } catch (error) {
                     isConnecting.current = false;
-                    console.error(`${PENPAL_PARENT_CHANNEL} (${frame.id}) - Setup failed:`, error);
                     onConnectionFailed();
                 }
             };
@@ -200,10 +190,7 @@ export const FrameComponent = observer(
                         if (!method) throw new Error('Method not initialized');
                         return method(...args);
                     } catch (error) {
-                        console.error(
-                            `${PENPAL_PARENT_CHANNEL} (${frame.id}) - Method failed:`,
-                            error,
-                        );
+                        // Suppressed Penpal method error
                     }
                 };
             };
@@ -215,20 +202,24 @@ export const FrameComponent = observer(
                     return (async (...args: any[]) => {
                         try {
                             if (penpalChild && (penpalChild as any)[key]) {
-                                return (penpalChild as any)[key](...args);
+                                // Must await here to catch the error in this try block
+                                return await (penpalChild as any)[key](...args);
                             }
                             const fallback = createSafeFallbackMethods();
-                            return (fallback as any)[key](...args);
-                        } catch (error) {
-                            if (error instanceof Error && error.message.includes('destroyed')) {
-                                console.warn(`${PENPAL_PARENT_CHANNEL} (${frame.id}) - Connection destroyed while calling ${key}, using fallback.`);
+                            return await (fallback as any)[key](...args);
+                        } catch (error: any) {
+                            const isConnectionError =
+                                error instanceof Error &&
+                                (error.message.includes('destroyed') ||
+                                    error.name === 'PenpalError' ||
+                                    error.constructor?.name === 'PenpalError');
+
+                            if (isConnectionError) {
                                 const fallback = createSafeFallbackMethods();
-                                return (fallback as any)[key](...args);
+                                return await (fallback as any)[key](...args);
                             }
-                            console.error(
-                                `${PENPAL_PARENT_CHANNEL} (${frame.id}) - Method ${key} failed:`,
-                                error,
-                            );
+                            console.error(`Penpal method ${String(key)} failed:`, error);
+                            return undefined;
                         }
                     }) as unknown as PromisifiedPendpalChildMethods[K];
                 };
@@ -281,7 +272,6 @@ export const FrameComponent = observer(
             useImperativeHandle(ref, (): IFrameView => {
                 const iframe = iframeRef.current;
                 if (!iframe) {
-                    console.error(`${PENPAL_PARENT_CHANNEL} (${frame.id}) - Iframe - Not found`);
                     // Return safe fallback with no-op methods and safe defaults
                     const fallbackElement = document.createElement('iframe');
                     const safeFallback: IFrameView = Object.assign(fallbackElement, {
@@ -312,9 +302,6 @@ export const FrameComponent = observer(
                 };
 
                 if (!penpalChild) {
-                    console.warn(
-                        `${PENPAL_PARENT_CHANNEL} (${frame.id}) - Failed to setup penpal connection: iframeRemote is null`,
-                    );
                     return Object.assign(iframe, syncMethods, remoteMethods) as IFrameView;
                 }
 

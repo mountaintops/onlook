@@ -54,5 +54,6 @@ export const createDefaultFrame = (
 
         // deprecated
         type: null,
+        theme: null,
     };
 };

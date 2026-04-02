@@ -1,4 +1,5 @@
 import { type Frame } from '@onlook/models';
+import { Theme } from '@onlook/constants';
 import type { Frame as DbFrame } from '../../schema';
 
 export const fromDbFrame = (dbFrame: DbFrame): Frame => {
@@ -10,6 +11,7 @@ export const fromDbFrame = (dbFrame: DbFrame): Frame => {
         canvasId: dbFrame.canvasId,
         branchId: dbFrame.branchId,
         url: dbFrame.url,
+        theme: dbFrame.theme as Theme | undefined,
         position: {
             x: Number(dbFrame.x),
             y: Number(dbFrame.y),
@@ -34,6 +36,7 @@ export const toDbFrame = (frame: Frame): DbFrame => {
 
         // deprecated
         type: null,
+        theme: frame.theme ?? null,
     };
 };
 
@@ -46,5 +49,6 @@ export const toDbPartialFrame = (frame: Partial<Frame>): Partial<DbFrame> => {
         canvasId: frame.canvasId,
         width: frame.dimension?.width.toString(),
         height: frame.dimension?.height.toString(),
+        theme: frame.theme ?? null,
     };
 };

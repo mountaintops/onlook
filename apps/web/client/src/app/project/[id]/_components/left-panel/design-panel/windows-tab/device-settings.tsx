@@ -1,5 +1,6 @@
 import { useEditorEngine } from '@/components/store/editor';
 import { SystemTheme } from '@onlook/models/assets';
+import { Theme } from '@onlook/constants';
 import { Button } from '@onlook/ui/button';
 import { Icons } from '@onlook/ui/icons';
 import { toast } from '@onlook/ui/sonner';
@@ -9,15 +10,12 @@ import { useEffect, useState } from 'react';
 export const DeviceSettings = observer(({ frameId }: { frameId: string }) => {
     const editorEngine = useEditorEngine();
     const frameData = editorEngine.frames.get(frameId);
-    const [theme, setTheme] = useState<SystemTheme>(SystemTheme.SYSTEM);
-
+    const [theme, setTheme] = useState<SystemTheme>((frameData.frame.theme as unknown as SystemTheme) || SystemTheme.SYSTEM);
     useEffect(() => {
-        if (!frameData?.view) {
-            console.error('No frame view found');
-            return;
+        if (frameData.frame.theme) {
+            setTheme(frameData.frame.theme as unknown as SystemTheme);
         }
-        frameData.view.getTheme().then((theme) => setTheme(theme));
-    }, [frameData]);
+    }, [frameData.frame.theme]);
 
     if (!frameData) {
         return (
@@ -26,19 +24,9 @@ export const DeviceSettings = observer(({ frameId }: { frameId: string }) => {
     }
 
     async function changeTheme(newTheme: SystemTheme) {
-        const previousTheme = theme;
         setTheme(newTheme);
-
-        if (!frameData?.view) {
-            console.error('No frame view found');
-            return;
-        }
-
-        const success = await frameData?.view.setTheme(newTheme);
-        if (!success) {
-            toast.error('Failed to change theme');
-            setTheme(previousTheme);
-        }
+        editorEngine.frames.updateAndSaveToStorage(frameData.frame.id, { theme: newTheme as unknown as Theme });
+        await frameData?.view?.setTheme(newTheme);
     }
 
     return (

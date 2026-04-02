@@ -23,6 +23,7 @@ export const frames = pgTable("frames", {
 
     // deprecated
     type: text("type"),
+    theme: text("theme"),
 }).enableRLS();
 
 export const frameInsertSchema = createInsertSchema(frames);

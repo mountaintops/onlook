@@ -73,19 +73,14 @@ export class CodeProviderSync {
             const sameConfig =
                 JSON.stringify(existing.sync.config ?? {}) === JSON.stringify(config ?? {});
             if (!sameConfig) {
-                console.warn(
-                    `[Sync] getInstance(${key}) called with different config; reusing existing instance config`,
-                );
             }
             existing.refCount++;
-            console.log(`[Sync] Reusing existing sync instance for ${key} (refCount: ${existing.refCount})`);
             return existing.sync;
         }
 
         const sync = new CodeProviderSync(provider, fs, config);
         sync.instanceKey = key;
         CodeProviderSync.instances.set(key, { sync, refCount: 1 });
-        console.log(`[Sync] Created new sync instance for ${key} (refCount: 1)`);
         return sync;
     }
 
@@ -102,21 +97,17 @@ export class CodeProviderSync {
      */
     release(): void {
         if (!this.instanceKey) {
-            console.warn('[Sync] Attempted to release sync instance without a key');
             return;
         }
 
         const instance = CodeProviderSync.instances.get(this.instanceKey);
         if (!instance) {
-            console.warn(`[Sync] Instance ${this.instanceKey} not found in registry`);
             return;
         }
 
         instance.refCount--;
-        console.log(`[Sync] Released reference to ${this.instanceKey} (refCount: ${instance.refCount})`);
 
         if (instance.refCount <= 0) {
-            console.log(`[Sync] Stopping and removing sync instance ${this.instanceKey}`);
             this.stop();
             CodeProviderSync.instances.delete(this.instanceKey);
             this.instanceKey = null;
@@ -210,16 +201,10 @@ export class CodeProviderSync {
             try {
                 if (entry.type === 'file') {
                     await this.fs.deleteFile(entry.path);
-                    console.log(`[Sync] Deleted file: ${entry.path}`);
                 } else {
                     await this.fs.deleteDirectory(entry.path);
-                    console.log(`[Sync] Deleted directory: ${entry.path}`);
                 }
             } catch (error) {
-                console.debug(
-                    `[Sync] Failed to delete ${entry.path}:`,
-                    error instanceof Error ? error.message : 'Unknown error',
-                );
             }
         }
 
@@ -232,7 +217,6 @@ export class CodeProviderSync {
             try {
                 await this.fs.createDirectory(dirPath);
             } catch (error) {
-                console.debug(`[Sync] Error creating directory ${dirPath}:`, error);
             }
         }
 
@@ -246,7 +230,6 @@ export class CodeProviderSync {
     private async pullSpecificFiles(filePaths: string[], concurrency: number = 5): Promise<void> {
         if (filePaths.length === 0) return;
 
-        console.log(`[Sync] Pulling ${filePaths.length} files from sandbox (concurrency: ${concurrency})...`);
         
         const queue = [...filePaths];
         const workers = Array(Math.min(concurrency, queue.length)).fill(null).map(async () => {
@@ -267,14 +250,12 @@ export class CodeProviderSync {
                         this.fileHashes.set(path, hash);
                     }
                 } catch (error) {
-                    console.error(`[Sync] Failed to pull ${path}:`, error);
                     // Don't throw, allow other files to continue
                 }
             }
         });
 
         await Promise.all(workers);
-        console.log(`[Sync] Finished pulling ${filePaths.length} files.`);
         
         // Seed recent files from pulled sandbox if empty, to ensure we have context
         if (this.recentEditedPaths.length === 0) {
@@ -319,17 +300,12 @@ export class CodeProviderSync {
                 }
             }
         } catch (error) {
-            console.debug(
-                `[Sync] Error reading directory ${dir}:`,
-                error instanceof Error ? error.message : 'Unknown error',
-            );
         }
 
         return files;
     }
 
     private async pushModifiedFilesToSandbox(): Promise<void> {
-        console.log('[Sync] Pushing locally modified files back to sandbox...');
 
         try {
             // Get all local JSX/TSX files that might have been modified with OIDs
@@ -351,15 +327,12 @@ export class CodeProviderSync {
                                     overwrite: true
                                 }
                             });
-                            console.log(`[Sync] Pushed ${filePath} to sandbox`);
                         }
                     } catch (error) {
-                        console.warn(`[Sync] Failed to push ${filePath} to sandbox:`, error);
                     }
                 })
             );
         } catch (error) {
-            console.error('[Sync] Error pushing files to sandbox:', error);
         }
     }
 
@@ -448,14 +421,9 @@ export class CodeProviderSync {
                                                 this.fileHashes.set(newPath, hash);
                                             }
                                         } catch (error) {
-                                            console.error(
-                                                `[Sync] Error creating ${newPath}:`,
-                                                error,
-                                            );
                                         }
                                     }
                                 } catch (error) {
-                                    console.error(`[Sync] Error handling rename:`, error);
                                 }
                             }
                         } else {
@@ -517,23 +485,19 @@ export class CodeProviderSync {
                                                                         const hash = await hashContent(fileResult.file.content || '');
                                                                         this.fileHashes.set(itemLocalPath, hash);
                                                                     } else {
-                                                                        console.log(`[Sync] File ${itemSandboxPath} has undefined content, skipping`);
                                                                     }
                                                                 } catch (fileError) {
-                                                                    console.error(`[Sync] Error syncing file ${itemSandboxPath}:`, fileError);
                                                                 }
                                                             }
                                                         }
                                                     }
                                                 } catch (listError) {
-                                                    console.error(`[Sync] Error listing contents of ${sandboxPath}:`, listError);
                                                 }
                                             };
 
                                             // Start recursive sync
                                             await syncDirectoryContents(normalizedPath, localPath);
                                         } catch (dirError) {
-                                            console.error(`[Sync] Error creating directory ${localPath}:`, dirError);
                                             // Directory creation might fail if parent doesn't exist
                                             // The createDirectory method should handle this with recursive: true
                                         }
@@ -560,14 +524,10 @@ export class CodeProviderSync {
                                                 this.trackRecentFile(localPath);
                                                 this.triggerContextUpdate();
                                             } else {
-                                                console.debug(
-                                                    `[Sync] Skipping ${localPath} - content unchanged`,
-                                                );
-                                            }
+                                               }
                                         }
                                     }
                                 } catch (error) {
-                                    console.error(`[Sync] Error processing ${normalizedPath}:`, error);
                                 }
                             }
                         }
@@ -577,9 +537,6 @@ export class CodeProviderSync {
                             const normalizedPath = normalizePath(path);
 
                             if (!this.shouldSync(normalizedPath)) {
-                                console.debug(
-                                    `[Sync] Skipping sandbox delete for excluded path: ${normalizedPath}`,
-                                );
                                 continue;
                             }
 
@@ -603,10 +560,6 @@ export class CodeProviderSync {
                                 this.untrackRecentFile(localPath);
                                 this.triggerContextUpdate();
                             } catch (error) {
-                                console.debug(
-                                    `[Sync] Error deleting ${normalizedPath} locally:`,
-                                    error instanceof Error ? error.message : 'Unknown error',
-                                );
                             }
                         }
                     }
@@ -618,10 +571,6 @@ export class CodeProviderSync {
             // Setup local file system watching for bidirectional sync
             await this.setupLocalWatching();
         } catch (error) {
-            console.error(
-                '[Sync] Failed to setup file watching:',
-                error instanceof Error ? error.message : 'Unknown error',
-            );
             throw error;
         }
     }
@@ -640,7 +589,6 @@ export class CodeProviderSync {
             // Need to remove leading / for sandbox path
             const sandboxPath = path.startsWith('/') ? path.substring(1) : path;
             if (!this.shouldSync(sandboxPath)) {
-                console.debug(`[Sync] Skipping local ${type} for excluded path: ${path}`);
                 return;
             }
 
@@ -694,16 +642,11 @@ export class CodeProviderSync {
                                 },
                             });
                         } catch (error) {
-                            console.debug(
-                                `[Sync] Failed to delete ${sandboxPath} from sandbox:`,
-                                error instanceof Error ? error.message : 'Unknown error',
-                            );
                         }
 
                         // Remove hash for deleted file (if it exists)
                         if (this.fileHashes.has(path)) {
                             this.fileHashes.delete(path);
-                            console.debug(`[Sync] Removed hash entry for deleted file: ${path}`);
                         }
                         this.untrackRecentFile(path);
                         this.triggerContextUpdate();
@@ -734,20 +677,14 @@ export class CodeProviderSync {
                                 this.trackRecentFile(path);
                                 this.triggerContextUpdate();
                             } catch (error) {
-                                console.error(`[Sync] Failed to rename in sandbox:`, error);
                                 throw error; // Re-throw to be caught by outer try-catch
                             }
                         } else {
-                            console.warn(`[Sync] Rename event received without oldPath`);
                         }
                         break;
                     }
                 }
             } catch (error) {
-                console.error(
-                    `[Sync] Error pushing local ${type} for ${path} to sandbox:`,
-                    error instanceof Error ? error.message : 'Unknown error',
-                );
             }
         });
     }
@@ -833,10 +770,8 @@ export class CodeProviderSync {
                         overwrite: true,
                     },
                 });
-                console.log('[Sync] Updated context.txt with', this.recentEditedPaths.length, 'recent file(s)');
             }
         } catch (error) {
-            console.error('[Sync] Failed to update context.txt:', error);
         }
     }
 }

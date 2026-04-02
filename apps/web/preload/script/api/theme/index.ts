@@ -11,21 +11,30 @@ export function getTheme(): SystemTheme {
 
 export function setTheme(theme: SystemTheme) {
     try {
-        if (theme === SystemTheme.DARK) {
-            document.documentElement.classList.add('dark');
-            window?.localStorage.setItem('theme', SystemTheme.DARK);
-        } else if (theme === SystemTheme.LIGHT) {
-            document.documentElement.classList.remove('dark');
-            window?.localStorage.setItem('theme', SystemTheme.LIGHT);
-        } else if (theme === SystemTheme.SYSTEM) {
-            const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            if (isDarkMode) {
+        const isDarkModePreference = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const isDark =
+            theme === SystemTheme.DARK || (theme === SystemTheme.SYSTEM && isDarkModePreference);
+
+        const applyTheme = () => {
+            if (isDark) {
                 document.documentElement.classList.add('dark');
+                document.documentElement.setAttribute('data-theme', 'dark');
+                document.documentElement.style.colorScheme = 'dark';
+                document.body?.classList.add('dark');
+                document.body?.setAttribute('data-theme', 'dark');
             } else {
                 document.documentElement.classList.remove('dark');
+                document.documentElement.setAttribute('data-theme', 'light');
+                document.documentElement.style.colorScheme = 'light';
+                document.body?.classList.remove('dark');
+                document.body?.setAttribute('data-theme', 'light');
             }
-            window?.localStorage.setItem('theme', SystemTheme.SYSTEM);
-        }
+        };
+
+        // Use setTimeout to ensure theme application doesn't interfere with React's initial hydration synchronous phase
+        setTimeout(applyTheme, 0);
+
+        window?.localStorage.setItem('theme', theme);
         return true;
     } catch (error) {
         console.warn('Failed to set theme', error);

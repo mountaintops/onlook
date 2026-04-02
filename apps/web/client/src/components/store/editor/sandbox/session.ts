@@ -246,9 +246,6 @@ export class SessionManager {
             streamCallback?.(finalCommand + '\n');
             const { output } = await provider.runCommand({ args: { command: finalCommand } });
             
-            if (command.includes('git')) {
-                console.log(`[SessionManager] git command: "${command}", success: true, output length: ${output.length}`);
-            }
 
             streamCallback?.(output);
             return {
@@ -274,9 +271,6 @@ export class SessionManager {
                 }
             }
 
-            if (command.includes('git')) {
-                console.error(`[SessionManager] git command failed: "${command}", error: ${errorMessage}`);
-            }
 
             console.error('Error running command:', error);
             return {

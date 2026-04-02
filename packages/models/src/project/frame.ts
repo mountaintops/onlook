@@ -13,6 +13,7 @@ export interface Frame {
 
     // content
     url: string;
+    theme?: Theme;
 }
 
 export interface WindowMetadata {

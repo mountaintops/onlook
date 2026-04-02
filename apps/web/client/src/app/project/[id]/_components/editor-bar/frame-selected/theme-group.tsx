@@ -1,4 +1,6 @@
+import { useEditorEngine } from '@/components/store/editor';
 import { SystemTheme } from '@onlook/models/assets';
+import { Theme } from '@onlook/constants';
 import { Icons } from '@onlook/ui/icons';
 import { toast } from '@onlook/ui/sonner';
 import { useEffect, useState } from 'react';
@@ -7,27 +9,19 @@ import { ToolbarButton } from '../toolbar-button';
 import { type FrameData } from '@/components/store/editor/frames';
 
 export function ThemeGroup({ frameData }: { frameData: FrameData }) {
-    const [theme, setTheme] = useState<SystemTheme>(SystemTheme.SYSTEM);
-    useEffect(() => {
-        const getTheme = async () => {
-            if (!frameData?.view) {
-                return;
-            }
+    const editorEngine = useEditorEngine();
+    const [theme, setTheme] = useState<SystemTheme>((frameData.frame.theme as unknown as SystemTheme) || SystemTheme.SYSTEM);
 
-            const theme = await frameData.view.getTheme();
-            setTheme(theme);
+    useEffect(() => {
+        if (frameData.frame.theme) {
+            setTheme(frameData.frame.theme as unknown as SystemTheme);
         }
-        void getTheme();
-    }, [frameData]);
+    }, [frameData.frame.theme]);
 
     async function changeTheme(newTheme: SystemTheme) {
-        const previousTheme = theme;
         setTheme(newTheme);
-        const success = await frameData.view?.setTheme(newTheme);
-        if (!success) {
-            toast.error('Failed to change theme');
-            setTheme(previousTheme);
-        }
+        editorEngine.frames.updateAndSaveToStorage(frameData.frame.id, { theme: newTheme as unknown as Theme });
+        await frameData.view?.setTheme(newTheme);
     }
 
     return (

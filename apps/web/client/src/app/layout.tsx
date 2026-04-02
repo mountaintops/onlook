@@ -71,7 +71,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                     dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
                 />
             </head>
-            <body>
+            <body suppressHydrationWarning>
                 {isProduction && (
                     <>
                         <Script src="https://z.onlook.com/cdn-cgi/zaraz/i.js" strategy="lazyOnload" />
@@ -83,7 +83,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                         <TelemetryProvider>
                             <ThemeProvider
                                 attribute="class"
-                                forcedTheme="dark"
+                                defaultTheme="dark"
+                                storageKey="onlook-theme"
                                 enableSystem
                                 disableTransitionOnChange
                             >
