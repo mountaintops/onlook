@@ -6,9 +6,11 @@ import { useStateManager } from '@/components/store/state';
 import { CurrentUserAvatar } from '@/components/ui/avatar-dropdown';
 import { SettingsTabValue } from '@/components/ui/settings-modal/helpers';
 import { transKeys } from '@/i18n/keys';
+import { api } from '@/trpc/react';
 import { Button } from '@onlook/ui/button';
 import { HotkeyLabel } from '@onlook/ui/hotkey-label';
 import { Icons } from '@onlook/ui/icons';
+import { toast } from '@onlook/ui/sonner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@onlook/ui/tooltip';
 import { observer } from 'mobx-react-lite';
 import { motion } from 'motion/react';
@@ -26,6 +28,32 @@ export const TopBar = observer(() => {
     const [isMembersPopoverOpen, setIsMembersPopoverOpen] = useState(false);
     const editorEngine = useEditorEngine();
     const t = useTranslations();
+    const screenshotMutation = api.publish.screenshit.screenshot.useMutation();
+
+    const handleScreenshot = async () => {
+        const previewUrl = editorEngine.activeSandbox.session.signedPreviewUrl;
+        if (!previewUrl) {
+            toast.error('No active preview URL found');
+            return;
+        }
+
+        const toastId = toast.loading('Capturing screenshot...');
+        try {
+            const { base64 } = await screenshotMutation.mutateAsync({ url: previewUrl });
+
+            const link = document.createElement('a');
+            link.href = `data:image/jpeg;base64,${base64}`;
+            link.download = `screenshot-${new Date().toISOString()}.jpg`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            toast.success('Screenshot captured!', { id: toastId });
+        } catch (error) {
+            console.error('Screenshot failed:', error);
+            toast.error('Failed to capture screenshot', { id: toastId });
+        }
+    };
 
     const UNDO_REDO_BUTTONS = [
         {
@@ -96,6 +124,26 @@ export const TopBar = observer(() => {
                             </TooltipContent>
                         </Tooltip>
                     ))}
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8"
+                                onClick={handleScreenshot}
+                                disabled={screenshotMutation.isPending}
+                            >
+                                {screenshotMutation.isPending ? (
+                                    <Icons.Spinner className="h-4 w-4 animate-spin" />
+                                ) : (
+                                    <Icons.Image className="h-4 w-4" />
+                                )}
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="mt-1" hideArrow>
+                            Take Screenshot
+                        </TooltipContent>
+                    </Tooltip>
                 </motion.div>
                 <Tooltip>
                     <TooltipTrigger asChild>

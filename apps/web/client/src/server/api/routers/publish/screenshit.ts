@@ -8,6 +8,7 @@ import { forkBuildSandbox } from './helpers/fork';
 import {
     screenshitDeploy,
     screenshitDelete,
+    screenshitScreenshot,
     pollScreenshitStatus,
 } from './helpers/screenshit';
 import {
@@ -408,5 +409,15 @@ export const screenshitRouter = createTRPCRouter({
     listDomains: protectedProcedure
         .query(async () => {
             return await screenshitListDomains();
+        }),
+
+    /**
+     * Take a screenshot of a URL.
+     */
+    screenshot: protectedProcedure
+        .input(z.object({ url: z.string().url(), quality: z.number().optional().default(80) }))
+        .mutation(async ({ input }): Promise<{ base64: string }> => {
+            const buffer = await screenshitScreenshot(input.url, input.quality);
+            return { base64: buffer.toString('base64') };
         }),
 });
