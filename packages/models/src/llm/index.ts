@@ -3,6 +3,7 @@ import type { LanguageModel } from 'ai';
 export enum LLMProvider {
     GOOGLE = 'google',
     MISTRAL = 'mistral',
+    MODAL = 'modal',
 }
 
 export enum GOOGLE_MODELS {
@@ -16,9 +17,14 @@ export enum MISTRAL_MODELS {
     DEVSTRAL_2512 = 'devstral-2512',
 }
 
+export enum MODAL_MODELS {
+    GLM_5 = 'zai-org/GLM-5-FP8',
+}
+
 interface ModelMapping {
     [LLMProvider.GOOGLE]: GOOGLE_MODELS;
     [LLMProvider.MISTRAL]: MISTRAL_MODELS;
+    [LLMProvider.MODAL]: MODAL_MODELS;
 }
 
 export type InitialModelPayload = {
@@ -41,6 +47,7 @@ export const MODEL_MAX_TOKENS = {
     [MISTRAL_MODELS.MISTRAL_LARGE_2512]: 131000,
     [MISTRAL_MODELS.MISTRAL_SMALL_2603]: 32000,
     [MISTRAL_MODELS.DEVSTRAL_2512]: 32000,
+    [MODAL_MODELS.GLM_5]: 32768,
 } as const;
 
 export const AVAILABLE_MODELS = [
@@ -68,5 +75,10 @@ export const AVAILABLE_MODELS = [
         provider: LLMProvider.MISTRAL,
         model: MISTRAL_MODELS.DEVSTRAL_2512,
         displayName: 'Devstral 2512',
+    },
+    {
+        provider: LLMProvider.MODAL,
+        model: MODAL_MODELS.GLM_5,
+        displayName: 'GLM-5 (Modal)',
     },
 ];

@@ -37,6 +37,7 @@
         "@ai-sdk/mcp": "^1.0.30",
         "@ai-sdk/mistral": "^3.0.27",
         "@ai-sdk/openai": "^3.0.49",
+        "@ai-sdk/openai-compatible": "^2.0.37",
         "@mendable/firecrawl-js": "^1.29.1",
         "@onlook/ui": "*",
         "ai": "6.0.135",

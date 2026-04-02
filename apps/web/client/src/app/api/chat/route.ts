@@ -2,10 +2,11 @@ import { api } from '@/trpc/server';
 import { trackEvent } from '@/utils/analytics/server';
 import { createRootAgentStream } from '@onlook/ai/src/server';
 import { toDbMessage } from '@onlook/db';
-import { ChatType, type ChatMessage, type ChatMetadata } from '@onlook/models';
+import { ChatType, LLMProvider, type ChatMessage, type ChatMetadata } from '@onlook/models';
 import { type NextRequest } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { checkMessageLimit, decrementUsage, errorHandler, getSupabaseUser, incrementUsage } from './helpers';
+import { MODAL_GLM5_LOCK_KEY, tryAcquireLock, releaseLock } from './locks';
 
 export async function POST(req: NextRequest) {
     try {
@@ -80,16 +81,37 @@ export const streamResponse = async (req: NextRequest, userId: string) => {
         const projectSettingsData = await api.settings.get({ projectId });
         const mcpServers = projectSettingsData?.mcpServers ?? [];
 
-        const stream = await createRootAgentStream({
-            chatType,
-            conversationId,
-            projectId,
-            userId,
-            traceId,
-            messages,
-            mcpServers,
-            chatModel,
-        });
+        // GLM-5 (Modal AI) only supports 1 concurrent request — enforce with a lightweight lock
+        const isGLM5 = chatModel?.provider === LLMProvider.MODAL;
+        if (isGLM5) {
+            if (!tryAcquireLock(MODAL_GLM5_LOCK_KEY)) {
+                return new Response(JSON.stringify({
+                    error: 'GLM-5 is already processing another request. Please wait and try again.',
+                    code: 429,
+                }), {
+                    status: 429,
+                    headers: { 'Content-Type': 'application/json', 'Retry-After': '5' },
+                });
+            }
+        }
+
+        let stream;
+        try {
+            stream = await createRootAgentStream({
+                chatType,
+                conversationId,
+                projectId,
+                userId,
+                traceId,
+                messages,
+                mcpServers,
+                chatModel,
+            });
+        } catch (err) {
+            if (isGLM5) releaseLock(MODAL_GLM5_LOCK_KEY);
+            throw err;
+        }
+
         return stream.toUIMessageStreamResponse<ChatMessage>(
             {
                 originalMessages: messages,
@@ -105,6 +127,7 @@ export const streamResponse = async (req: NextRequest, userId: string) => {
                     } satisfies ChatMetadata;
                 },
                 onFinish: async ({ messages: finalMessages }) => {
+                    if (isGLM5) releaseLock(MODAL_GLM5_LOCK_KEY);
                     const messagesToStore = finalMessages
                         .filter(msg =>
                             (msg.role === 'user' || msg.role === 'assistant')
@@ -116,7 +139,10 @@ export const streamResponse = async (req: NextRequest, userId: string) => {
                         messages: messagesToStore,
                     });
                 },
-                onError: errorHandler,
+                onError: (err) => {
+                    if (isGLM5) releaseLock(MODAL_GLM5_LOCK_KEY);
+                    return errorHandler(err);
+                },
             }
         );
     } catch (error) {

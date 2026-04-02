@@ -3,19 +3,21 @@ import {
     MODEL_MAX_TOKENS,
     GOOGLE_MODELS,
     MISTRAL_MODELS,
+    MODAL_MODELS,
     type InitialModelPayload,
     type ModelConfig
 } from '@onlook/models';
 import { assertNever } from '@onlook/utility';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createMistral } from '@ai-sdk/mistral';
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import type { LanguageModel } from 'ai';
 
 export function initModel({
     provider: requestedProvider,
     model: incomingModel,
 }: InitialModelPayload): ModelConfig {
-    const requestedModel = incomingModel === 'mistral-small-4' 
+    const requestedModel = (incomingModel as string) === 'mistral-small-4' 
         ? MISTRAL_MODELS.MISTRAL_SMALL_2603 
         : incomingModel;
     let model: LanguageModel;
@@ -33,6 +35,9 @@ export function initModel({
             break;
         case LLMProvider.MISTRAL:
             model = getMistralProvider(requestedModel as MISTRAL_MODELS);
+            break;
+        case LLMProvider.MODAL:
+            model = getModalProvider(requestedModel as MODAL_MODELS);
             break;
         default:
             assertNever(requestedProvider);
@@ -60,4 +65,20 @@ function getMistralProvider(model: MISTRAL_MODELS): LanguageModel {
     }
     const mistral = createMistral({ apiKey: process.env.MISTRAL_API_KEY });
     return mistral(model);
+}
+
+function getModalProvider(model: MODAL_MODELS): LanguageModel {
+    const secret = process.env.MODAL_TOKEN_SECRET;
+    const id = process.env.MODAL_TOKEN_ID;
+    if (!secret || !id) {
+        throw new Error('MODAL_TOKEN_SECRET and MODAL_TOKEN_ID must be set');
+    }
+    const modalProvider = createOpenAICompatible({
+        name: 'modal',
+        baseURL: 'https://api.us-west-2.modal.direct/v1',
+        headers: {
+            Authorization: `Bearer ${secret}`,
+        },
+    });
+    return modalProvider.chatModel(model);
 }

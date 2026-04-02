@@ -1,5 +1,5 @@
 import type { ToolCall } from '@ai-sdk/provider-utils';
-import { ChatType, LLMProvider, GOOGLE_MODELS, type ChatMessage, type McpServerConfig, type ModelConfig } from '@onlook/models';
+import { ChatType, LLMProvider, GOOGLE_MODELS, MODAL_MODELS, type ChatMessage, type McpServerConfig, type ModelConfig } from '@onlook/models';
 import { NoSuchToolError, generateObject, smoothStream, stepCountIs, streamText, type ToolSet } from 'ai';
 import { convertToStreamMessages, getAskModeSystemPrompt, getCreatePageSystemPrompt, getSystemPrompt, getToolSetFromType, initModel } from '../index';
 import { McpClientManager } from '../mcp';
@@ -42,13 +42,15 @@ export const createRootAgentStream = async ({
     }
 
     const isGemma3 = chatModel?.model === GOOGLE_MODELS.GEMMA_3_27B;
+    const isGLM5 = chatModel?.model === MODAL_MODELS.GLM_5;
+    const disableTools = isGemma3 || isGLM5;
 
     return streamText({
         providerOptions: modelConfig.providerOptions,
         messages: await convertToStreamMessages(messages),
         model: modelConfig.model,
         system: systemPrompt,
-        tools: isGemma3 ? undefined : mergedTools,
+        tools: disableTools ? undefined : mergedTools,
         headers: modelConfig.headers,
         stopWhen: stepCountIs(20),
         experimental_repairToolCall: repairToolCall,
