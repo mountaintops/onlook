@@ -181,6 +181,54 @@ export class CodeProviderSync {
         this.fileHashes.clear();
     }
 
+    private gitignorePatterns: RegExp[] = [];
+
+    private async loadGitignore(): Promise<void> {
+        try {
+            const content = await this.fs.readFile('/.gitignore');
+            if (typeof content === 'string') {
+                this.gitignorePatterns = content
+                    .split('\n')
+                    .map(line => line.trim())
+                    .filter(line => line && !line.startsWith('#'))
+                    .map(pattern => {
+                        // Improved glob to regex conversion
+                        let p = pattern;
+                        const isDirectoryOnly = p.endsWith('/');
+                        if (isDirectoryOnly) p = p.slice(0, -1);
+
+                        let regexStr = p
+                            .replace(/\./g, '\\.')
+                            .replace(/\*\*/g, '(.+)')
+                            .replace(/\*/g, '[^/]+')
+                            .replace(/\?/g, '.');
+
+                        if (pattern.startsWith('/')) {
+                            regexStr = '^' + regexStr;
+                        } else {
+                            regexStr = '(^|/)' + regexStr;
+                        }
+
+                        if (isDirectoryOnly) {
+                            regexStr += '($|/)';
+                        } else {
+                            regexStr += '($|/|\\.)';
+                        }
+                        
+                        return new RegExp(regexStr);
+                    });
+            }
+        } catch (error) {
+            // .gitignore may not exist
+            this.gitignorePatterns = [];
+        }
+    }
+
+    private isIgnored(path: string): boolean {
+        const normalizedPath = path.startsWith('/') ? path : '/' + path;
+        return this.gitignorePatterns.some(pattern => pattern.test(normalizedPath));
+    }
+
     private async pullFromSandbox(): Promise<void> {
         const sandboxEntries = await this.getAllSandboxFiles('./');
         const sandboxEntriesSet = new Set(
@@ -691,10 +739,14 @@ export class CodeProviderSync {
 
     private contextUpdateTimeout: NodeJS.Timeout | null = null;
     private recentEditedPaths: string[] = [];
+    private readonly mainContextFiles = ['/package.json'];
 
     private trackRecentFile(path: string) {
         if (path === 'context.txt' || path === '/context.txt') return;
         const normalizedPath = path.startsWith('/') ? path : '/' + path;
+
+        // Don't track main context files in the recent list
+        if (this.mainContextFiles.includes(normalizedPath)) return;
         
         const index = this.recentEditedPaths.indexOf(normalizedPath);
         if (index > -1) {
@@ -703,8 +755,8 @@ export class CodeProviderSync {
         
         this.recentEditedPaths.unshift(normalizedPath);
         
-        if (this.recentEditedPaths.length > 4) {
-            this.recentEditedPaths = this.recentEditedPaths.slice(0, 4);
+        if (this.recentEditedPaths.length > 3) {
+            this.recentEditedPaths = this.recentEditedPaths.slice(0, 3);
         }
     }
 
@@ -728,16 +780,23 @@ export class CodeProviderSync {
     
     private async writeContextTxt(): Promise<void> {
         try {
+            await this.loadGitignore();
+
             // Very fast memory lookup instead of disk I/O
             const allFiles = Array.from(this.fileHashes.keys());
 
             const filteredPaths = allFiles.filter(p => {
-                const parts = p.split('/');
-                if (parts.some(part => part.startsWith('.'))) return false;
-                if (parts.some(part => ['node_modules', 'dist', 'build', 'coverage'].includes(part))) return false;
-                const fileName = parts[parts.length - 1];
-                if (!fileName) return false;
-                if (['bun.lock', 'package-lock.json', 'context.txt'].includes(fileName)) return false;
+                const normalizedPath = p.startsWith('/') ? p : '/' + p;
+                if (normalizedPath === '/context.txt') return false;
+                
+                // Respect .gitignore
+                if (this.isIgnored(normalizedPath)) return false;
+
+                // Also keep some essential hardcoded filters for safety
+                const parts = normalizedPath.split('/');
+                if (parts.some(part => part.startsWith('.') && part !== '.gitignore')) return false;
+                if (parts.some(part => ['node_modules', 'dist', 'build', 'coverage', '.turbo', '.next'].includes(part))) return false;
+                
                 return true;
             });
 
@@ -754,13 +813,18 @@ export class CodeProviderSync {
                 }
             }
 
-            // Write compact JSON: directory tree + list of recently-edited file paths.
-            // ChatContext reads this and auto-attaches the files as FileMessageContext
-            // (identical to "Add to Chat"), so no file contents need to live here.
-            const payload = JSON.stringify({ tree, files: this.recentEditedPaths }, null, 2);
+            // Combine main context files with recent files
+            const filesToInclude = [...new Set([...this.mainContextFiles, ...this.recentEditedPaths])];
+            
+            // Filter out files that don't exist anymore
+            const existingFiles = filesToInclude.filter(p => this.fileHashes.has(p) || this.fileHashes.has(p.substring(1)));
+
+            const payload = JSON.stringify({ tree, files: existingFiles }, null, 2);
 
             const hashed = await hashContent(payload);
-            if (this.fileHashes.get('/context.txt') !== hashed && this.fileHashes.get('context.txt') !== hashed) {
+            const currentHash = this.fileHashes.get('/context.txt') || this.fileHashes.get('context.txt');
+            
+            if (currentHash !== hashed) {
                 await this.fs.writeFile('/context.txt', payload);
                 this.fileHashes.set('/context.txt', hashed);
                 await this.provider.writeFile({

@@ -1,5 +1,5 @@
-import { api } from '@/trpc/server';
 import { trackEvent } from '@/utils/analytics/server';
+import { createClient as createTRPCClient } from '@/trpc/request-server';
 import { createRootAgentStream } from '@onlook/ai/src/server';
 import { toDbMessage } from '@onlook/db';
 import { ChatType, LLMProvider, type ChatMessage, type ChatMetadata } from '@onlook/models';
@@ -10,6 +10,46 @@ import { MODAL_GLM5_LOCK_KEY, tryAcquireLock, releaseLock } from './locks';
 
 export async function POST(req: NextRequest) {
     try {
+        const body = await req.json().catch(err => {
+            console.error('Failed to parse JSON body in /api/chat:', err);
+            return null;
+        });
+
+        if (!body) {
+            return new Response(JSON.stringify({
+                error: 'Invalid or missing JSON body',
+                code: 400,
+            }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        const { messages, chatType, conversationId, projectId, chatModel } = body as {
+            messages: ChatMessage[],
+            chatType: ChatType,
+            conversationId: string,
+            projectId: string,
+            chatModel?: any,
+        };
+
+        if (!projectId) {
+            console.error('Missing projectId in /api/chat request body. Detailed debug info:', {
+                method: req.method,
+                url: req.url,
+                headers: Object.fromEntries(req.headers.entries()),
+                bodyKeys: Object.keys(body),
+                bodyContent: JSON.stringify(body, null, 2),
+            });
+            return new Response(JSON.stringify({
+                error: 'Missing projectId in request body',
+                code: 400,
+            }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
         const user = await getSupabaseUser(req);
         if (!user) {
             return new Response(JSON.stringify({
@@ -20,6 +60,7 @@ export async function POST(req: NextRequest) {
                 headers: { 'Content-Type': 'application/json' }
             });
         }
+
         const usageCheckResult = await checkMessageLimit(req);
         if (usageCheckResult.exceeded) {
             trackEvent({
@@ -39,9 +80,9 @@ export async function POST(req: NextRequest) {
             });
         }
 
-        return streamResponse(req, user.id);
+        return streamResponse(req, user.id, body);
     } catch (error: unknown) {
-        console.error('Error in chat', error);
+        console.error('Error in chat route POST handler:', error);
         return new Response(JSON.stringify({
             error: error instanceof Error ? error.message : String(error),
             code: 500,
@@ -52,8 +93,7 @@ export async function POST(req: NextRequest) {
     }
 }
 
-export const streamResponse = async (req: NextRequest, userId: string) => {
-    const body = await req.json();
+export const streamResponse = async (req: NextRequest, userId: string, body: any) => {
     const { messages, chatType, conversationId, projectId, chatModel } = body as {
         messages: ChatMessage[],
         chatType: ChatType,
@@ -61,6 +101,7 @@ export const streamResponse = async (req: NextRequest, userId: string) => {
         projectId: string,
         chatModel?: any,
     };
+
     // Updating the usage record and rate limit is done here to avoid
     // abuse in the case where a single user sends many concurrent requests.
     // If the call below fails, the user will not be penalized.
@@ -78,6 +119,7 @@ export const streamResponse = async (req: NextRequest, userId: string) => {
         }
 
         // Fetch project settings to get MCP server configs
+        const { api } = await createTRPCClient(req);
         const projectSettingsData = await api.settings.get({ projectId });
         const mcpServers = projectSettingsData?.mcpServers ?? [];
 

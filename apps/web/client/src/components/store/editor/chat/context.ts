@@ -13,6 +13,8 @@ import { makeAutoObservable, reaction } from 'mobx';
 import { api } from '@/trpc/client';
 import { type EditorEngine } from '../engine';
 import { type FrameData } from '../frames';
+import { HARDCODED_AGENTS_MD } from './agents-guide';
+
 
 export class ChatContext {
     private _context: MessageContext[] = [];
@@ -392,7 +394,7 @@ export class ChatContext {
             )).filter((context) => context !== null);
 
             if (agentRuleContexts.length === 0) {
-                const generatedRules = await api.chat.suggestions.generateAgentRules.mutate();
+                const generatedRules = HARDCODED_AGENTS_MD;
                 if (generatedRules) {
                     const filePath = './agents.md';
                     await sandbox.writeFile(filePath, generatedRules);

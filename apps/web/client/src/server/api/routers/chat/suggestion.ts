@@ -1,4 +1,4 @@
-import { initModel, SUGGESTION_SYSTEM_PROMPT, AGENT_RULE_GENERATION_PROMPT } from '@onlook/ai';
+import { initModel, SUGGESTION_SYSTEM_PROMPT } from '@onlook/ai';
 import { conversations } from '@onlook/db';
 import type { ChatSuggestion } from '@onlook/models';
 import { LLMProvider, GOOGLE_MODELS, MISTRAL_MODELS } from '@onlook/models';
@@ -51,20 +51,5 @@ export const suggestionsRouter = createTRPCRouter({
                 console.error('Error updating conversation suggestions:', error);
             }
             return suggestions;
-        }),
-    generateAgentRules: protectedProcedure
-        .mutation(async () => {
-            const { model, headers } = initModel({
-                provider: LLMProvider.MISTRAL,
-                model: 'mistral-small-4' as any, // Cast to any to bypass strict enum check while adding it
-            });
-            const { text } = await generateText({
-                model,
-                headers,
-                system: AGENT_RULE_GENERATION_PROMPT,
-                prompt: 'Generate an agents.md file for this web project.',
-                maxOutputTokens: 2000,
-            });
-            return text;
         }),
 });

@@ -21,6 +21,14 @@ export const ChatTabContent = ({
         initialMessages,
     });
 
+    if (!projectId) {
+        return (
+            <div className="flex-1 flex items-center justify-center w-full h-full text-foreground-secondary">
+                <p>Loading project...</p>
+            </div>
+        );
+    }
+
     return (
         <div className="flex flex-col h-full justify-end gap-2 pt-2">
             <ChatMessages

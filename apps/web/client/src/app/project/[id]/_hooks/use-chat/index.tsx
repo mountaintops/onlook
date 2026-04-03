@@ -90,6 +90,10 @@ export function useChat({ conversationId, projectId, initialMessages }: UseChatP
 
     const processMessage = useCallback(
         async (content: string, type: ChatType, context?: MessageContext[]) => {
+            if (!projectId) {
+                console.error('Cannot process message: projectId is missing');
+                return;
+            }
             const messageContext = context || await editorEngine.chat.context.getContextByChatType(type);
             const newMessage = getUserChatMessageFromString(content, messageContext, conversationId);
             setMessages(jsonClone([...messagesRef.current, newMessage]));
@@ -122,6 +126,10 @@ export function useChat({ conversationId, projectId, initialMessages }: UseChatP
 
     const sendMessage: SendMessage = useCallback(
         async (content: string, type: ChatType) => {
+            if (!projectId) {
+                console.error('Cannot send message: projectId is missing');
+                return getUserChatMessageFromString(content, [], conversationId);
+            }
             posthog.capture('user_send_message', { type });
 
             const context = await editorEngine.chat.context.getContextByChatType(type);
