@@ -53,6 +53,7 @@ const editOnlyToolClasses = [
     SearchReplaceMultiEditFileTool,
     FuzzyEditFileTool,
     WriteFileTool,
+    WriteFilesFoldersTool,
     BashEditTool,
     SandboxTool,
     TerminalCommandTool,

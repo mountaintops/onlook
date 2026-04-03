@@ -41,6 +41,7 @@ export function useChat({ conversationId, projectId, initialMessages }: UseChatP
     const [isExecutingToolCall, setIsExecutingToolCall] = useState(false);
     const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
     const isProcessingQueue = useRef(false);
+    const requestCount = useRef(0);
 
     const { addToolResult, messages, error, stop, setMessages, regenerate, status } =
         useAiChat<ChatMessage>({
@@ -48,6 +49,10 @@ export function useChat({ conversationId, projectId, initialMessages }: UseChatP
             messages: initialMessages,
             sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
             api: '/api/chat',
+            fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+                requestCount.current += 1;
+                return window.fetch(input, init);
+            },
             body: {
                 conversationId,
                 projectId,
@@ -92,16 +97,17 @@ export function useChat({ conversationId, projectId, initialMessages }: UseChatP
         async (content: string, type: ChatType, context?: MessageContext[]) => {
             if (!projectId) {
                 console.error('Cannot process message: projectId is missing');
-                return;
+                return getUserChatMessageFromString(content, [], conversationId);
             }
             const messageContext = context || await editorEngine.chat.context.getContextByChatType(type);
             const newMessage = getUserChatMessageFromString(content, messageContext, conversationId);
             setMessages(jsonClone([...messagesRef.current, newMessage]));
 
             console.log(
-                `Chatting with AI model: ${editorEngine.state.chatModel?.displayName || `${editorEngine.state.chatModel?.provider} / ${editorEngine.state.chatModel?.model}`}`,
+                `Chatting with AI model: ${editorEngine.state.chatModel.provider} / ${editorEngine.state.chatModel.model}`,
             );
 
+            requestCount.current = 0;
             void regenerate({
                 body: {
                     chatType: type,
@@ -150,7 +156,7 @@ export function useChat({ conversationId, projectId, initialMessages }: UseChatP
                 setQueuedMessages(prev => [newMessage, ...prev]);
             } else {
                 // No queue and not streaming - send immediately
-                return processMessage(content, type);
+                return (await processMessage(content, type)) || getUserChatMessageFromString(content, [], conversationId);
             }
 
             return getUserChatMessageFromString(content, [], conversationId);
@@ -185,9 +191,10 @@ export function useChat({ conversationId, projectId, initialMessages }: UseChatP
             setMessages(jsonClone([...updatedMessages, message]));
 
             console.log(
-                `Chatting with AI model: ${editorEngine.state.chatModel?.displayName || `${editorEngine.state.chatModel?.provider} / ${editorEngine.state.chatModel?.model}`}`,
+                `Chatting with AI model: ${editorEngine.state.chatModel.provider} / ${editorEngine.state.chatModel.model}`,
             );
 
+            requestCount.current = 0;
             void regenerate({
                 body: {
                     chatType,
@@ -256,6 +263,7 @@ export function useChat({ conversationId, projectId, initialMessages }: UseChatP
         // Actions to handle when the chat is finished
         if (finishReason && finishReason !== 'tool-calls') {
             setFinishReason(null);
+            console.log(`fulfill task took ${requestCount.current} requests.`);
 
             const applyCommit = async () => {
                 const lastUserMessage = messagesRef.current.findLast((m) => m.role === 'user');

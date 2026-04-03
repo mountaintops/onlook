@@ -1,0 +1,42 @@
+
+> @onlook/web-client@0.1.0 typecheck
+> tsc --noEmit
+
+src/app/api/chat/route.ts(160,16): error TS2347: Untyped function calls may not accept type arguments.
+src/app/api/chat/route.ts(164,37): error TS7031: Binding element 'part' implicitly has an 'any' type.
+src/app/api/chat/route.ts(175,46): error TS7031: Binding element 'finalMessages' implicitly has an 'any' type.
+src/app/api/chat/route.ts(178,33): error TS7006: Parameter 'msg' implicitly has an 'any' type.
+src/app/api/chat/route.ts(181,30): error TS7006: Parameter 'msg' implicitly has an 'any' type.
+src/app/api/chat/route.ts(188,27): error TS7006: Parameter 'err' implicitly has an 'any' type.
+src/app/project/[id]/_components/canvas/frame/view.tsx(163,50): error TS2352: Conversion of type 'Theme | undefined' to type 'SystemTheme' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type 'Theme.System' is not comparable to type 'SystemTheme'.
+src/app/project/[id]/_components/left-panel/design-panel/windows-tab/device-settings.tsx(22,52): error TS18047: 'frameData' is possibly 'null'.
+src/app/project/[id]/_hooks/use-chat/index.tsx(51,13): error TS2353: Object literal may only specify known properties, and 'api' does not exist in type 'UseChatOptions<ChatMessage>'.
+src/app/project/[id]/_hooks/use-chat/index.tsx(52,27): error TS7006: Parameter 'input' implicitly has an 'any' type.
+src/app/project/[id]/_hooks/use-chat/index.tsx(52,34): error TS7006: Parameter 'init' implicitly has an 'any' type.
+src/app/project/[id]/_hooks/use-chat/index.tsx(107,74): error TS2339: Property 'displayName' does not exist on type 'InitialModelPayload'.
+  Property 'displayName' does not exist on type '{ provider: LLMProvider.GOOGLE; model: GOOGLE_MODELS; }'.
+src/app/project/[id]/_hooks/use-chat/index.tsx(194,74): error TS2339: Property 'displayName' does not exist on type 'InitialModelPayload'.
+  Property 'displayName' does not exist on type '{ provider: LLMProvider.GOOGLE; model: GOOGLE_MODELS; }'.
+src/components/store/editor/git/git.ts(401,62): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/components/store/editor/git/git.ts(408,53): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(value: string | number | Date): Date', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'string | number | Date'.
+      Type 'undefined' is not assignable to type 'string | number | Date'.
+  Overload 2 of 4, '(value: string | number): Date', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'string | number'.
+      Type 'undefined' is not assignable to type 'string | number'.
+src/components/store/editor/git/git.ts(419,21): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/components/store/editor/git/git.ts(422,25): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/server/api/routers/project/helper.ts(51,56): error TS2339: Property 'userProjects' does not exist on type '{ id: string; description: string | null; name: string; tags: string[] | null; createdAt: Date; updatedAt: Date; previewImgUrl: string | null; previewImgPath: string | null; ... 7 more ...; dnsTxtValue: string | null; }'.
+src/server/api/routers/user/user.ts(49,13): error TS2322: Type 'string | undefined' is not assignable to type 'string | null'.
+  Type 'undefined' is not assignable to type 'string | null'.
+src/trpc/request-server.ts(46,33): error TS2345: Argument of type '{ headers: Headers; db: PostgresJsDatabase<typeof import("/teamspace/studios/this_studio/test/onlook/packages/db/src/schema/index")> & { $client: postgres.Sql<{}>; }; supabase: SupabaseClient<...>; user: User | null; }' is not assignable to parameter of type '{ headers: Headers; db: PostgresJsDatabase<typeof import("/teamspace/studios/this_studio/test/onlook/packages/db/src/schema/index")> & { $client: Sql<...>; }; supabase: SupabaseClient<...>; user: User; } | (() => MaybePromise<...>)'.
+  Type '{ headers: Headers; db: PostgresJsDatabase<typeof import("/teamspace/studios/this_studio/test/onlook/packages/db/src/schema/index")> & { $client: postgres.Sql<{}>; }; supabase: SupabaseClient<...>; user: User | null; }' is not assignable to type '{ headers: Headers; db: PostgresJsDatabase<typeof import("/teamspace/studios/this_studio/test/onlook/packages/db/src/schema/index")> & { $client: postgres.Sql<{}>; }; supabase: SupabaseClient<...>; user: User; }'.
+    Types of property 'user' are incompatible.
+      Type 'User | null' is not assignable to type 'User'.
+        Type 'null' is not assignable to type 'User'.
+../../../packages/ai/src/agents/root.ts(123,13): error TS2353: Object literal may only specify known properties, and 'maxTokens' does not exist in type 'CallSettings & { system?: string | SystemModelMessage | SystemModelMessage[] | undefined; } & { prompt: string | ModelMessage[]; messages?: undefined; } & { ...; }'.

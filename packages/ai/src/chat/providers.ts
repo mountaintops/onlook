@@ -1,6 +1,6 @@
 import {
     LLMProvider,
-    MODEL_MAX_TOKENS,
+    MODEL_MAX_OUTPUT_TOKENS,
     GOOGLE_MODELS,
     MISTRAL_MODELS,
     MODAL_MODELS,
@@ -23,7 +23,7 @@ export function initModel({
     let model: LanguageModel;
     let providerOptions: Record<string, any> | undefined;
     let headers: Record<string, string> | undefined;
-    let maxOutputTokens: number = MODEL_MAX_TOKENS[requestedModel];
+    let maxOutputTokens: number = MODEL_MAX_OUTPUT_TOKENS[requestedModel as keyof typeof MODEL_MAX_OUTPUT_TOKENS];
 
     switch (requestedProvider) {
         case LLMProvider.GOOGLE:

@@ -19,3 +19,4 @@ export { TypecheckTool } from './typecheck';
 export { UploadImageTool } from './upload-image';
 export { WebSearchTool } from './web-search';
 export { WriteFileTool } from './write-file';
+export { WriteFilesFoldersTool } from './write-files-folders';
