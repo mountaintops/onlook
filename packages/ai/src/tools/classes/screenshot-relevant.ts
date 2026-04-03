@@ -2,51 +2,67 @@ import { Icons } from '@onlook/ui/icons';
 import type { EditorEngine } from '@onlook/web-client/src/components/store/editor/engine';
 import { z } from 'zod';
 import { ClientTool } from '../models/client';
+import { BRANCH_ID_SCHEMA } from '../shared/type';
+import { UploaderTool } from './uploader';
 
 export class ScreenshotRelevantTool extends ClientTool {
     static readonly toolName = 'screenshot_relevant';
     static readonly description = 'Take screenshots of all pages that were edited or created in this conversation. If a component was edited, this will screenshot the page(s) that include it.';
-    static readonly parameters = z.object({});
+    static readonly parameters = z.object({
+        branchId: BRANCH_ID_SCHEMA,
+    });
     static readonly icon = Icons.Image;
 
     async handle(
         args: z.infer<typeof ScreenshotRelevantTool.parameters>,
         editorEngine: EditorEngine,
     ): Promise<{
-        screenshots: { url: string; base64: string }[];
         success: boolean;
         error: string | null;
+        message?: string;
     }> {
         try {
             const modifiedPaths = await this.getModifiedPaths(editorEngine);
             if (modifiedPaths.size === 0) {
-                return { screenshots: [], success: true, error: 'No modified files found in recent history.' };
+                return { success: true, error: 'No modified files found in recent history.' };
             }
 
             const relevantUrls = await this.getRelevantUrls(modifiedPaths, editorEngine);
             if (relevantUrls.size === 0) {
-                return { screenshots: [], success: true, error: 'Could not determine relevant URLs for modified files.' };
+                return { success: true, error: 'Could not determine relevant URLs for modified files.' };
             }
 
-            const screenshots: { url: string; base64: string }[] = [];
+            const uploadedMessages: string[] = [];
+            const uploader = new UploaderTool();
+
             for (const url of relevantUrls) {
                 try {
                     const { base64 } = await editorEngine.api.screenshot(url);
-                    screenshots.push({ url, base64 });
+                    let displayName = 'Screenshot';
+                    try {
+                        const parsedUrl = new URL(url);
+                        displayName = `Screenshot of ${parsedUrl.pathname}`;
+                    } catch (e) {
+                    }
+                    const msg = await uploader.handle({
+                        base64,
+                        displayName,
+                        branchId: args.branchId,
+                    }, editorEngine);
+                    uploadedMessages.push(msg);
                 } catch (e) {
                     console.error(`Failed to screenshot ${url}:`, e);
                 }
             }
 
             return {
-                screenshots,
                 success: true,
-                error: screenshots.length === 0 ? 'Failed to capture any screenshots' : null,
+                error: uploadedMessages.length === 0 ? 'Failed to capture any screenshots' : null,
+                message: uploadedMessages.join('\n'),
             };
         } catch (error: any) {
             console.error('Screenshot relevant failed:', error);
             return {
-                screenshots: [],
                 success: false,
                 error: error.message || 'Failed to capture relevant screenshots',
             };
@@ -110,9 +126,9 @@ export class ScreenshotRelevantTool extends ClientTool {
         const match = path.match(/src\/app\/(.*)\/page\.tsx$/);
         if (match) {
             const route = match[1];
-            if (route === '.') return '/';
+            if (!route || route === '.') return '/';
             // Remove route groups like (auth)
-            return '/' + route.split('/').filter(s => !s.startsWith('(') || !s.endsWith(')')).join('/');
+            return '/' + route.split('/').filter(s => !s.startsWith('(') && !s.endsWith(')')).join('/');
         }
         // Root page
         if (path.endsWith('src/app/page.tsx')) return '/';

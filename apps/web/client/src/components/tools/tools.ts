@@ -7,11 +7,11 @@ import { toast } from '@onlook/ui/sonner';
 export async function handleToolCall(toolCall: ToolCall<string, unknown>, editorEngine: EditorEngine, addToolResult: (toolResult: { tool: string, toolCallId: string, output?: any, errorText?: string }) => Promise<void>) {
     const toolName = toolCall.toolName;
     const currentChatMode = editorEngine.state.chatMode;
-    const availableTools = getToolClassesFromType(currentChatMode);
     let output: unknown = null;
     let errorText: string | undefined = undefined;
 
     try {
+        const availableTools = getToolClassesFromType(currentChatMode);
         const tool = availableTools.find(tool => tool.toolName === toolName);
         if (!tool) {
             // Check if it's a built-in tool that's just disabled in this mode
@@ -24,12 +24,10 @@ export async function handleToolCall(toolCall: ToolCall<string, unknown>, editor
                     duration: 2000,
                 });
                 errorText = `Tool "${toolName}" is not available in ${currentChatMode} mode`;
-                throw new Error(errorText);
+            } else {
+                errorText = `Tool "${toolName}" not found on client.`;
             }
-
-            // If it's not a built-in tool, it's likely an MCP tool or unknown. 
-            // We should not error here as they are handled by the server.
-            return;
+            throw new Error(errorText);
         }
         // Parse the input to the tool parameters. Throws if invalid.
         const validatedInput = tool.parameters.parse(toolCall.input);

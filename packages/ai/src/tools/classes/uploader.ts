@@ -12,7 +12,7 @@ import { BRANCH_ID_SCHEMA } from '../shared/type';
 export class UploaderTool extends ClientTool {
     static readonly toolName = 'uploader';
     static readonly description =
-        'Uploads a base64 encoded image to the project and makes it available in the conversation. Use this when you have image data (like a screenshot or a generated image) that you want to add to the project. The image will be stored in the project filesystem and also added to the <available-images> list in the chat context.';
+        'Uploads a base64 encoded image to the project and makes it available in the conversation. Use this ONLY for NEW images provided by the user. Do not use this for screenshots, as screenshot tools automatically upload their results. Warning: Passing very large base64 strings can cause internal errors, so use this sparingly and only when necessary.';
     static readonly parameters = z.object({
         base64: z.string().describe('The base64 encoded image data (with or without data URL prefix)'),
         displayName: z.string().optional().describe('A descriptive name for the image'),

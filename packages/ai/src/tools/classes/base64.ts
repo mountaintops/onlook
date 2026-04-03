@@ -9,7 +9,7 @@ import { UploaderTool } from './uploader';
 export class Base64Tool extends ClientTool {
     static readonly toolName = 'base64';
     static readonly description =
-        'Decodes a base64 string to text or uploads it as an image to the <available-images> list in the chat context using the uploader logic. Use action="decode" for text strings and action="upload" for image data.';
+        'Decodes a base64 string to text or uploads it as an image. Use action="decode" for text strings. Use action="upload" for image data ONLY if it is a new image. Do not use for screenshots. Warning: Passing very large base64 strings can cause internal errors.';
     static readonly parameters = z.object({
         data: z.string().describe('The base64 encoded string'),
         action: z.enum(['decode', 'upload']).describe('Whether to decode as text or upload as an image'),

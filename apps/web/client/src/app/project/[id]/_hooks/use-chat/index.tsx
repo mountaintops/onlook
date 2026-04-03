@@ -73,9 +73,13 @@ export function useChat({ conversationId, projectId, initialMessages }: UseChatP
                         state: result.errorText ? 'output-error' : 'output-available',
                     } as any);
                 };
-                void handleToolCall(toolCall, editorEngine, addResult).then(() => {
+                void handleToolCall(toolCall, editorEngine, addResult).finally(() => {
                     setIsExecutingToolCall(false);
                 });
+            },
+            onError: (err) => {
+                console.error("Chat error:", err);
+                setIsExecutingToolCall(false);
             },
             onFinish: ({ message }) => {
                 const finishReason = message.metadata?.finishReason;
