@@ -144,3 +144,11 @@ Actionable rules for repo agents—keep diffs minimal, safe, token‑efficient.
 - Refrain from running the dev server
 - DO NOT run `db:gen`. This is reserved for the maintainer.
 - DO NOT use any type unless necessary
+
+### AI Tools
+
+The following tools are available for AI agents to interact with the repository:
+
+- **uploader**: Uploads a base64 encoded image to the project's filesystem (defaulting to `public/images`) and adds it to the `<available-images>` list in the chat context. Use this for new images generated or found during the session.
+- **base64**: A multi-purpose tool that can decode base64 strings to text (action="decode") or upload them as images using the uploader logic (action="upload").
+- **upload_image**: Saves an image from the `<available-images>` list (external source) to a permanent location in the project's filesystem.

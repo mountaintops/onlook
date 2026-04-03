@@ -1,0 +1,48 @@
+import { Icons } from '@onlook/ui/icons';
+import type { EditorEngine } from '@onlook/web-client/src/components/store/editor/engine';
+import { z } from 'zod';
+
+import { ClientTool } from '../models/client';
+import { BRANCH_ID_SCHEMA } from '../shared/type';
+import { UploaderTool } from './uploader';
+
+export class Base64Tool extends ClientTool {
+    static readonly toolName = 'base64';
+    static readonly description =
+        'Decodes a base64 string to text or uploads it as an image to the <available-images> list in the chat context using the uploader logic. Use action="decode" for text strings and action="upload" for image data.';
+    static readonly parameters = z.object({
+        data: z.string().describe('The base64 encoded string'),
+        action: z.enum(['decode', 'upload']).describe('Whether to decode as text or upload as an image'),
+        displayName: z.string().optional().describe('Display name if uploading as an image'),
+        branchId: BRANCH_ID_SCHEMA,
+    });
+    static readonly icon = Icons.Layers;
+
+    async handle(
+        args: z.infer<typeof Base64Tool.parameters>,
+        editorEngine: EditorEngine,
+    ): Promise<string> {
+        try {
+            const { data, action, displayName, branchId } = args;
+
+            if (action === 'decode') {
+                const decoded = atob(data);
+                return `Decoded text:\n${decoded}`;
+            } else {
+                // Reuse UploaderTool logic
+                const uploader = new UploaderTool();
+                return await uploader.handle({
+                    base64: data,
+                    displayName,
+                    branchId,
+                }, editorEngine) as string;
+            }
+        } catch (error) {
+            throw new Error(`Base64 operation failed: ${error}`);
+        }
+    }
+
+    static getLabel(input?: z.infer<typeof Base64Tool.parameters>): string {
+        return input?.action === 'decode' ? 'Decoding base64 text' : 'Processing base64 image';
+    }
+}

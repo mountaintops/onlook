@@ -22,9 +22,11 @@ import {
     TerminalCommandTool,
     TypecheckTool,
     UploadImageTool,
+    UploaderTool,
     WebSearchTool,
     WriteFileTool,
     WriteFilesFoldersTool,
+    Base64Tool,
 } from './classes';
 import type { BaseTool } from './models/base';
 
@@ -63,6 +65,8 @@ const editOnlyToolClasses = [
     SandboxTool,
     TerminalCommandTool,
     UploadImageTool,
+    Base64Tool,
+    UploaderTool,
 ];
 const allToolClasses = [...readOnlyToolClasses, ...editOnlyToolClasses];
 
