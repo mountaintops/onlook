@@ -388,9 +388,9 @@ export class GitManager {
 
 
                 // The first 3 non-empty lines are always hash, author, date
-                const hash = headerLines[0];
-                const authorLine = headerLines[1];
-                const dateLine = headerLines[2];
+                const hash = headerLines[0] || '';
+                const authorLine = headerLines[1] || '';
+                const dateLine = headerLines[2] || '';
 
                 // Message starts after the date. We find the date in rawLines and take everything after.
                 const dateIndex = rawLines.findIndex(l => l.trim() === dateLine);
@@ -405,7 +405,7 @@ export class GitManager {
                 // Parse date to timestamp
                 let timestamp: number;
                 try {
-                    timestamp = Math.floor(new Date(dateLine).getTime() / 1000);
+                    timestamp = Math.floor(new Date(dateLine || Date.now()).getTime() / 1000);
                     if (isNaN(timestamp) || timestamp < 0) {
                         timestamp = Math.floor(Date.now() / 1000);
                     }

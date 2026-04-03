@@ -48,25 +48,32 @@ export function useChat({ conversationId, projectId, initialMessages }: UseChatP
             id: 'user-chat',
             messages: initialMessages,
             sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
-            api: '/api/chat',
-            fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
-                requestCount.current += 1;
-                return window.fetch(input, init);
-            },
-            body: {
-                conversationId,
-                projectId,
-                get chatModel() {
-                    return editorEngine.state.chatModel;
+            transport: new DefaultChatTransport({
+                api: '/api/chat',
+                fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
+                    requestCount.current += 1;
+                    return window.fetch(input, init);
+                }) as any,
+                body: {
+                    conversationId,
+                    projectId,
+                    get chatModel() {
+                        return editorEngine.state.chatModel;
+                    },
+                    get chatType() {
+                        return editorEngine.state.chatMode;
+                    }
                 },
-                get chatType() {
-                    return editorEngine.state.chatMode;
-                }
-            },
-            onToolCall: async (toolCall) => {
+            }),
+            onToolCall: async ({ toolCall }) => {
                 setIsExecutingToolCall(true);
-                const addResult = async (result: any) => { addToolResult(result); };
-                void handleToolCall(toolCall.toolCall, editorEngine, addResult).then(() => {
+                const addResult = async (result: { tool: string, toolCallId: string, output?: any, errorText?: string }) => {
+                    addToolResult({
+                        ...result,
+                        state: result.errorText ? 'output-error' : 'output-available',
+                    } as any);
+                };
+                void handleToolCall(toolCall, editorEngine, addResult).then(() => {
                     setIsExecutingToolCall(false);
                 });
             },

@@ -48,7 +48,7 @@ export async function verifyProjectAccess(
         }),
     });
 
-    if (!project || (userId !== 'demo-user' && project.userProjects.length === 0)) {
+    if (!project || (userId !== 'demo-user' && (!('userProjects' in project) || (project.userProjects as any[]).length === 0))) {
         throw new Error('Unauthorized or not found');
     }
 }

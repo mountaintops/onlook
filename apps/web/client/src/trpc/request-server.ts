@@ -4,6 +4,7 @@ import { createClient as createSupabaseClient } from '@/utils/supabase/request-s
 import { db } from '@onlook/db/src/client';
 import { createHydrationHelpers } from '@trpc/react-query/rsc';
 import { TRPCError } from '@trpc/server';
+import { type User } from '@supabase/supabase-js';
 import type { NextRequest } from 'next/server';
 import { cache } from 'react';
 import { createCaller, type AppRouter } from '~/server/api/root';
@@ -20,10 +21,22 @@ export const createTRPCContext = async (req: NextRequest, opts: { headers: Heade
         throw new TRPCError({ code: 'UNAUTHORIZED', message: error.message });
     }
 
+    // Mock "demo user" if not authenticated
+    const finalUser = user ?? {
+        id: 'demo-user',
+        email: 'demo@onlook.com',
+        app_metadata: {},
+        user_metadata: {
+            full_name: 'Demo User',
+        },
+        aud: 'authenticated',
+        created_at: new Date().toISOString(),
+    } as User;
+
     return {
         db,
         supabase,
-        user,
+        user: finalUser,
         ...opts,
     };
 };

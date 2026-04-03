@@ -1,3 +1,4 @@
+import { createUIMessageStreamResponse } from 'ai';
 import { trackEvent } from '@/utils/analytics/server';
 import { createClient as createTRPCClient } from '@/trpc/request-server';
 import { createRootAgentStream } from '@onlook/ai/src/server';
@@ -102,9 +103,6 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
         chatModel?: any,
     };
 
-    // Updating the usage record and rate limit is done here to avoid
-    // abuse in the case where a single user sends many concurrent requests.
-    // If the call below fails, the user will not be penalized.
     let usageRecord: {
         usageRecordId: string | undefined;
         rateLimitId: string | undefined;
@@ -118,12 +116,10 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
             usageRecord = await incrementUsage(req, traceId);
         }
 
-        // Fetch project settings to get MCP server configs
         const { api } = await createTRPCClient(req);
         const projectSettingsData = await api.settings.get({ projectId });
         const mcpServers = projectSettingsData?.mcpServers ?? [];
 
-        // GLM-5 (Modal AI) only supports 1 concurrent request — enforce with a lightweight lock
         const isGLM5 = chatModel?.provider === LLMProvider.MODAL;
         if (isGLM5) {
             if (!tryAcquireLock(MODAL_GLM5_LOCK_KEY)) {
@@ -157,43 +153,41 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
             throw err;
         }
 
-        return stream.toUIMessageStreamResponse<ChatMessage>(
-            {
-                originalMessages: messages,
-                generateMessageId: () => uuidv4(),
-                messageMetadata: ({ part }) => {
-                    return {
-                        createdAt: new Date(),
-                        conversationId,
-                        context: [],
-                        checkpoints: [],
-                        finishReason: part.type === 'finish-step' ? part.finishReason : undefined,
-                        usage: part.type === 'finish-step' ? part.usage : undefined,
-                        chatModel: selectedModel,
-                    } satisfies ChatMetadata;
-                },
-                onFinish: async ({ messages: finalMessages }) => {
-                    if (isGLM5) releaseLock(MODAL_GLM5_LOCK_KEY);
-                    const messagesToStore = finalMessages
-                        .filter(msg =>
-                            (msg.role === 'user' || msg.role === 'assistant')
-                        )
-                        .map(msg => toDbMessage(msg, conversationId));
+        return stream.toUIMessageStreamResponse({
+            originalMessages: messages,
+            generateMessageId: () => uuidv4(),
+            messageMetadata: (options: any) => {
+                const part = options.part;
+                return {
+                    createdAt: new Date(),
+                    conversationId,
+                    context: [],
+                    checkpoints: [],
+                    finishReason: part.type === 'finish-step' ? part.finishReason : undefined,
+                    usage: part.type === 'finish-step' ? part.usage : undefined,
+                    chatModel: selectedModel,
+                } satisfies ChatMetadata;
+            },
+            onFinish: async ({ messages: finalMessages }: { messages: ChatMessage[] }) => {
+                if (isGLM5) releaseLock(MODAL_GLM5_LOCK_KEY);
+                const messagesToStore = finalMessages
+                    .filter(msg =>
+                        (msg.role === 'user' || msg.role === 'assistant')
+                    )
+                    .map(msg => toDbMessage(msg, conversationId));
 
-                    await api.chat.message.replaceConversationMessages({
-                        conversationId,
-                        messages: messagesToStore,
-                    });
-                },
-                onError: (err) => {
-                    if (isGLM5) releaseLock(MODAL_GLM5_LOCK_KEY);
-                    return errorHandler(err);
-                },
-            }
-        );
+                await api.chat.message.replaceConversationMessages({
+                    conversationId,
+                    messages: messagesToStore,
+                });
+            },
+            onError: (err: any) => {
+                if (isGLM5) releaseLock(MODAL_GLM5_LOCK_KEY);
+                return errorHandler(err);
+            },
+        });
     } catch (error) {
         console.error('Error in streamResponse setup', error);
-        // If there was an error setting up the stream and we incremented usage, revert it
         if (usageRecord) {
             await decrementUsage(req, usageRecord);
         }

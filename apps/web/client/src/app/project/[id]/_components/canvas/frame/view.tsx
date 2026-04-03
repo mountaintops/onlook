@@ -160,7 +160,7 @@ export const FrameComponent = observer(
 
                             // Delay initial theme application to avoid hydration mismatch
                             setTimeout(() => {
-                                remote.setTheme((frame.theme as SystemTheme) || SystemTheme.SYSTEM);
+                                remote.setTheme((frame.theme as unknown as SystemTheme) || SystemTheme.SYSTEM);
                             }, 500);
 
                             // Notify parent of successful connection

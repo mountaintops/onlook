@@ -1,6 +1,6 @@
 import type { ToolCall } from '@ai-sdk/provider-utils';
 import { ChatType, LLMProvider, GOOGLE_MODELS, MISTRAL_MODELS, MODAL_MODELS, type ChatMessage, type McpServerConfig, type ModelConfig, type InitialModelPayload } from '@onlook/models';
-import { NoSuchToolError, generateObject, generateText, smoothStream, stepCountIs, streamText, type ToolSet } from 'ai';
+import { NoSuchToolError, generateObject, generateText, smoothStream, stepCountIs, streamText, type ToolSet, type StreamTextResult } from 'ai';
 import { convertToStreamMessages, getArchitectModeClassificationPrompt, getAskModeSystemPrompt, getCreatePageSystemPrompt, getSystemPrompt, getToolSetFromType, initModel } from '../index';
 import { McpClientManager } from '../mcp';
 
@@ -120,7 +120,7 @@ const runArchitectMode = async (messages: ChatMessage[]) => {
 
         const { text: complexity } = await generateText({
             model: classificationModel.model,
-            maxTokens: 5,
+            maxOutputTokens: 5,
             prompt: getArchitectModeClassificationPrompt(content),
         });
 
@@ -198,7 +198,7 @@ export const createRootAgentStream = async ({
     const isGLM5 = finalChatModel?.model === MODAL_MODELS.GLM_5;
     const disableTools = isGemma3;
 
-    const runStream = async (config: ModelConfig, attempt: number = 0): Promise<any> => {
+    const runStream = async (config: ModelConfig, attempt: number = 0): Promise<StreamTextResult<any, any>> => {
         try {
             return streamText({
                 providerOptions: config.providerOptions,

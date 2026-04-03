@@ -19,6 +19,7 @@ export const DeviceSettings = observer(function DeviceSettings({ frameId }: { fr
     const theme = (frameData.frame.theme as unknown as SystemTheme) || SystemTheme.SYSTEM;
 
     async function changeTheme(newTheme: SystemTheme) {
+        if (!frameData) return;
         editorEngine.frames.updateAndSaveToStorage(frameData.frame.id, { theme: newTheme as unknown as Theme });
         await frameData?.view?.setTheme(newTheme);
     }

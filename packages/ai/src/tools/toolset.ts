@@ -22,6 +22,7 @@ import {
     UploadImageTool,
     WebSearchTool,
     WriteFileTool,
+    WriteFilesFoldersTool,
 } from './classes';
 import type { BaseTool } from './models/base';
 
