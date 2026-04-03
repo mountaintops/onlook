@@ -48,7 +48,7 @@ export const ChatHistory = observer(({ isOpen, onOpenChange }: ChatHistoryProps)
     });
 
     return (
-        <Popover open={isOpen} onOpenChange={handlePopoverOpenChange}>
+        <Popover open={isOpen} onOpenChange={handlePopoverOpenChange} modal={false}>
             <PopoverAnchor className="absolute -left-2 top-0" />
             <PopoverContent side="left" align="start" className="rounded-xl p-0">
                 <div className="flex flex-col select-none">
@@ -80,11 +80,12 @@ export const ChatHistory = observer(({ isOpen, onOpenChange }: ChatHistoryProps)
                                                     'bg-background-onlook text-primary font-semibold',
                                                 )}
                                                 key={conversation.id}
-                                                onClick={() =>
+                                                onClick={() => {
                                                     editorEngine.chat.conversation.selectConversation(
                                                         conversation.id,
-                                                    )
-                                                }
+                                                    );
+                                                    onOpenChange(false);
+                                                }}
                                             >
                                                 <Icons.ChatBubble className="flex-none mx-2" />
                                                 <span className="text-xs truncate w-80 text-left">

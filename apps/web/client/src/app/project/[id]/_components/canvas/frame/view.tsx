@@ -335,7 +335,16 @@ export const FrameComponent = observer(
                                 // Prefer the signed URL if available from the session, as it bypasses the security gateway
                                 const sandbox = editorEngine.branches.getSandboxById(frame.branchId);
                                 if (sandbox?.session.signedPreviewUrl) {
-                                    return sandbox.session.signedPreviewUrl;
+                                    try {
+                                        const originalUrl = new URL(frame.url);
+                                        const signedUrl = new URL(sandbox.session.signedPreviewUrl);
+                                        signedUrl.pathname = originalUrl.pathname;
+                                        signedUrl.search = originalUrl.search;
+                                        signedUrl.hash = originalUrl.hash;
+                                        return signedUrl.toString();
+                                    } catch (e) {
+                                        return sandbox.session.signedPreviewUrl;
+                                    }
                                 }
 
                                 try {
