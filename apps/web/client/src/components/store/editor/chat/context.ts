@@ -19,6 +19,7 @@ import { HARDCODED_AGENTS_MD } from './agents-guide';
 export class ChatContext {
     private _context: MessageContext[] = [];
     private selectedReactionDisposer?: () => void;
+    private previousContextFilePaths: string[] = [];
 
     constructor(private editorEngine: EditorEngine) {
         makeAutoObservable(this);
@@ -26,11 +27,7 @@ export class ChatContext {
 
     init() {
         // Seed context.txt immediately so the pill shows before any element is selected
-        void this.getContextFromContextFile().then((contextFileContext) => {
-            if (contextFileContext.length > 0) {
-                this.addContexts(contextFileContext);
-            }
-        });
+        void this.syncContextFile();
 
         this.selectedReactionDisposer = reaction(
             () => ({
@@ -116,6 +113,8 @@ export class ChatContext {
     }
 
     async getChatEditContext(): Promise<MessageContext[]> {
+        await this.syncContextFile();
+
         return [
             ...await this.getRefreshedContext(this.context),
             ...await this.getAgentRuleContext(),
@@ -191,6 +190,30 @@ export class ChatContext {
         }
     }
 
+    async syncContextFile(): Promise<void> {
+        const newContextFiles = await this.getContextFromContextFile();
+        const newPaths = new Set(newContextFiles.map(c => c.path));
+        
+        // Identify files that were in the previous sync but are NO LONGER in the new sync
+        const pathsToRemove = this.previousContextFilePaths.filter(path => !newPaths.has(path));
+        
+        // Remove them from this._context
+        this.context = this.context.filter(c => {
+            if (c.type === MessageContextType.FILE && 'path' in c && pathsToRemove.includes(c.path)) {
+                return false;
+            }
+            return true;
+        });
+        
+        // Update the tracked paths
+        this.previousContextFilePaths = Array.from(newPaths);
+        
+        // Add the new contexts
+        if (newContextFiles.length > 0) {
+            this.addContexts(newContextFiles);
+        }
+    }
+
     private async generateContextFromReaction({ elements, frames }: { elements: DomElement[], frames: FrameData[] }): Promise<MessageContext[]> {
         let highlightedContext: HighlightMessageContext[] = [];
         if (elements.length) {
@@ -202,6 +225,7 @@ export class ChatContext {
         const branchContext = this.getBranchContext(highlightedContext, frames);
         // Always include context.txt + recently-edited files so they show as pills
         const contextFileContext = await this.getContextFromContextFile();
+        this.previousContextFilePaths = contextFileContext.map(c => c.path);
         const context = [...contextFileContext, ...fileContext, ...highlightedContext, ...branchContext];
         return context;
     }
@@ -540,5 +564,6 @@ export class ChatContext {
         this.selectedReactionDisposer?.();
         this.selectedReactionDisposer = undefined;
         this.context = [];
+        this.previousContextFilePaths = [];
     }
 }

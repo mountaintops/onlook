@@ -121,7 +121,7 @@ export function getHydratedUserMessage(
     } else {
         const contextPrompt = FileContext.getFilesContent(files, highlights);
         if (contextPrompt) {
-            prompt += wrapXml('context', contextPrompt);
+            prompt += contextPrompt + '\n';
         }
     }
 

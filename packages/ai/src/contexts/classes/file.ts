@@ -36,8 +36,6 @@ If relevant, feel free to retrieve their content.`;
             return '';
         }
         let prompt = '';
-        prompt += `${FileContext.filesContentPrefix}\n`;
-        let index = 1;
         for (const file of files) {
             let filePrompt = FileContext.getPrompt(file);
             // Add highlights for this file
@@ -46,9 +44,7 @@ If relevant, feel free to retrieve their content.`;
                 filePrompt += highlightContent;
             }
 
-            filePrompt = wrapXml(files.length > 1 ? `file-${index}` : 'file', filePrompt);
-            prompt += filePrompt;
-            index++;
+            prompt += wrapXml('context', filePrompt) + '\n';
         }
 
         return prompt;

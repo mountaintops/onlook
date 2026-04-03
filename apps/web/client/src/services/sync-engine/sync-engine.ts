@@ -739,7 +739,12 @@ export class CodeProviderSync {
 
     private contextUpdateTimeout: NodeJS.Timeout | null = null;
     private recentEditedPaths: string[] = [];
-    private readonly mainContextFiles = ['/package.json'];
+    private readonly mainContextFiles = [
+        '/package.json',
+        '/src/app/page.tsx',
+        '/src/app/layout.tsx',
+        '/agents.md'
+    ];
 
     private trackRecentFile(path: string) {
         if (path === 'context.txt' || path === '/context.txt') return;
