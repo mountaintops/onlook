@@ -5,10 +5,11 @@ import { convertToStreamMessages, getArchitectModeClassificationPrompt, getAskMo
 import { McpClientManager } from '../mcp';
 
 const ARCHITECT_FALLBACK_MODELS = [
+    { provider: LLMProvider.GOOGLE, model: GOOGLE_MODELS.GEMMA_4_26B },
     { provider: LLMProvider.MISTRAL, model: MISTRAL_MODELS.DEVSTRAL_2512 },
     { provider: LLMProvider.MISTRAL, model: MISTRAL_MODELS.MISTRAL_LARGE_2512 },
+    { provider: LLMProvider.GOOGLE, model: GOOGLE_MODELS.GEMMA_4_31B },
     { provider: LLMProvider.GOOGLE, model: GOOGLE_MODELS.GEMINI_3_FLASH },
-    { provider: LLMProvider.GOOGLE, model: GOOGLE_MODELS.GEMINI_3_1_FLASH_LITE_PREVIEW },
 ] as const;
 
 const getSystemPromptFromType = (chatType: ChatType): string => {
@@ -37,14 +38,14 @@ const getModelFromType = (chatType: ChatType, chatModel?: any): ModelConfig => {
         case ChatType.FIX:
             return initModel({
                 provider: LLMProvider.GOOGLE,
-                model: GOOGLE_MODELS.GEMINI_3_1_FLASH_LITE_PREVIEW,
+                model: GOOGLE_MODELS.GEMMA_4_31B,
             } as InitialModelPayload);
         case ChatType.ASK:
         case ChatType.EDIT:
         default:
             return initModel({
                 provider: LLMProvider.GOOGLE,
-                model: GOOGLE_MODELS.GEMINI_3_1_FLASH_LITE_PREVIEW,
+                model: GOOGLE_MODELS.GEMMA_4_31B,
             } as InitialModelPayload);
     }
 };
@@ -66,7 +67,7 @@ export const repairToolCall = async ({ toolCall, tools, error }: { toolCall: Too
 
     const { model } = initModel({
         provider: LLMProvider.GOOGLE,
-        model: GOOGLE_MODELS.GEMINI_3_1_FLASH_LITE_PREVIEW,
+        model: GOOGLE_MODELS.GEMMA_4_31B,
     } as InitialModelPayload);
 
     const { object: repairedArgs } = await generateObject({
@@ -97,8 +98,14 @@ const runArchitectMode = async (messages: ChatMessage[]) => {
         .map((p) => p.text)
         .join('\n') || '';
 
-    // Heuristic: Very short prompts are almost certainly "small"
-    if (content.length < 20) {
+    const contentLower = content.toLowerCase();
+    const toolKeywords = [
+        'folder', 'directory', 'mkdir', 'bash', 'terminal', 'command', 'mcp', 'run', 'shell', 'npm',
+        'git', 'install', 'update', 'build', 'deploy', 'script', 'system', 'process', 'env',
+    ];
+
+    // Heuristic: Very short prompts or tool-related keywords favor devstral
+    if (content.length < 20 || toolKeywords.some((keyword) => contentLower.includes(keyword))) {
         return {
             provider: LLMProvider.MISTRAL,
             model: MISTRAL_MODELS.DEVSTRAL_2512,
@@ -119,7 +126,7 @@ const runArchitectMode = async (messages: ChatMessage[]) => {
 
         const complexityLower = complexity.trim().toLowerCase();
 
-        if (complexityLower.includes('small')) {
+        if (complexityLower.includes('small') || complexityLower.includes('tools')) {
             return {
                 provider: LLMProvider.MISTRAL,
                 model: MISTRAL_MODELS.DEVSTRAL_2512,
@@ -127,7 +134,7 @@ const runArchitectMode = async (messages: ChatMessage[]) => {
         } else if (complexityLower.includes('medium')) {
             return {
                 provider: LLMProvider.GOOGLE,
-                model: GOOGLE_MODELS.GEMINI_3_1_FLASH_LITE_PREVIEW,
+                model: GOOGLE_MODELS.GEMMA_4_31B,
             };
         } else if (complexityLower.includes('large')) {
             return {
@@ -166,7 +173,7 @@ export const createRootAgentStream = async ({
     chatModel?: any;
 }) => {
     let finalChatModel = chatModel;
-    if (chatType === ChatType.ARCHITECT) {
+    if (chatType === ChatType.ARCHITECT && !chatModel) {
         finalChatModel = await runArchitectMode(messages);
     }
     const modelConfig = getModelFromType(chatType, finalChatModel);
@@ -189,7 +196,7 @@ export const createRootAgentStream = async ({
 
     const isGemma3 = finalChatModel?.model === GOOGLE_MODELS.GEMMA_3_27B;
     const isGLM5 = finalChatModel?.model === MODAL_MODELS.GLM_5;
-    const disableTools = isGemma3 || isGLM5;
+    const disableTools = isGemma3;
 
     const runStream = async (config: ModelConfig, attempt: number = 0): Promise<any> => {
         try {
@@ -201,8 +208,8 @@ export const createRootAgentStream = async ({
                 tools: disableTools ? undefined : mergedTools,
                 headers: config.headers,
                 stopWhen: stepCountIs(20),
-                experimental_repairToolCall: repairToolCall,
-                experimental_transform: smoothStream(),
+                experimental_repairToolCall: isGLM5 ? undefined : repairToolCall,
+                experimental_transform: isGLM5 ? undefined : smoothStream(),
                 onFinish: async () => {
                     if (mcpManager) {
                         await mcpManager.closeAll();

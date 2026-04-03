@@ -15,6 +15,7 @@ import {
     userCanvasRouter,
     userRouter,
     utilsRouter,
+    gitRouter,
 } from './routers';
 import { branchRouter } from './routers/project/branch';
 
@@ -40,6 +41,7 @@ export const appRouter = createTRPCRouter({
     subscription: subscriptionRouter,
     usage: usageRouter,
     publish: publishRouter,
+    git: gitRouter,
 });
 
 // export type definition of API

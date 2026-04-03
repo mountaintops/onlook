@@ -13,7 +13,6 @@ import type {
 } from '@onlook/penpal';
 import { PENPAL_PARENT_CHANNEL } from '@onlook/penpal';
 import { SystemTheme } from '@onlook/models';
-import { WebPreview, WebPreviewBody } from '@onlook/ui/ai-elements';
 import { Icons } from '@onlook/ui/icons';
 import { ProgressWithInterval } from '@onlook/ui/progress-with-interval';
 import { cn } from '@onlook/ui/utils';
@@ -161,7 +160,7 @@ export const FrameComponent = observer(
 
                             // Delay initial theme application to avoid hydration mismatch
                             setTimeout(() => {
-                                remote.setTheme((frame.theme as SystemTheme) || SystemTheme.LIGHT);
+                                remote.setTheme((frame.theme as SystemTheme) || SystemTheme.SYSTEM);
                             }, 500);
 
                             // Notify parent of successful connection
@@ -286,9 +285,6 @@ export const FrameComponent = observer(
                     return safeFallback;
                 }
 
-                // Register the iframe with the editor engine
-                editorEngine.frames.registerView(frame, iframe as IFrameView);
-
                 const syncMethods = {
                     supportsOpenDevTools: () =>
                         !!iframe.contentWindow && 'openDevTools' in iframe.contentWindow,
@@ -301,14 +297,15 @@ export const FrameComponent = observer(
                     isLoading: () => iframe.contentDocument?.readyState !== 'complete',
                 };
 
-                if (!penpalChild) {
-                    return Object.assign(iframe, syncMethods, remoteMethods) as IFrameView;
-                }
-
-                return Object.assign(iframe, {
+                const augmentedIframe = Object.assign(iframe, {
                     ...syncMethods,
                     ...remoteMethods,
-                });
+                }) as IFrameView;
+
+                // Register the iframe with the editor engine
+                editorEngine.frames.registerView(frame, augmentedIframe);
+
+                return augmentedIframe;
             }, [penpalChild, frame, iframeRef]);
 
             useEffect(() => {
@@ -323,12 +320,12 @@ export const FrameComponent = observer(
             }, []);
 
             return (
-                <WebPreview>
-                    <WebPreviewBody
+                <div className="relative">
+                    <iframe
                         ref={iframeRef}
                         id={frame.id}
                         className={cn(
-                            'outline outline-4 backdrop-blur-sm transition',
+                            'outline outline-4 transition block',
                             isActiveBranch && 'outline-teal-400',
                             isActiveBranch && !isSelected && 'outline-dashed',
                             !isActiveBranch && isInDragSelection && 'outline-teal-500',
@@ -365,12 +362,14 @@ export const FrameComponent = observer(
                         }, [frame.url, editorEngine.branches.getSandboxById(frame.branchId)?.session.signedPreviewUrl])}
                         sandbox="allow-modals allow-forms allow-same-origin allow-scripts allow-popups allow-downloads"
                         allow="geolocation; microphone; camera; midi; encrypted-media"
-                        style={{ width: frame.dimension.width, height: frame.dimension.height }}
+                        style={{ width: frame.dimension.width, height: frame.dimension.height, backdropFilter: 'blur(0px)' }}
                         onLoad={handleOnLoad}
                         {...props}
                     />
                     {editorEngine.frames.isReloading && (
-                        <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center z-50">
+                        <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center z-50"
+                            style={{ width: frame.dimension.width, height: frame.dimension.height }}
+                        >
                             <div className="w-full max-w-xs space-y-4">
                                 <Icons.LoadingSpinner className="h-8 w-8 animate-spin mx-auto text-primary" />
                                 <div className="space-y-2">
@@ -385,7 +384,7 @@ export const FrameComponent = observer(
                             </div>
                         </div>
                     )}
-                </WebPreview>
+                </div>
             );
         },
     ),

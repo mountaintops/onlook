@@ -7,8 +7,7 @@ import { observer } from 'mobx-react-lite';
 export const ChatControls = observer(() => {
     const editorEngine = useEditorEngine();
 
-    const isStartingNewConversation = editorEngine.chat.conversation.creatingConversation;
-    const isDisabled = editorEngine.chat.isStreaming || isStartingNewConversation;
+    const isDisabled = editorEngine.chat.isStreaming;
 
     const handleNewChat = () => {
         editorEngine.chat.conversation.startNewConversation();
@@ -27,17 +26,10 @@ export const ChatControls = observer(() => {
                             onClick={handleNewChat}
                             disabled={isDisabled}
                         >
-                            {isStartingNewConversation ? (
-                                <>
-                                    <Icons.LoadingSpinner className="h-4 w-4 animate-spin" />
-                                    <span className="text-small">New Chat</span>
-                                </>
-                            ) : (
-                                <>
-                                    <Icons.Edit className="h-4 w-4" />
-                                    <span className="text-small">New Chat</span>
-                                </>
-                            )}
+                            <>
+                                <Icons.Edit className="h-4 w-4" />
+                                <span className="text-small">New Chat</span>
+                            </>
                         </Button>
                     </span>
                 </TooltipTrigger>

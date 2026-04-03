@@ -1,7 +1,8 @@
 import { api } from '@/trpc/client';
-import { type ChatConversation } from '@onlook/models';
+import { AgentType, type ChatConversation } from '@onlook/models';
 import { makeAutoObservable } from 'mobx';
 import { toast } from 'sonner';
+import { v4 as uuidv4 } from 'uuid';
 import type { EditorEngine } from '../engine';
 
 interface CurrentConversation extends ChatConversation {
@@ -11,7 +12,6 @@ interface CurrentConversation extends ChatConversation {
 export class ConversationManager {
     current: CurrentConversation | null = null;
     conversations: ChatConversation[] = [];
-    creatingConversation = false;
 
     constructor(private editorEngine: EditorEngine) {
         makeAutoObservable(this);
@@ -51,26 +51,37 @@ export class ConversationManager {
     }
 
     async startNewConversation() {
+        if (this.current?.messageCount === 0 && !this.current?.title) {
+            return;
+        }
+
+        const id = uuidv4();
+        const newConversation: ChatConversation = {
+            id,
+            projectId: this.editorEngine.projectId,
+            agentType: AgentType.ROOT,
+            title: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            suggestions: [],
+        };
+
+        this.current = {
+            ...newConversation,
+            messageCount: 0,
+        };
+        this.conversations.unshift(newConversation);
+
         try {
-            this.creatingConversation = true;
-            if (this.current?.messageCount === 0 && !this.current?.title) {
-                throw new Error('Current conversation is already empty.');
-            }
-            const newConversation = await api.chat.conversation.upsert.mutate({
+            await api.chat.conversation.upsert.mutate({
+                id,
                 projectId: this.editorEngine.projectId,
             });
-            this.current = {
-                ...newConversation,
-                messageCount: 0,
-            };
-            this.conversations.push(newConversation);
         } catch (error) {
             console.error('Error starting new conversation', error);
             toast.error('Error starting new conversation.', {
                 description: error instanceof Error ? error.message : 'Unknown error',
             });
-        } finally {
-            this.creatingConversation = false;
         }
     }
 

@@ -31,7 +31,7 @@ export class StateManager {
     chatMode: ChatType = ChatType.EDIT;
     chatModel: InitialModelPayload = {
         provider: LLMProvider.GOOGLE,
-        model: GOOGLE_MODELS.GEMINI_3_1_FLASH_LITE_PREVIEW,
+        model: GOOGLE_MODELS.GEMMA_4_31B,
     };
 
     constructor() {

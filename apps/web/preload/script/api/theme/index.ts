@@ -2,10 +2,10 @@ import { SystemTheme } from '@onlook/models';
 
 export function getTheme(): SystemTheme {
     try {
-        return (window?.localStorage.getItem('theme') as SystemTheme) || SystemTheme.LIGHT;
+        return (window?.localStorage.getItem('theme') as SystemTheme) || SystemTheme.SYSTEM;
     } catch (error) {
         console.warn('Failed to get theme', error);
-        return SystemTheme.LIGHT;
+        return SystemTheme.SYSTEM;
     }
 }
 
@@ -34,6 +34,7 @@ export function setTheme(theme: SystemTheme) {
         // Use setTimeout to ensure theme application doesn't interfere with React's initial hydration synchronous phase
         setTimeout(applyTheme, 0);
 
+        // Always update localStorage so that the sandboxed app (e.g. using next-themes) picks it up
         window?.localStorage.setItem('theme', theme);
         return true;
     } catch (error) {

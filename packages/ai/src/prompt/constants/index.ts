@@ -8,3 +8,4 @@ export * from './signatures';
 export * from './suggest';
 export * from './summary';
 export * from './system';
+export * from './agent';

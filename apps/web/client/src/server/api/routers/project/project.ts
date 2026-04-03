@@ -336,7 +336,7 @@ export const projectRouter = createTRPCRouter({
             try {
                 const { model, providerOptions, headers } = initModel({
                     provider: LLMProvider.GOOGLE,
-                    model: GOOGLE_MODELS.GEMINI_3_1_FLASH_LITE_PREVIEW,
+                    model: GOOGLE_MODELS.GEMMA_4_31B,
                 });
 
                 const MAX_NAME_LENGTH = 50;

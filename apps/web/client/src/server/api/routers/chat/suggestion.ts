@@ -1,9 +1,9 @@
-import { initModel, SUGGESTION_SYSTEM_PROMPT } from '@onlook/ai';
+import { initModel, SUGGESTION_SYSTEM_PROMPT, AGENT_RULE_GENERATION_PROMPT } from '@onlook/ai';
 import { conversations } from '@onlook/db';
 import type { ChatSuggestion } from '@onlook/models';
-import { LLMProvider, GOOGLE_MODELS } from '@onlook/models';
+import { LLMProvider, GOOGLE_MODELS, MISTRAL_MODELS } from '@onlook/models';
 import { ChatSuggestionsSchema } from '@onlook/models/chat';
-import { convertToModelMessages, generateObject } from 'ai';
+import { convertToModelMessages, generateObject, generateText } from 'ai';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { createTRPCRouter, protectedProcedure } from '../../trpc';
@@ -20,7 +20,7 @@ export const suggestionsRouter = createTRPCRouter({
         .mutation(async ({ ctx, input }) => {
             const { model, headers } = initModel({
                 provider: LLMProvider.GOOGLE,
-                model: GOOGLE_MODELS.GEMINI_3_1_FLASH_LITE_PREVIEW,
+                model: GOOGLE_MODELS.GEMMA_4_31B,
             });
             const { object } = await generateObject({
                 model,
@@ -51,5 +51,20 @@ export const suggestionsRouter = createTRPCRouter({
                 console.error('Error updating conversation suggestions:', error);
             }
             return suggestions;
+        }),
+    generateAgentRules: protectedProcedure
+        .mutation(async () => {
+            const { model, headers } = initModel({
+                provider: LLMProvider.MISTRAL,
+                model: 'mistral-small-4' as any, // Cast to any to bypass strict enum check while adding it
+            });
+            const { text } = await generateText({
+                model,
+                headers,
+                system: AGENT_RULE_GENERATION_PROMPT,
+                prompt: 'Generate an agents.md file for this web project.',
+                maxOutputTokens: 2000,
+            });
+            return text;
         }),
 });

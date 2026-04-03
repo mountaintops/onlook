@@ -1,14 +1,11 @@
-import { initModel } from '@onlook/ai';
+import { generateConversationTitle } from '@onlook/ai/src/agents/titles';
 import {
     conversationInsertSchema,
     conversations,
     conversationUpdateSchema,
     fromDbConversation
 } from '@onlook/db';
-import { LLMProvider, GOOGLE_MODELS } from '@onlook/models';
-import { generateText } from 'ai';
 import { eq } from 'drizzle-orm';
-import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import { createTRPCRouter, protectedProcedure } from '../../trpc';
 
@@ -68,31 +65,9 @@ export const conversationRouter = createTRPCRouter({
             content: z.string(),
         }))
         .mutation(async ({ ctx, input }) => {
-            const { model, providerOptions, headers } = initModel({
-                provider: LLMProvider.GOOGLE,
-                model: GOOGLE_MODELS.GEMINI_3_1_FLASH_LITE_PREVIEW,
-            });
-
             const MAX_NAME_LENGTH = 50;
-            const result = await generateText({
-                model,
-                headers,
-                prompt: `Generate a concise and meaningful conversation title (2-4 words maximum) that reflects the main purpose or theme of the conversation based on user's creation prompt. Generate only the conversation title, nothing else. Keep it short and descriptive. User's creation prompt: <prompt>${input.content}</prompt>`,
-                providerOptions,
-                maxOutputTokens: 50,
-                experimental_telemetry: {
-                    isEnabled: true,
-                    metadata: {
-                        conversationId: input.conversationId,
-                        userId: ctx.user.id,
-                        tags: ['conversation-title-generation'],
-                        sessionId: input.conversationId,
-                        langfuseTraceId: uuidv4(),
-                    },
-                },
-            });
+            const generatedName = await generateConversationTitle(input.content);
 
-            const generatedName = result.text.trim();
             if (generatedName && generatedName.length > 0 && generatedName.length <= MAX_NAME_LENGTH) {
                 await ctx.db.update(conversations).set({
                     displayName: generatedName,
@@ -100,7 +75,7 @@ export const conversationRouter = createTRPCRouter({
                 return generatedName;
             }
 
-            console.error('Error generating conversation title', result);
+            console.error('Error generating conversation title');
             return null;
         }),
 });

@@ -79,6 +79,12 @@ function getModalProvider(model: MODAL_MODELS): LanguageModel {
         headers: {
             Authorization: `Bearer ${secret}`,
         },
+        transformRequestBody: (body) => {
+            if (body.tools) {
+                body.parallel_tool_calls = false;
+            }
+            return body;
+        },
     });
     return modalProvider.chatModel(model);
 }

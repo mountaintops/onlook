@@ -63,6 +63,7 @@ export const ChatInput = observer(
         const [isDragging, setIsDragging] = useState(false);
         const chatMode = editorEngine.state.chatMode;
         const [inputValue, setInputValue] = useState('');
+        const [isSending, setIsSending] = useState(false);
         const lastUsageMessage = useMemo(
             () => messages.findLast((msg) => msg.metadata?.usage),
             [messages],
@@ -139,18 +140,18 @@ export const ChatInput = observer(
                     return;
                 }
 
-                if (!inputEmpty) {
+                if (!inputEmpty && !isSending) {
                     void sendMessage();
                 }
             }
         };
 
         async function sendMessage() {
-            if (inputEmpty) {
-                console.warn('Empty message');
+            if (inputEmpty || isSending) {
                 return;
             }
             const savedInput = inputValue.trim();
+            setIsSending(true);
             try {
                 await onSendMessage(savedInput, chatMode);
                 setInputValue('');
@@ -158,6 +159,8 @@ export const ChatInput = observer(
                 console.error('Error sending message', error);
                 toast.error('Failed to send message. Please try again.');
                 setInputValue(savedInput);
+            } finally {
+                setIsSending(false);
             }
         }
 
@@ -481,7 +484,7 @@ export const ChatInput = observer(
                                             ? 'text-background bg-blue-300 hover:bg-blue-600'
                                             : 'bg-foreground-primary text-background hover:bg-foreground-primary/80',
                                 )}
-                                disabled={inputEmpty}
+                                disabled={inputEmpty || isSending}
                                 onClick={() => void sendMessage()}
                             >
                                 <Icons.ArrowRight />

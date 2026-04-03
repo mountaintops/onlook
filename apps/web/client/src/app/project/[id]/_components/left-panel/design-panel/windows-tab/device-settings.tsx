@@ -1,30 +1,24 @@
+'use client';
+
 import { useEditorEngine } from '@/components/store/editor';
 import { SystemTheme } from '@onlook/models/assets';
 import { Theme } from '@onlook/constants';
 import { Button } from '@onlook/ui/button';
 import { Icons } from '@onlook/ui/icons';
-import { toast } from '@onlook/ui/sonner';
 import { observer } from 'mobx-react-lite';
-import { useEffect, useState } from 'react';
 
-export const DeviceSettings = observer(({ frameId }: { frameId: string }) => {
+export const DeviceSettings = observer(function DeviceSettings({ frameId }: { frameId: string }) {
     const editorEngine = useEditorEngine();
     const frameData = editorEngine.frames.get(frameId);
-    const [theme, setTheme] = useState<SystemTheme>((frameData.frame.theme as unknown as SystemTheme) || SystemTheme.SYSTEM);
-    useEffect(() => {
-        if (frameData.frame.theme) {
-            setTheme(frameData.frame.theme as unknown as SystemTheme);
-        }
-    }, [frameData.frame.theme]);
-
     if (!frameData) {
         return (
             <p className="text-sm text-foreground-primary">Frame not found</p>
         );
     }
 
+    const theme = (frameData.frame.theme as unknown as SystemTheme) || SystemTheme.SYSTEM;
+
     async function changeTheme(newTheme: SystemTheme) {
-        setTheme(newTheme);
         editorEngine.frames.updateAndSaveToStorage(frameData.frame.id, { theme: newTheme as unknown as Theme });
         await frameData?.view?.setTheme(newTheme);
     }

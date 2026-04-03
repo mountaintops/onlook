@@ -7,6 +7,8 @@ export enum LLMProvider {
 }
 
 export enum GOOGLE_MODELS {
+    GEMMA_4_31B = 'gemma-4-31b-it',
+    GEMMA_4_26B = 'gemma-4-26b-it',
     GEMINI_3_1_FLASH_LITE_PREVIEW = 'gemini-3.1-flash-lite-preview',
     GEMINI_3_FLASH = 'gemini-3-flash',
     GEMMA_3_27B = 'gemma-3-27b-it',
@@ -43,7 +45,8 @@ export type ModelConfig = {
 };
 
 export const MODEL_MAX_TOKENS = {
-    [GOOGLE_MODELS.GEMINI_3_1_FLASH_LITE_PREVIEW]: 1000000,
+    [GOOGLE_MODELS.GEMMA_4_31B]: 8192,
+    [GOOGLE_MODELS.GEMMA_4_26B]: 8192,
     [GOOGLE_MODELS.GEMINI_3_FLASH]: 1000000,
     [GOOGLE_MODELS.GEMMA_3_27B]: 8192,
     [MISTRAL_MODELS.MISTRAL_LARGE_2512]: 131000,
@@ -55,8 +58,8 @@ export const MODEL_MAX_TOKENS = {
 export const AVAILABLE_MODELS = [
     {
         provider: LLMProvider.GOOGLE,
-        model: GOOGLE_MODELS.GEMINI_3_1_FLASH_LITE_PREVIEW,
-        displayName: 'gemini 3.1 flash lite',
+        model: GOOGLE_MODELS.GEMMA_4_31B,
+        displayName: 'Gemma 4 31B',
     },
     {
         provider: LLMProvider.GOOGLE,

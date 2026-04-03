@@ -41,7 +41,41 @@ export function getAskModeSystemPrompt() {
 }
 
 export function getArchitectModeClassificationPrompt(content: string) {
-    return `this prompt [${content}] is about to be given to a coder, what level of complexity is the task, small, medium or large. reply only one word`;
+    return `You are classifying a UI coding task by complexity. Reply with ONLY one word: "tools", "small", "medium", or "large".
+
+TOOLS — task requires system operations (not UI coding):
+- Creating folders or files, running terminal/bash/npm commands
+- Git operations, MCP tool calls, installing packages, deploying
+
+SMALL — minor edits to existing UI elements:
+- Edit text, copy, labels, or placeholder content
+- Change a color, font size, spacing, padding, margin
+- Add or remove a line break, divider, or separator
+- Show/hide an element or toggle visibility
+- Fix a typo or adjust alignment
+- Add a simple button, badge, tag, or icon
+- Change a border radius, shadow, or opacity
+- Adjust a single style property on an existing element
+
+MEDIUM — creating or significantly reworking a self-contained section or component:
+- Build a new reusable component (card, modal, form field, nav item)
+- Redesign or remake an existing section (hero banner, footer, sidebar)
+- Add a multi-field form or structured list
+- Implement a responsive layout change for a section
+- Add CSS/Tailwind animations to existing elements (hover effects, fade, slide)
+- Add interactivity to an existing component (toggle, accordion, tabs)
+- Create a new section within an existing page
+
+LARGE — building entire pages or complex multi-part features from scratch:
+- Create or completely remake a full page (landing page, dashboard, settings page, auth page)
+- Build complex multi-step flows (onboarding wizard, checkout flow)
+- Implement page-level transitions or route animations
+- Design a full layout system with multiple regions
+- Build a feature spanning multiple components and pages
+- Create a full design system or theme overhaul
+
+Task to classify: "${content}"
+Reply with exactly one word.`;
 }
 
 export function getExampleConversation(
@@ -162,4 +196,12 @@ export function getSummaryPrompt() {
 
     prompt += wrapXml('example-summary-output', 'EXAMPLE SUMMARY:\n' + SUMMARY_PROMPTS.summary);
     return prompt;
+}
+
+export function getGitCommitTitlePrompt(instruction: string) {
+    return `Generate a concise, professional git commit title (max 50 characters) based on the user's intent. Do not include a period at the end. Use imperative mood (e.g. "Add feature" instead of "Added feature"). Return only the title text. User instruction: ${instruction}`;
+}
+
+export function getConversationTitlePrompt(content: string) {
+    return `Generate a short, descriptive title (2-4 words) for this conversation based on the initial message. Return only the title text, nothing else. User message: ${content}`;
 }

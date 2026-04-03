@@ -5,6 +5,7 @@ import { EditorAttributes } from '@onlook/constants';
 import { EditorMode } from '@onlook/models';
 import { throttle } from 'lodash';
 import { observer } from 'mobx-react-lite';
+import { cn } from '@onlook/ui/utils';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Frames } from './frames';
 import { HotkeysArea } from './hotkeys';

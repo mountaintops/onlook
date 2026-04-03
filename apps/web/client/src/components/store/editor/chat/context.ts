@@ -10,6 +10,7 @@ import {
 } from '@onlook/models/chat';
 import { assertNever, type ParsedError } from '@onlook/utility';
 import { makeAutoObservable, reaction } from 'mobx';
+import { api } from '@/trpc/client';
 import { type EditorEngine } from '../engine';
 import { type FrameData } from '../frames';
 
@@ -366,25 +367,45 @@ export class ChatContext {
             const agentRuleContexts: AgentRuleMessageContext[] = (await Promise.all(
                 agentRuleFileNames.map(async (fileName) => {
                     const filePath = `./${fileName}`;
-                    if (!sandbox.fileExists(filePath)) {
+                    if (!(await sandbox.fileExists(filePath))) {
                         return null;
                     }
-                    const fileContent = await this.editorEngine.activeSandbox.readFile(filePath);
-                    if (fileContent === null || fileContent instanceof Uint8Array) {
+                    try {
+                        const fileContent = await this.editorEngine.activeSandbox.readFile(filePath);
+                        if (fileContent === null || fileContent instanceof Uint8Array) {
+                            return null;
+                        }
+                        if (fileContent.trim().length === 0) {
+                            return null;
+                        }
+                        return {
+                            type: MessageContextType.AGENT_RULE,
+                            content: fileContent,
+                            displayName: fileName,
+                            path: filePath,
+                        } satisfies AgentRuleMessageContext;
+                    } catch (error) {
+                        console.warn(`Failed to read agent rule file: ${filePath}`, error);
                         return null;
                     }
-                    if (fileContent.trim().length === 0) {
-                        return null;
-                    }
-                    return {
-                        type: MessageContextType.AGENT_RULE,
-                        content: fileContent,
-                        displayName: fileName,
-                        path: filePath,
-                    } satisfies AgentRuleMessageContext;
                 })
             )).filter((context) => context !== null);
-            return agentRuleContexts
+
+            if (agentRuleContexts.length === 0) {
+                const generatedRules = await api.chat.suggestions.generateAgentRules.mutate();
+                if (generatedRules) {
+                    const filePath = './agents.md';
+                    await sandbox.writeFile(filePath, generatedRules);
+                    return [{
+                        type: MessageContextType.AGENT_RULE,
+                        content: generatedRules,
+                        displayName: 'agents.md',
+                        path: filePath,
+                    } satisfies AgentRuleMessageContext];
+                }
+            }
+
+            return agentRuleContexts;
         } catch (error) {
             console.error('Error getting agent rule context', error);
             return [];
