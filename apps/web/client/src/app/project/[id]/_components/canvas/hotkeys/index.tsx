@@ -5,6 +5,17 @@ import { EditorMode, InsertMode } from '@onlook/models';
 import type { ReactNode } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
 
+function isInputLike(e: KeyboardEvent) {
+    const target = e.target as HTMLElement;
+    if (!target) return false;
+    return (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.isContentEditable
+    );
+}
+
 export const HotkeysArea = ({ children }: { children: ReactNode }) => {
     const editorEngine = useEditorEngine();
 
@@ -58,38 +69,92 @@ export const HotkeysArea = ({ children }: { children: ReactNode }) => {
     useHotkeys('alt', () => editorEngine.overlay.removeMeasurement(), { keyup: true });
 
     // Actions
-    useHotkeys(Hotkey.UNDO.command, () => editorEngine.action.undo(), {
-        preventDefault: true,
-    });
-    useHotkeys(Hotkey.REDO.command, () => editorEngine.action.redo(), {
-        preventDefault: true,
-    });
-    useHotkeys(Hotkey.ENTER.command, () => editorEngine.text.editSelectedElement(), { preventDefault: true });
-    useHotkeys([Hotkey.BACKSPACE.command, Hotkey.DELETE.command], () => {
-        if (editorEngine.elements.selected.length > 0) {
-            editorEngine.elements.delete();
-        }
-        else if (editorEngine.frames.selected.length > 0 && editorEngine.frames.canDelete()) {
-            editorEngine.frames.deleteSelected();
-        }
-    }, { preventDefault: true });
+    useHotkeys(
+        Hotkey.UNDO.command,
+        (e) => {
+            if (isInputLike(e)) return;
+            e.preventDefault();
+            editorEngine.action.undo();
+        },
+        { enableOnFormTags: true, enableOnContentEditable: true },
+    );
+    useHotkeys(
+        Hotkey.REDO.command,
+        (e) => {
+            if (isInputLike(e)) return;
+            e.preventDefault();
+            editorEngine.action.redo();
+        },
+        { enableOnFormTags: true, enableOnContentEditable: true },
+    );
+    useHotkeys(
+        Hotkey.ENTER.command,
+        (e) => {
+            if (isInputLike(e)) return;
+            e.preventDefault();
+            editorEngine.text.editSelectedElement();
+        },
+        { enableOnFormTags: true, enableOnContentEditable: true },
+    );
+    useHotkeys(
+        [Hotkey.BACKSPACE.command, Hotkey.DELETE.command],
+        (e) => {
+            if (isInputLike(e)) return;
+            e.preventDefault();
+            if (editorEngine.elements.selected.length > 0) {
+                editorEngine.elements.delete();
+            } else if (editorEngine.frames.selected.length > 0 && editorEngine.frames.canDelete()) {
+                editorEngine.frames.deleteSelected();
+            }
+        },
+        { enableOnFormTags: true, enableOnContentEditable: true },
+    );
 
     // Group
     useHotkeys(Hotkey.GROUP.command, () => editorEngine.group.groupSelectedElements());
     useHotkeys(Hotkey.UNGROUP.command, () => editorEngine.group.ungroupSelectedElement());
 
     // Copy
-    useHotkeys(Hotkey.COPY.command, () => editorEngine.copy.copy(), { preventDefault: true });
-    useHotkeys(Hotkey.PASTE.command, () => editorEngine.copy.paste(), { preventDefault: true });
-    useHotkeys(Hotkey.CUT.command, () => editorEngine.copy.cut(), { preventDefault: true });
-    useHotkeys(Hotkey.DUPLICATE.command, () => {
-        if (editorEngine.elements.selected.length > 0) {
-            editorEngine.copy.duplicate();
-        }
-        else if (editorEngine.frames.selected.length > 0 && editorEngine.frames.canDuplicate()) {
-            editorEngine.frames.duplicateSelected();
-        }
-    }, { preventDefault: true });
+    useHotkeys(
+        Hotkey.COPY.command,
+        (e) => {
+            if (isInputLike(e)) return;
+            e.preventDefault();
+            editorEngine.copy.copy();
+        },
+        { enableOnFormTags: true, enableOnContentEditable: true },
+    );
+    useHotkeys(
+        Hotkey.PASTE.command,
+        (e) => {
+            if (isInputLike(e)) return;
+            e.preventDefault();
+            editorEngine.copy.paste();
+        },
+        { enableOnFormTags: true, enableOnContentEditable: true },
+    );
+    useHotkeys(
+        Hotkey.CUT.command,
+        (e) => {
+            if (isInputLike(e)) return;
+            e.preventDefault();
+            editorEngine.copy.cut();
+        },
+        { enableOnFormTags: true, enableOnContentEditable: true },
+    );
+    useHotkeys(
+        Hotkey.DUPLICATE.command,
+        (e) => {
+            if (isInputLike(e)) return;
+            e.preventDefault();
+            if (editorEngine.elements.selected.length > 0) {
+                editorEngine.copy.duplicate();
+            } else if (editorEngine.frames.selected.length > 0 && editorEngine.frames.canDuplicate()) {
+                editorEngine.frames.duplicateSelected();
+            }
+        },
+        { enableOnFormTags: true, enableOnContentEditable: true },
+    );
 
     // AI
     useHotkeys(
