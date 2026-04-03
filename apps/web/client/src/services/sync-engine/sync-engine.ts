@@ -270,6 +270,19 @@ export class CodeProviderSync {
 
         // Pull files in parallel with concurrency limit
         await this.pullSpecificFiles(filePathsToRead);
+
+        // Also pull context.txt explicitly to restore recent files history if it exists
+        try {
+            const contextResult = await this.provider.readFile({ args: { path: 'context.txt' } });
+            if (contextResult.file.content && typeof contextResult.file.content === 'string') {
+                const parsed = JSON.parse(contextResult.file.content);
+                if (Array.isArray(parsed.files)) {
+                    this.recentEditedPaths = parsed.files.filter((p: string) => typeof p === 'string');
+                }
+            }
+        } catch (e) {
+            // No context.txt or parse error, just ignore
+        }
     }
 
     /**

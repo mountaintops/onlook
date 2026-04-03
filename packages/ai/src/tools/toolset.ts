@@ -15,6 +15,8 @@ import {
     ReadStyleGuideTool,
     SandboxTool,
     ScrapeUrlTool,
+    ScreenshotRelevantTool,
+    ScreenshotWebTool,
     SearchReplaceEditTool,
     SearchReplaceMultiEditFileTool,
     TerminalCommandTool,
@@ -48,6 +50,8 @@ const readOnlyToolClasses = [
     GrepTool,
     TypecheckTool,
     CheckErrorsTool,
+    ScreenshotWebTool,
+    ScreenshotRelevantTool,
 ];
 const editOnlyToolClasses = [
     SearchReplaceEditTool,

@@ -43,4 +43,8 @@ export class ApiManager {
     async getConversationMessages(conversationId: string): Promise<ChatMessage[]> {
         return await api.chat.message.getAll.query({ conversationId });
     }
+
+    async screenshot(url: string) {
+        return await api.publish.screenshit.screenshot.mutate({ url });
+    }
 }

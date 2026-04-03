@@ -12,6 +12,8 @@ export { ReadFileTool } from './read-file';
 export { ReadStyleGuideTool } from './read-style-guide';
 export { SandboxTool } from './sandbox';
 export { ScrapeUrlTool } from './scrape-url';
+export { ScreenshotRelevantTool } from './screenshot-relevant';
+export { ScreenshotWebTool } from './screenshot-web';
 export { SearchReplaceEditTool } from './search-replace-edit';
 export { SearchReplaceMultiEditFileTool } from './search-replace-multi-edit';
 export { TerminalCommandTool } from './terminal-command';

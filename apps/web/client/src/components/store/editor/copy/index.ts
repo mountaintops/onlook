@@ -6,6 +6,7 @@ import type {
     InsertElementAction,
 } from '@onlook/models/actions';
 import { createDomId, createOid } from '@onlook/utility';
+import { toast } from '@onlook/ui/sonner';
 import { makeAutoObservable } from 'mobx';
 import type { EditorEngine } from '../engine';
 import { getCleanedElement } from '../history/helpers';
@@ -27,31 +28,35 @@ export class CopyManager {
         }
         const selectedEl = this.editorEngine.elements.selected[0];
         if (!selectedEl) {
-            console.error('Failed to copy element');
+            console.error('Failed to copy: no selected element');
             return;
         }
+
+        if (!selectedEl.oid) {
+            console.error('Failed to copy: selected element has no OID');
+            toast.error('Cannot copy this element as it is not linked to source code');
+            return;
+        }
+
         const frameId = selectedEl.frameId;
         const frameData = this.editorEngine.frames.get(frameId);
         if (!frameData) {
-            console.error('Failed to get frameView');
+            console.error('Failed to copy: frame data not found for frameId', frameId);
             return;
         }
 
         if (!frameData.view) {
-            console.error('No frame view found');
+            console.error('Failed to copy: no frame view found for frameId', frameId);
             return;
         }
 
-        const targetEl: ActionElement | null = (await frameData.view.getActionElement(
+        const targetEl: ActionElement | null = await frameData.view.getActionElement(
             selectedEl.domId,
-        ));
+        );
 
         if (!targetEl) {
-            console.error('Failed to copy element');
-            return;
-        }
-        if (!selectedEl.oid) {
-            console.error('Failed to copy element');
+            console.error('Failed to copy: target element not found in frame');
+            toast.error('Failed to copy element. Try refreshing the page.');
             return;
         }
 
