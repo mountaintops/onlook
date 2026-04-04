@@ -67,15 +67,19 @@ export function useChat({ conversationId, projectId, initialMessages }: UseChatP
             }),
             onToolCall: async ({ toolCall }) => {
                 setIsExecutingToolCall(true);
-                const addResult = async (result: { tool: string, toolCallId: string, output?: any, errorText?: string }) => {
-                    addToolResult({
-                        ...result,
-                        state: result.errorText ? 'output-error' : 'output-available',
-                    } as any);
-                };
-                void handleToolCall(toolCall, editorEngine, addResult).finally(() => {
+                try {
+                    const addResult = async (result: { tool: string, toolCallId: string, output?: any, errorText?: string }) => {
+                        await addToolResult({
+                            ...result,
+                            state: result.errorText ? 'output-error' : 'output-available',
+                        } as any);
+                    };
+                    await handleToolCall(toolCall, editorEngine, addResult);
+                } catch (error) {
+                    console.error('Error handling tool call:', error);
+                } finally {
                     setIsExecutingToolCall(false);
-                });
+                }
             },
             onError: (err) => {
                 console.error("Chat error:", err);

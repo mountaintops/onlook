@@ -1,7 +1,7 @@
 import type { ToolCall } from '@ai-sdk/provider-utils';
 import { ChatType, LLMProvider, GOOGLE_MODELS, MISTRAL_MODELS, MODAL_MODELS, type ChatMessage, type McpServerConfig, type ModelConfig, type InitialModelPayload } from '@onlook/models';
 import { NoSuchToolError, generateObject, generateText, smoothStream, stepCountIs, streamText, type ToolSet, type StreamTextResult } from 'ai';
-import { convertToStreamMessages, getArchitectModeClassificationPrompt, getAskModeSystemPrompt, getCreatePageSystemPrompt, getSystemPrompt, getToolSetFromType, initModel } from '../index';
+import { convertToStreamMessages, getArchitectModeClassificationPrompt, getArchitectModeSystemPrompt, getAskModeSystemPrompt, getCreatePageSystemPrompt, getSystemPrompt, getToolSetFromType, initModel } from '../index';
 import { McpClientManager } from '../mcp';
 
 const ARCHITECT_FALLBACK_MODELS = [
@@ -19,6 +19,7 @@ const getSystemPromptFromType = (chatType: ChatType): string => {
         case ChatType.ASK:
             return getAskModeSystemPrompt();
         case ChatType.ARCHITECT:
+            return getArchitectModeSystemPrompt();
         case ChatType.EDIT:
         default:
             return getSystemPrompt();
@@ -98,14 +99,8 @@ const runArchitectMode = async (messages: ChatMessage[]) => {
         .map((p) => p.text)
         .join('\n') || '';
 
-    const contentLower = content.toLowerCase();
-    const toolKeywords = [
-        'folder', 'directory', 'mkdir', 'bash', 'terminal', 'command', 'mcp', 'run', 'shell', 'npm',
-        'git', 'install', 'update', 'build', 'deploy', 'script', 'system', 'process', 'env',
-    ];
-
-    // Heuristic: Very short prompts or tool-related keywords favor devstral
-    if (content.length < 20 || toolKeywords.some((keyword) => contentLower.includes(keyword))) {
+    // Very short prompts favor faster, smaller models
+    if (content.length < 20) {
         return {
             provider: LLMProvider.MISTRAL,
             model: MISTRAL_MODELS.DEVSTRAL_2512,
@@ -115,7 +110,7 @@ const runArchitectMode = async (messages: ChatMessage[]) => {
     try {
         const classificationModel = initModel({
             provider: LLMProvider.GOOGLE,
-            model: GOOGLE_MODELS.GEMINI_3_1_FLASH_LITE_PREVIEW,
+            model: GOOGLE_MODELS.GEMINI_3_FLASH,
         } as InitialModelPayload);
 
         const { text: complexity } = await generateText({
@@ -126,7 +121,12 @@ const runArchitectMode = async (messages: ChatMessage[]) => {
 
         const complexityLower = complexity.trim().toLowerCase();
 
-        if (complexityLower.includes('small') || complexityLower.includes('tools')) {
+        if (complexityLower.includes('tools')) {
+            return {
+                provider: LLMProvider.GOOGLE,
+                model: GOOGLE_MODELS.GEMINI_3_FLASH,
+            };
+        } else if (complexityLower.includes('small')) {
             return {
                 provider: LLMProvider.MISTRAL,
                 model: MISTRAL_MODELS.DEVSTRAL_2512,
@@ -143,13 +143,13 @@ const runArchitectMode = async (messages: ChatMessage[]) => {
             };
         }
     } catch (err) {
-        console.error('Failed to classify prompt complexity, falling back to default', err);
+        console.error('Failed to classify prompt complexity, falling back to Gemini', err);
     }
 
     // Default or if classification fails
     return {
-        provider: LLMProvider.MISTRAL,
-        model: MISTRAL_MODELS.DEVSTRAL_2512,
+        provider: LLMProvider.GOOGLE,
+        model: GOOGLE_MODELS.GEMMA_4_31B,
     };
 };
 

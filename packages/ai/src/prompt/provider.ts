@@ -5,7 +5,7 @@ import {
 } from '@onlook/models';
 import type { FileUIPart } from 'ai';
 import { AgentRuleContext, BranchContext, ErrorContext, FileContext, ImageContext } from '../contexts/classes';
-import { ASK_MODE_SYSTEM_PROMPT, CREATE_NEW_PAGE_SYSTEM_PROMPT, SHELL_PROMPT, SUGGESTION_SYSTEM_PROMPT, SUMMARY_PROMPTS, SYSTEM_PROMPT } from './constants';
+import { ARCHITECT_MODE_SYSTEM_PROMPT, ASK_MODE_SYSTEM_PROMPT, CREATE_NEW_PAGE_SYSTEM_PROMPT, SHELL_PROMPT, SUGGESTION_SYSTEM_PROMPT, SUMMARY_PROMPTS, SYSTEM_PROMPT } from './constants';
 import { wrapXml } from './helpers';
 
 export interface HydrateMessageOptions {
@@ -37,6 +37,12 @@ export function getSuggestionSystemPrompt() {
 export function getAskModeSystemPrompt() {
     let prompt = '';
     prompt += wrapXml('role', ASK_MODE_SYSTEM_PROMPT);
+    return prompt;
+}
+
+export function getArchitectModeSystemPrompt() {
+    let prompt = getSystemPrompt() + '\n\n';
+    prompt += wrapXml('architect-workflow', ARCHITECT_MODE_SYSTEM_PROMPT);
     return prompt;
 }
 

@@ -77,10 +77,20 @@ export class ScrapeUrlTool extends ClientTool {
                 throw new Error(`Failed to scrape URL: ${result.error}`);
             }
 
+            const MAX_LENGTH = 100000;
+            if (result.result.length > MAX_LENGTH) {
+                return (
+                    result.result.substring(0, MAX_LENGTH) +
+                    `\n\n[RESULTS TRUNCATED: Content exceeds ${MAX_LENGTH} character limit. Use specific formats or filters if more detail is needed.]`
+                );
+            }
+
             return result.result;
         } catch (error) {
             console.error('Error scraping URL:', error);
-            throw new Error(`Failed to scrape URL ${args.url}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(
+                `Failed to scrape URL ${args.url}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            );
         }
     }
 

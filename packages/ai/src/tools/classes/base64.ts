@@ -27,6 +27,10 @@ export class Base64Tool extends ClientTool {
 
             if (action === 'decode') {
                 const decoded = atob(data);
+                const MAX_LENGTH = 100000;
+                if (decoded.length > MAX_LENGTH) {
+                    return `Decoded text (truncated):\n${decoded.substring(0, MAX_LENGTH)}\n\n[RESULTS TRUNCATED: Decoded content exceeds ${MAX_LENGTH} character limit.]`;
+                }
                 return `Decoded text:\n${decoded}`;
             } else {
                 // Reuse UploaderTool logic

@@ -38,11 +38,15 @@ export async function handleToolCall(toolCall: ToolCall<string, unknown>, editor
         errorText = 'error handling tool call ' + error;
         output = undefined;
     } finally {
-        void addToolResult({
-            tool: toolName as any,
-            toolCallId: toolCall.toolCallId,
-            output: output,
-            errorText: errorText,
-        });
+        try {
+            await addToolResult({
+                tool: toolName as any,
+                toolCallId: toolCall.toolCallId,
+                output: output,
+                errorText: errorText,
+            });
+        } catch (error) {
+            console.error('Failed to add tool result to chat:', error);
+        }
     }
 }
