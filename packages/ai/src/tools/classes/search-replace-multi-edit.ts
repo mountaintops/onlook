@@ -2,8 +2,9 @@ import { Icons } from '@onlook/ui/icons';
 import type { EditorEngine } from '@onlook/web-client/src/components/store/editor/engine';
 import { z } from 'zod';
 import { ClientTool } from '../models/client';
-import { getFileSystem } from '../shared/helpers/files';
+import { getFileSystem, withTimeout } from '../shared/helpers/files';
 import { BRANCH_ID_SCHEMA } from '../shared/type';
+
 
 export class SearchReplaceMultiEditFileTool extends ClientTool {
     static readonly toolName = 'search_replace_multi_edit_file';
@@ -30,7 +31,13 @@ export class SearchReplaceMultiEditFileTool extends ClientTool {
     async handle(args: z.infer<typeof SearchReplaceMultiEditFileTool.parameters>, editorEngine: EditorEngine): Promise<string> {
         try {
             const fileSystem = await getFileSystem(args.branchId, editorEngine);
-            const file = await fileSystem.readFile(args.file_path);
+            const timeoutMs = 25000;
+            const file = await withTimeout(
+                fileSystem.readFile(args.file_path),
+                timeoutMs,
+                `Read file for multi-edit timed out after ${timeoutMs}ms: ${args.file_path}`
+            );
+
             if (typeof file !== 'string') {
                 throw new Error(`Cannot read file ${args.file_path}: file is not text`);
             }
@@ -74,7 +81,12 @@ export class SearchReplaceMultiEditFileTool extends ClientTool {
                 }
             }
 
-            await fileSystem.writeFile(args.file_path, content);
+            await withTimeout(
+                fileSystem.writeFile(args.file_path, content),
+                timeoutMs,
+                `Write file after multi-edit timed out after ${timeoutMs}ms: ${args.file_path}`
+            );
+
             return `File ${args.file_path} edited with ${args.edits.length} changes`;
         } catch (error) {
             throw new Error(`Cannot multi-edit file ${args.file_path}: ${(error as Error).message}`);

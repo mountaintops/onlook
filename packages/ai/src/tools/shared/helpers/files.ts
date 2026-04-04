@@ -44,9 +44,37 @@ export async function resolveDirectoryPath(inputPath: string | undefined, sandbo
     return inputPath.startsWith('/') ? inputPath : `./${inputPath}`;
 }
 
-// Safe command execution with fallback handling
-export async function safeRunCommand(sandbox: SandboxManager, command: string, fallbackValue?: string): Promise<{ success: boolean; output: string; isReliable: boolean }> {
+// Generic timeout wrapper for any async operation
+export async function withTimeout<T>(
+    promise: Promise<T>,
+    timeoutMs: number,
+    errorMessage: string
+): Promise<T> {
+    let timer: NodeJS.Timeout;
+    const timeoutPromise = new Promise<T>((_, reject) => {
+        timer = setTimeout(() => {
+            reject(new Error(errorMessage));
+        }, timeoutMs);
+        // Allow timer to be garbage collected
+        if ((timer as any).unref) (timer as any).unref();
+    });
+
     try {
+        return await Promise.race([promise, timeoutPromise]);
+    } finally {
+        // @ts-ignore - timer is initialized by the time we get here
+        clearTimeout(timer);
+    }
+}
+
+// Safe command execution with fallback handling and timeout
+export async function safeRunCommand(
+    sandbox: SandboxManager, 
+    command: string, 
+    fallbackValue?: string,
+    timeoutMs = 10000 // Default to 10s for commands
+): Promise<{ success: boolean; output: string; isReliable: boolean }> {
+    const commandPromise = (async () => {
         const result = await sandbox.session.runCommand(command);
         // Some commands return success: false even when they work - check output too
         const hasOutput = !!result.output && result.output.trim().length > 0;
@@ -55,15 +83,25 @@ export async function safeRunCommand(sandbox: SandboxManager, command: string, f
         return {
             success: isActuallySuccessful,
             output: result.output || '',
-            isReliable: result.success // Track if the success flag is reliable
+            isReliable: result.success === true // Track if the success flag is reliable
         };
+    })();
+
+    try {
+        return await withTimeout(
+            commandPromise, 
+            timeoutMs, 
+            `Command timed out after ${timeoutMs}ms: ${command}`
+        );
     } catch (error) {
+        console.warn(`safeRunCommand failed or timed out: ${command}`, error);
         if (fallbackValue !== undefined) {
             return { success: true, output: fallbackValue, isReliable: false };
         }
         return { success: false, output: '', isReliable: false };
     }
 }
+
 
 // Check if a command is available
 export async function isCommandAvailable(sandbox: SandboxManager, command: string): Promise<boolean> {

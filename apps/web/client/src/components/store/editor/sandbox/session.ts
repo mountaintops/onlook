@@ -256,21 +256,31 @@ export class SessionManager {
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
 
-            // Handle "Shell does not exist" error by attempting to reconnect
-            if (errorMessage.includes('Shell with id') && errorMessage.includes('does not exist') && retryCount < 1) {
-                console.warn(`[SessionManager] Shell expired, attempting to reconnect... (retry ${retryCount + 1})`);
+            const isShellExpired = errorMessage.includes('Shell with id') && errorMessage.includes('does not exist');
+            const isTransientContainerError = 
+                errorMessage.includes('container create failed') || 
+                errorMessage.includes('conmon') || 
+                errorMessage.includes('expect { or n') ||
+                errorMessage.includes('failed to exec in podman') ||
+                errorMessage.includes('forkpty(3) failed');
+
+            // Handle transient errors by attempting to reconnect or restart provider
+            if ((isShellExpired || isTransientContainerError) && retryCount < 1) {
+                const action = isShellExpired ? 'reconnect' : 'restart provider';
+                console.warn(`[SessionManager] ${isShellExpired ? 'Shell expired' : 'Transient container error'}, attempting to ${action}... (retry ${retryCount + 1})`);
 
                 try {
-                    // Attempt to reconnect/restart provider to get a fresh shell
-                    await this.reconnect(this.branch.sandbox.id);
-
+                    if (isShellExpired) {
+                        await this.reconnect(this.branch.sandbox.id);
+                    } else {
+                        await this.restartProvider(this.branch.sandbox.id);
+                    }
                     // Retry the command once with fresh session
                     return this.runCommand(command, streamCallback, ignoreError, retryCount + 1);
                 } catch (reconnectError) {
-                    console.error('[SessionManager] Failed to reconnect after shell expiry:', reconnectError);
+                    console.error(`[SessionManager] Failed to ${action} during recovery:`, reconnectError);
                 }
             }
-
 
             console.error('Error running command:', error);
             return {

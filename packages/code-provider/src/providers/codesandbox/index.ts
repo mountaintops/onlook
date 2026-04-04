@@ -141,10 +141,33 @@ export class CodesandboxProvider extends Provider {
                 );
             }
             if (this.options.initClient) {
-                this._client = await this.sandbox.connect();
+                this._client = await this.withTransientRetry(
+                    () => this.sandbox!.connect(),
+                    'initialize.connect'
+                );
             }
         }
         return {};
+    }
+
+    private async withTransientRetry<T>(operation: () => Promise<T>, label: string): Promise<T> {
+        const MAX_RETRIES = 2;
+        let lastError: any;
+        for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+            try {
+                return await operation();
+            } catch (error) {
+                lastError = error;
+                if (this.isTransientContainerError(error) && attempt < MAX_RETRIES) {
+                    const delay = Math.pow(2, attempt) * 1000;
+                    console.warn(`[CodesandboxProvider] Transient container error in ${label}, retrying in ${delay}ms... (Attempt ${attempt + 1})`, error);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    continue;
+                }
+                throw error;
+            }
+        }
+        throw lastError;
     }
 
     async reload(): Promise<boolean> {
@@ -153,7 +176,7 @@ export class CodesandboxProvider extends Provider {
         }
         const task = await this.client?.tasks.get('dev');
         if (task) {
-            await task.restart();
+            await this.withTransientRetry(() => task.restart(), 'reload.restart');
             return true;
         }
         return false;
@@ -169,7 +192,6 @@ export class CodesandboxProvider extends Provider {
             return true;
         } catch (error) {
             console.error('Failed to ping sandbox', error);
-            return false;
         }
     }
 
@@ -260,14 +282,20 @@ export class CodesandboxProvider extends Provider {
         if (!this.client) {
             throw new Error('Client not initialized');
         }
-        return writeFile(this.client, input);
+        return this.withTransientRetry(
+            () => writeFile(this.client!, input),
+            'writeFile'
+        );
     }
 
     async renameFile(input: RenameFileInput): Promise<RenameFileOutput> {
         if (!this.client) {
             throw new Error('Client not initialized');
         }
-        await this.client.fs.rename(input.args.oldPath, input.args.newPath);
+        await this.withTransientRetry(
+            () => this.client!.fs.rename(input.args.oldPath, input.args.newPath),
+            'renameFile'
+        );
         return {};
     }
 
@@ -275,7 +303,10 @@ export class CodesandboxProvider extends Provider {
         if (!this.client) {
             throw new Error('Client not initialized');
         }
-        const res = await this.client.fs.stat(input.args.path);
+        const res = await this.withTransientRetry(
+            () => this.client!.fs.stat(input.args.path),
+            'statFile'
+        );
         return {
             type: res.type,
             isSymlink: res.isSymlink,
@@ -290,7 +321,10 @@ export class CodesandboxProvider extends Provider {
         if (!this.client) {
             throw new Error('Client not initialized');
         }
-        await this.client.fs.remove(input.args.path, input.args.recursive);
+        await this.withTransientRetry(
+            () => this.client!.fs.remove(input.args.path, input.args.recursive),
+            'deleteFiles'
+        );
         return {};
     }
 
@@ -298,21 +332,30 @@ export class CodesandboxProvider extends Provider {
         if (!this.client) {
             throw new Error('Client not initialized');
         }
-        return listFiles(this.client, input);
+        return this.withTransientRetry(
+            () => listFiles(this.client!, input),
+            'listFiles'
+        );
     }
 
     async readFile(input: ReadFileInput): Promise<ReadFileOutput> {
         if (!this.client) {
             throw new Error('Client not initialized');
         }
-        return readFile(this.client, input);
+        return this.withTransientRetry(
+            () => readFile(this.client!, input),
+            'readFile'
+        );
     }
 
     async downloadFiles(input: DownloadFilesInput): Promise<DownloadFilesOutput> {
         if (!this.client) {
             throw new Error('Client not initialized');
         }
-        const res = await this.client.fs.download(input.args.path);
+        const res = await this.withTransientRetry(
+            () => this.client!.fs.download(input.args.path),
+            'downloadFiles'
+        );
         return {
             url: res.downloadUrl,
         };
@@ -322,11 +365,14 @@ export class CodesandboxProvider extends Provider {
         if (!this.client) {
             throw new Error('Client not initialized');
         }
-        await this.client.fs.copy(
-            input.args.sourcePath,
-            input.args.targetPath,
-            input.args.recursive,
-            input.args.overwrite,
+        await this.withTransientRetry(
+            () => this.client!.fs.copy(
+                input.args.sourcePath,
+                input.args.targetPath,
+                input.args.recursive,
+                input.args.overwrite,
+            ),
+            'copyFiles'
         );
         return {};
     }
@@ -335,7 +381,10 @@ export class CodesandboxProvider extends Provider {
         if (!this.client) {
             throw new Error('Client not initialized');
         }
-        await this.client.fs.mkdir(input.args.path);
+        await this.withTransientRetry(
+            () => this.client!.fs.mkdir(input.args.path),
+            'createDirectory'
+        );
         return {};
     }
 
@@ -345,7 +394,10 @@ export class CodesandboxProvider extends Provider {
         }
         const watcher = new CodesandboxFileWatcher(this.client);
 
-        await watcher.start(input);
+        await this.withTransientRetry(
+            () => watcher.start(input),
+            'watchFiles'
+        );
 
         if (input.onFileChange) {
             watcher.registerEventCallback(async (event) => {
@@ -367,7 +419,10 @@ export class CodesandboxProvider extends Provider {
         if (!this.client) {
             throw new Error('Client not initialized');
         }
-        const csTerminal = await this.client.terminals.create();
+        const csTerminal = await this.withTransientRetry(
+            () => this.client!.terminals.create(),
+            'createTerminal'
+        );
         return {
             terminal: new CodesandboxTerminal(csTerminal),
         };
@@ -390,10 +445,23 @@ export class CodesandboxProvider extends Provider {
         if (!this.client) {
             throw new Error('Client not initialized');
         }
-        const output = await this.client.commands.run(args.command);
-        return {
-            output,
-        };
+
+        const output = await this.withTransientRetry(
+            () => this.client!.commands.run(args.command),
+            'runCommand'
+        );
+        return { output };
+    }
+
+    private isTransientContainerError(error: unknown): boolean {
+        const message = error instanceof Error ? error.message : String(error);
+        return (
+            message.includes('container create failed') ||
+            message.includes('conmon') ||
+            message.includes('expect { or n') ||
+            message.includes('failed to exec in podman') ||
+            message.includes('forkpty(3) failed')
+        );
     }
 
     async runBackgroundCommand(
@@ -402,7 +470,10 @@ export class CodesandboxProvider extends Provider {
         if (!this.client) {
             throw new Error('Client not initialized');
         }
-        const command = await this.client.commands.runBackground(input.args.command);
+        const command = await this.withTransientRetry(
+            () => this.client!.commands.runBackground(input.args.command),
+            'runBackgroundCommand'
+        );
         return {
             command: new CodesandboxBackgroundCommand(command),
         };
@@ -412,7 +483,10 @@ export class CodesandboxProvider extends Provider {
         if (!this.client) {
             throw new Error('Client not initialized');
         }
-        const status = await this.client.git.status();
+        const status = await this.withTransientRetry(
+            () => this.client!.git.status(),
+            'gitStatus'
+        );
         return {
             changedFiles: status.changedFiles,
         };
@@ -422,8 +496,13 @@ export class CodesandboxProvider extends Provider {
         if (!this.client) {
             throw new Error('Client not initialized');
         }
-        await this.client.setup.run();
-        await this.client.setup.waitUntilComplete();
+        await this.withTransientRetry(
+            async () => {
+                await this.client!.setup.run();
+                await this.client!.setup.waitUntilComplete();
+            },
+            'setup'
+        );
         return {};
     }
 
@@ -433,9 +512,10 @@ export class CodesandboxProvider extends Provider {
         if (!this.sandbox) {
             throw new Error('Client not initialized');
         }
-        const session = await this.sandbox.createBrowserSession({
-            id: input.args.id,
-        });
+        const session = await this.withTransientRetry(
+            () => this.sandbox!.createBrowserSession({ id: input.args.id }),
+            'createSession'
+        );
 
         try {
             // Generate a signed preview URL to bypass the security gateway

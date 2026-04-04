@@ -2,7 +2,9 @@ import { Icons } from '@onlook/ui/icons';
 import type { EditorEngine } from '@onlook/web-client/src/components/store/editor/engine';
 import { z } from 'zod';
 import { ClientTool } from '../models/client';
+import { withTimeout } from '../shared/helpers/files';
 import { BRANCH_ID_SCHEMA } from '../shared/type';
+
 
 export class TerminalCommandTool extends ClientTool {
     static readonly toolName = 'terminal_command';
@@ -29,7 +31,13 @@ export class TerminalCommandTool extends ClientTool {
                 error: `Sandbox not found for branch ID: ${args.branchId}`
             };
         }
-        return await sandbox.session.runCommand(args.command);
+        const timeoutMs = 30000;
+        return await withTimeout(
+            sandbox.session.runCommand(args.command),
+            timeoutMs,
+            `Terminal command timed out after ${timeoutMs}ms: ${args.command}`
+        );
+
     }
 
     static getLabel(input?: z.infer<typeof TerminalCommandTool.parameters>): string {

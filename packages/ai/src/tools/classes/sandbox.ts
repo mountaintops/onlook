@@ -2,7 +2,9 @@ import { Icons } from '@onlook/ui/icons';
 import type { EditorEngine } from '@onlook/web-client/src/components/store/editor/engine';
 import { z } from 'zod';
 import { ClientTool } from '../models/client';
+import { withTimeout } from '../shared/helpers/files';
 import { BRANCH_ID_SCHEMA } from '../shared/type';
+
 
 export class SandboxTool extends ClientTool {
     static readonly ALLOWED_SANDBOX_COMMANDS = z.enum(['restart_dev_server', 'read_dev_server_logs', 'screenshot']);
@@ -21,16 +23,26 @@ export class SandboxTool extends ClientTool {
                 throw new Error(`Sandbox not found for branch ID: ${args.branchId}`);
             }
 
+            const timeoutMs = 30000;
             if (args.command === 'restart_dev_server') {
-                const success = await sandbox.session.restartDevServer();
+                const success = await withTimeout(
+                    sandbox.session.restartDevServer(),
+                    timeoutMs,
+                    `Restart dev server timed out after ${timeoutMs}ms`
+                );
                 if (success) {
                     return 'Dev server restarted';
                 } else {
                     return 'Failed to restart dev server';
                 }
             } else if (args.command === 'read_dev_server_logs') {
-                const logs = await sandbox.session.readDevServerLogs();
+                const logs = await withTimeout(
+                    sandbox.session.readDevServerLogs(),
+                    timeoutMs,
+                    `Read dev server logs timed out after ${timeoutMs}ms`
+                );
                 return logs;
+
             } else if (args.command === 'screenshot') {
                 const result = await editorEngine.screenshot.capture(true);
                 if (result?.success) {

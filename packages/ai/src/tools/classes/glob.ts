@@ -7,7 +7,9 @@ import {
     buildShellExclusionPattern,
     filterExcludedPaths
 } from '../shared/helpers/cli';
+import { safeRunCommand } from '../shared/helpers/files';
 import { BRANCH_ID_SCHEMA } from '../shared/type';
+
 
 interface GlobResult {
     success: boolean;
@@ -101,7 +103,8 @@ async function tryBashGlob(sandbox: any, searchPath: string, pattern: string): P
 
         const bashCommand = `bash -c 'shopt -s globstar nullglob extglob; for f in ${fullPattern}; do [ -f "$f" ] && ${exclusions} && printf "%s\\n" "$f"; done' | head -1000`;
 
-        const result = await sandbox.session.runCommand(bashCommand, undefined, true);
+        const result = await safeRunCommand(sandbox, bashCommand);
+
 
         return {
             success: result.success,
@@ -124,7 +127,8 @@ async function tryShGlob(sandbox: any, searchPath: string, pattern: string): Pro
 
         const shCommand = `sh -c 'for f in ${fullPattern}; do [ -f "$f" ] && ${exclusions} && printf "%s\\n" "$f"; done' | head -1000`;
 
-        const result = await sandbox.session.runCommand(shCommand, undefined, true);
+        const result = await safeRunCommand(sandbox, shCommand);
+
 
         return {
             success: result.success,
@@ -168,7 +172,8 @@ async function tryFindGlob(sandbox: any, searchPath: string, pattern: string): P
         }
 
         findCommand += ' | sort | head -1000';
-        const result = await sandbox.session.runCommand(findCommand, undefined, true);
+        const result = await safeRunCommand(sandbox, findCommand);
+
 
         return {
             success: result.success || result.output.trim().length > 0,
@@ -209,13 +214,15 @@ async function validateInputs(pattern: string, searchPath: string, sandbox: any)
     }
 
     // Validate search path exists
-    const pathValidation = await sandbox.session.runCommand(`test -e "${searchPath}" && echo "exists" || echo "not_found"`, undefined, true);
+    const pathValidation = await safeRunCommand(sandbox, `test -e "${searchPath}" && echo "exists" || echo "not_found"`);
+
     if (pathValidation.success && pathValidation.output.trim() === 'not_found') {
         return `Error: Search path "${searchPath}" does not exist`;
     }
 
     // Check if it's a directory (not a file)
-    const dirValidation = await sandbox.session.runCommand(`test -d "${searchPath}" && echo "dir" || echo "not_dir"`, undefined, true);
+    const dirValidation = await safeRunCommand(sandbox, `test -d "${searchPath}" && echo "dir" || echo "not_dir"`);
+
     if (dirValidation.success && dirValidation.output.trim() === 'not_dir') {
         return `Error: Search path "${searchPath}" is not a directory`;
     }
@@ -223,7 +230,8 @@ async function validateInputs(pattern: string, searchPath: string, sandbox: any)
     // Validate pattern base directory exists (for patterns like "nonexistent/**/*")
     const patternBasePath = extractPatternBasePath(pattern, searchPath);
     if (patternBasePath && patternBasePath !== searchPath) {
-        const basePathValidation = await sandbox.session.runCommand(`test -d "${patternBasePath}" && echo "exists" || echo "not_found"`, undefined, true);
+        const basePathValidation = await safeRunCommand(sandbox, `test -d "${patternBasePath}" && echo "exists" || echo "not_found"`);
+
         if (basePathValidation.success && basePathValidation.output.trim() === 'not_found') {
             return `Error: Pattern base path "${patternBasePath}" does not exist`;
         }

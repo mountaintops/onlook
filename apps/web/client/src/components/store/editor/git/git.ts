@@ -218,30 +218,14 @@ export class GitManager {
 
             for (let attempt = 0; attempt <= maxRetries; attempt++) {
                 try {
-                    // Do NOT use ignoreError: true here, we need the actual error message in result.error
+                    // Fetch commits and their Onlook display names via notes in a single command
+                    // This prevents spawning dozens of concurrent shells (one per commit) which causes forkpty failures
                     const result = await this.runCommand(
-                        'git --no-pager log --pretty=format:"COMMIT_START%n%H%n%an <%ae>%n%ad%n%B%nCOMMIT_END" --date=iso',
+                        `git --no-pager log --notes=${ONLOOK_DISPLAY_NAME_NOTE_REF} --pretty=format:"COMMIT_START%n%H%n%an <%ae>%n%ad%n%B%nONLOOK_NOTE_START%n%N%nONLOOK_NOTE_END%nCOMMIT_END" --date=iso`,
                     );
 
                     if (result.success && result.output) {
                         const parsedCommits = this.parseGitLog(result.output);
-                        
-
-                        // Enhance commits with display names from notes
-                        if (parsedCommits.length > 0) {
-            const enhancedCommits = await Promise.all(
-                                parsedCommits.map(async (commit) => {
-                                    const displayName = await this.getCommitNote(commit.oid);
-                                    return {
-                                        ...commit,
-                                        displayName: displayName || commit.message,
-                                    };
-                                }),
-                            );
-                            this.commits = enhancedCommits;
-                            return enhancedCommits;
-                        }
-
                         this.commits = parsedCommits;
                         return parsedCommits;
                     }
@@ -392,9 +376,23 @@ export class GitManager {
                 const authorLine = headerLines[1] || '';
                 const dateLine = headerLines[2] || '';
 
-                // Message starts after the date. We find the date in rawLines and take everything after.
+                // Extract message and note using markers
+                const noteStartMarker = 'ONLOOK_NOTE_START';
+                const noteEndMarker = 'ONLOOK_NOTE_END';
+                
+                const noteStartIndex = rawLines.findIndex(l => l.trim() === noteStartMarker);
+                const noteEndIndex = rawLines.findIndex(l => l.trim() === noteEndMarker);
+                
                 const dateIndex = rawLines.findIndex(l => l.trim() === dateLine);
-                const message = rawLines.slice(dateIndex + 1).join('\n').trim();
+                
+                // Get the message (between date and note start)
+                const message = rawLines.slice(dateIndex + 1, noteStartIndex !== -1 ? noteStartIndex : undefined).join('\n').trim();
+                
+                // Get the note (between note start and note end)
+                let noteContent = '';
+                if (noteStartIndex !== -1 && noteEndIndex !== -1) {
+                    noteContent = rawLines.slice(noteStartIndex + 1, noteEndIndex).join('\n').trim();
+                }
 
 
                 // Parse author name and email
@@ -423,7 +421,7 @@ export class GitManager {
                         email: authorEmail,
                     },
                     timestamp: timestamp,
-                    displayName: displayMessage,
+                    displayName: noteContent || displayMessage,
                 });
             } catch (error) {
             }

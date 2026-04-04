@@ -2,8 +2,9 @@ import { Icons } from '@onlook/ui/icons';
 import type { EditorEngine } from '@onlook/web-client/src/components/store/editor/engine';
 import { z } from 'zod';
 import { ClientTool } from '../models/client';
-import { getFileSystem } from '../shared/helpers/files';
+import { getFileSystem, withTimeout } from '../shared/helpers/files';
 import { BRANCH_ID_SCHEMA } from '../shared/type';
+
 
 export class WriteFilesFoldersTool extends ClientTool {
     static readonly toolName = 'write_files_folders';
@@ -23,21 +24,45 @@ export class WriteFilesFoldersTool extends ClientTool {
     async handle(args: z.infer<typeof WriteFilesFoldersTool.parameters>, editorEngine: EditorEngine): Promise<string> {
         try {
             const fileSystem = await getFileSystem(args.branchId, editorEngine);
-            const results: string[] = [];
-
-            for (const action of args.actions) {
-                if (action.type === 'file') {
-                    await fileSystem.writeFile(action.path, action.content || '');
-                    results.push(`file: ${action.path}`);
-                } else if (action.type === 'folder') {
-                    await fileSystem.createDirectory(action.path);
-                    results.push(`folder: ${action.path}`);
-                }
+            
+            // Limit concurrency to avoid overloading the bridge (e.g. max 5 at a time)
+            const CONCURRENCY_LIMIT = 5;
+            const chunks: any[][] = [];
+            for (let i = 0; i < args.actions.length; i += CONCURRENCY_LIMIT) {
+                chunks.push(args.actions.slice(i, i + CONCURRENCY_LIMIT));
             }
 
-            return `Successfully created ${args.actions.length} items: ${results.join(', ')}`;
+            const allResults: string[] = [];
+
+            for (const chunk of chunks) {
+                const chunkResults = await Promise.all(
+                    chunk.map(async (action) => {
+                        const timeoutMs = 15000; // Increased to 15s
+                        const operationPromise = (async () => {
+                            if (action.type === 'file') {
+                                await fileSystem.writeFile(action.path, action.content || '');
+                                return `file: ${action.path}`;
+                            } else if (action.type === 'folder') {
+                                await fileSystem.createDirectory(action.path);
+                                return `folder: ${action.path}`;
+                            }
+                            return `unknown: ${action.path}`;
+                        })();
+
+                        return await withTimeout(
+                            operationPromise,
+                            timeoutMs,
+                            `Operation timed out after ${timeoutMs}ms: ${action.path}`
+                        );
+
+                    })
+                );
+                allResults.push(...chunkResults);
+            }
+
+            return `Successfully created ${args.actions.length} items: ${allResults.join(', ')}`;
         } catch (error) {
-            throw new Error(`Failed to complete multi-write operation: ${error}`);
+            throw new Error(`Failed to complete multi-write operation: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
 

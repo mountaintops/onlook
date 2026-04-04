@@ -2,8 +2,9 @@ import { Icons } from '@onlook/ui/icons';
 import type { EditorEngine } from '@onlook/web-client/src/components/store/editor/engine';
 import { z } from 'zod';
 import { ClientTool } from '../models/client';
-import { isCommandAvailable, resolveDirectoryPath, safeRunCommand } from '../shared/helpers/files';
+import { isCommandAvailable, resolveDirectoryPath, safeRunCommand, withTimeout } from '../shared/helpers/files';
 import { BRANCH_ID_SCHEMA } from '../shared/type';
+
 
 export class ListFilesTool extends ClientTool {
     static readonly toolName = 'list_files';
@@ -29,6 +30,11 @@ export class ListFilesTool extends ClientTool {
             .array(z.string())
             .optional()
             .describe('Array of glob patterns to ignore (e.g., ["node_modules", "*.log", ".git"])'),
+        limit: z
+            .number()
+            .optional()
+            .default(1000)
+            .describe('Maximum number of results to return. Default is 1000.'),
         branchId: BRANCH_ID_SCHEMA,
     });
     static readonly icon = Icons.ListBullet;
@@ -36,7 +42,12 @@ export class ListFilesTool extends ClientTool {
     async handle(
         args: z.infer<typeof ListFilesTool.parameters>,
         editorEngine: EditorEngine,
-    ): Promise<{ path: string; type: 'file' | 'directory'; size?: number; modified?: string }[]> {
+    ): Promise<{
+        entries: { path: string; type: 'file' | 'directory'; size?: number; modified?: string }[];
+        total: number;
+        truncated?: boolean;
+        message?: string;
+    }> {
         const sandbox = editorEngine.branches.getSandboxById(args.branchId);
         if (!sandbox) {
             throw new Error(`Sandbox not found for branch ID: ${args.branchId}`);
@@ -46,90 +57,83 @@ export class ListFilesTool extends ClientTool {
             // Resolve the directory path with fuzzy matching support
             const resolvedPath = await resolveDirectoryPath(args.path, sandbox);
 
-            // Check if find command is available
-            const hasFindCommand = await isCommandAvailable(sandbox, 'find');
+            // SDK-First approach: Use native readDir which is much more reliable than shell commands
+            const timeoutMs = 15000;
+            const rawEntries = await withTimeout(
+                sandbox.readDir(resolvedPath),
+                timeoutMs,
+                `List directory operation timed out after ${timeoutMs}ms: ${resolvedPath}`
+            );
 
-            let result: { success: boolean; output: string; isReliable: boolean };
+            if (!rawEntries) {
+                throw new Error(`Cannot list directory: ${resolvedPath}`);
+            }
 
-            if (hasFindCommand) {
-                // Build the find command based on parameters
-                let findCommand = `find "${resolvedPath}"`;
-
-                // Always use non-recursive behavior (maxdepth 1)
-                findCommand += ' -maxdepth 1';
-
-                // Filter by type if specified
-                if (args.file_types_only) {
-                    findCommand += ' -type f';
-                } else {
-                    findCommand += ' -type f -o -type d';
-                }
-
-                // Handle hidden files
-                if (!args.show_hidden) {
-                    findCommand += ' ! -name ".*"';
-                }
-
-                // Add ignore patterns
-                if (args.ignore && args.ignore.length > 0) {
-                    for (const pattern of args.ignore) {
-                        findCommand += ` ! -path "*/${pattern}" ! -name "${pattern}"`;
+            // Map and filter entries in TypeScript
+            let filteredEntries = rawEntries
+                .map((entry: any) => ({
+                    path: entry.name,
+                    type: (entry.type === 'directory' ? 'directory' : 'file') as 'file' | 'directory',
+                    // Note: SDK may not provide size/modified directly in readDir, 
+                    // we skip them for performance and reliability to avoid "stuck" commands.
+                }))
+                .filter(entry => {
+                    // Filter hidden files
+                    if (!args.show_hidden && entry.path.startsWith('.')) {
+                        return false;
                     }
-                }
 
-                // Add formatting to get file info
-                findCommand += ' -printf "%p|%y|%s|%TY-%Tm-%Td %TH:%TM\\n"';
+                    // Filter by type
+                    if (args.file_types_only && entry.type !== 'file') {
+                        return false;
+                    }
 
-                result = await safeRunCommand(sandbox, findCommand);
-            } else {
-                result = { success: false, output: '', isReliable: false };
-            }
+                    // Filter by ignore patterns (simple string containment/exact match)
+                    if (args.ignore && args.ignore.length > 0) {
+                        const isIgnored = args.ignore.some(pattern => {
+                            if (pattern.includes('*')) {
+                                // Simple glob-to-regex for basic patterns like *.log or node_modules/*
+                                const regex = new RegExp('^' + pattern.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$');
+                                return regex.test(entry.path);
+                            }
+                            return entry.path === pattern || entry.path.includes(pattern);
+                        });
+                        if (isIgnored) return false;
+                    }
 
-            if (!result.success) {
-                // Fallback to the original method if find command fails or unavailable
-                const fallbackResult = await sandbox.readDir(resolvedPath);
-                if (!fallbackResult) {
-                    throw new Error(`Cannot list directory: ${resolvedPath}`);
-                }
-                return fallbackResult.map((file: any) => ({
-                    path: file.name,
-                    type: file.type,
-                }));
-            }
-
-            if (!result.output.trim()) {
-                return [];
-            }
-
-            // Parse the find output
-            const files = result.output.trim().split('\n')
-                .filter((line: string) => line.trim())
-                .map((line: string) => {
-                    const parts = line.split('|');
-                    const fullPath = parts[0] || '';
-                    const type = parts[1] || '';
-                    const size = parts[2] || '';
-                    const modified = parts[3] || '';
-                    const relativePath = fullPath.replace(resolvedPath + '/', '').replace(resolvedPath, '.');
-
-                    return {
-                        path: relativePath === '.' ? '.' : relativePath,
-                        type: type === 'f' ? 'file' as const : 'directory' as const,
-                        size: size ? parseInt(size, 10) : undefined,
-                        modified: modified || undefined
-                    };
+                    return true;
                 })
-                .filter((file: any) => file.path !== '.') // Remove the directory itself unless it's the only result
-                .sort((a: any, b: any) => {
-                    // Sort directories first, then files, then alphabetically
+                .sort((a, b) => {
+                    // Sort directories first, matching the previous behavior
                     if (a.type !== b.type) {
                         return a.type === 'directory' ? -1 : 1;
                     }
                     return a.path.localeCompare(b.path);
                 });
 
-            return files;
+            const total = filteredEntries.length;
+            const truncated = total > args.limit;
+            const entries = filteredEntries.slice(0, args.limit);
 
+            // Final check: character limit (100k) to stay within tool response limits
+            const MAX_CHARS = 100000;
+            let finalOutput = {
+                entries,
+                total,
+                truncated,
+                message: truncated ? `[RESULTS TRUNCATED: Showing first ${args.limit} of ${total} items. Use ignore patterns to narrow down.]` : undefined
+            };
+
+            const serialized = JSON.stringify(finalOutput);
+            if (serialized.length > MAX_CHARS) {
+                // If still too large, reduce number of entries further
+                const safeCount = Math.floor((MAX_CHARS / serialized.length) * entries.length * 0.8);
+                finalOutput.entries = entries.slice(0, safeCount);
+                finalOutput.truncated = true;
+                finalOutput.message = `[RESULTS TRUNCATED: Output size exceeds character limit. Showing ${safeCount} of ${total} items.]`;
+            }
+
+            return finalOutput;
         } catch (error) {
             throw new Error(`Cannot list directory: ${error instanceof Error ? error.message : String(error)}`);
         }

@@ -2,7 +2,9 @@ import { Icons } from '@onlook/ui/icons';
 import type { EditorEngine } from '@onlook/web-client/src/components/store/editor/engine';
 import { z } from 'zod';
 import { ClientTool } from '../models/client';
+import { withTimeout } from '../shared/helpers/files';
 import { BRANCH_ID_SCHEMA } from '../shared/type';
+
 
 export class BashReadTool extends ClientTool {
     static readonly ALLOWED_BASH_READ_COMMANDS = z.enum([
@@ -73,7 +75,13 @@ export class BashReadTool extends ClientTool {
                 };
             }
 
-            const result = await sandbox.session.runCommand(args.command);
+            const timeoutMs = args.timeout || 30000;
+            const result = await withTimeout(
+                sandbox.session.runCommand(args.command),
+                timeoutMs,
+                `Bash read command timed out after ${timeoutMs}ms: ${args.command}`
+            );
+
             return {
                 output: result.output,
                 success: result.success,

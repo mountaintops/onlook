@@ -7,7 +7,9 @@ import {
     escapeForShell,
     getFileTypePattern
 } from '../shared/helpers/cli';
+import { safeRunCommand } from '../shared/helpers/files';
 import { BRANCH_ID_SCHEMA } from '../shared/type';
+
 
 interface GrepResult {
     success: boolean;
@@ -143,7 +145,8 @@ async function validateGrepInputs(
     }
 
     // Path validation
-    const pathValidation = await sandbox.session.runCommand(`test -e "${searchPath}" && echo "exists" || echo "not_found"`, undefined, true);
+    const pathValidation = await safeRunCommand(sandbox, `test -e "${searchPath}" && echo "exists" || echo "not_found"`);
+
     if (pathValidation.success && pathValidation.output.trim() === 'not_found') {
         // Try fuzzy path matching
         const fuzzyPath = await findFuzzyPath(searchPath, sandbox);
@@ -154,7 +157,8 @@ async function validateGrepInputs(
     }
 
     // Check if it's a directory (not a file)
-    const dirValidation = await sandbox.session.runCommand(`test -d "${searchPath}" && echo "dir" || echo "not_dir"`, undefined, true);
+    const dirValidation = await safeRunCommand(sandbox, `test -d "${searchPath}" && echo "dir" || echo "not_dir"`);
+
     if (dirValidation.success && dirValidation.output.trim() === 'not_dir') {
         return `Error: Search path "${searchPath}" is not a directory`;
     }
@@ -211,7 +215,8 @@ async function findFuzzyPath(inputPath: string, sandbox: any): Promise<string | 
 
     // Search for directories with similar names
     const findCommand = `find . -type d -name "*${targetName}*" | head -5`;
-    const result = await sandbox.session.runCommand(findCommand, undefined, true);
+    const result = await safeRunCommand(sandbox, findCommand);
+
 
     if (result.success && result.output.trim()) {
         const candidates = result.output.trim().split('\n').filter((line: string) => line.trim());
@@ -262,7 +267,9 @@ async function executeGrepSearch(sandbox: any, searchPath: string, args: z.infer
     }
 
     // Execute the command with ignoreError to handle "no matches found" gracefully
-    const result = await sandbox.session.runCommand(command, undefined, true);
+    const result = await safeRunCommand(sandbox, command);
+    
+
 
     // Determine if results were truncated
     const wasTruncated = args.head_limit ?
@@ -333,7 +340,8 @@ async function buildMultilineCommand(
     sandbox: any
 ): Promise<string> {
     // Check if grep supports -P flag (Perl regex)
-    const perlSupport = await sandbox.session.runCommand('grep --help | grep -q "\\-P" && echo "yes" || echo "no"', undefined, true);
+    const perlSupport = await safeRunCommand(sandbox, 'grep --help | grep -q "\\-P" && echo "yes" || echo "no"');
+
 
     if (perlSupport.success && perlSupport.output.trim() === 'yes') {
         // Use grep -P with -z for null-separated records

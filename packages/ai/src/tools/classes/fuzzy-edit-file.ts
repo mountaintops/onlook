@@ -2,8 +2,9 @@ import { Icons } from '@onlook/ui/icons';
 import type { EditorEngine } from '@onlook/web-client/src/components/store/editor/engine';
 import { z } from 'zod';
 import { ClientTool } from '../models/client';
-import { getFileSystem } from '../shared/helpers/files';
+import { getFileSystem, withTimeout } from '../shared/helpers/files';
 import { BRANCH_ID_SCHEMA } from '../shared/type';
+
 
 export class FuzzyEditFileTool extends ClientTool {
     static readonly toolName = 'fuzzy_edit_file';
@@ -31,7 +32,13 @@ Make sure there's enough context for the other model to understand where the cha
     ): Promise<string> {
 
         const fileSystem = await getFileSystem(args.branchId, editorEngine);
-        const originalFile = await fileSystem.readFile(args.file_path);
+        const timeoutMs = 20000;
+        const originalFile = await withTimeout(
+            fileSystem.readFile(args.file_path),
+            timeoutMs,
+            `Read file for fuzzy edit timed out after ${timeoutMs}ms: ${args.file_path}`
+        );
+
 
         if (typeof originalFile !== 'string') {
             throw new Error('Binary files are not supported for editing');
@@ -52,7 +59,12 @@ Make sure there's enough context for the other model to understand where the cha
             throw new Error('Error applying code change: ' + updatedContent.error);
         }
 
-        await fileSystem.writeFile(args.file_path, updatedContent.result);
+        await withTimeout(
+            fileSystem.writeFile(args.file_path, updatedContent.result),
+            timeoutMs,
+            `Write file after fuzzy edit timed out after ${timeoutMs}ms: ${args.file_path}`
+        );
+
         return 'File edited!';
     }
 

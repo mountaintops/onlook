@@ -2,8 +2,9 @@ import { Icons } from '@onlook/ui/icons';
 import type { EditorEngine } from '@onlook/web-client/src/components/store/editor/engine';
 import { z } from 'zod';
 import { ClientTool } from '../models/client';
-import { getFileSystem } from '../shared/helpers/files';
+import { getFileSystem, withTimeout } from '../shared/helpers/files';
 import { BRANCH_ID_SCHEMA } from '../shared/type';
+
 
 export class ReadFileTool extends ClientTool {
     static readonly toolName = 'read_file';
@@ -37,7 +38,13 @@ export class ReadFileTool extends ClientTool {
     }> {
         try {
             const fileSystem = await getFileSystem(args.branchId, editorEngine);
-            let file = await fileSystem.readFile(args.file_path);
+            const timeoutMs = 15000;
+            let file = await withTimeout(
+                fileSystem.readFile(args.file_path),
+                timeoutMs,
+                `Read file operation timed out after ${timeoutMs}ms: ${args.file_path}`
+            );
+
             if (typeof file !== 'string') {
                 throw new Error(`Cannot read file ${args.file_path}: file is not text`);
             }

@@ -2,8 +2,9 @@ import { Icons } from '@onlook/ui/icons';
 import type { EditorEngine } from '@onlook/web-client/src/components/store/editor/engine';
 import { z } from 'zod';
 import { ClientTool } from '../models/client';
-import { getFileSystem } from '../shared/helpers/files';
+import { getFileSystem, withTimeout } from '../shared/helpers/files';
 import { BRANCH_ID_SCHEMA } from '../shared/type';
+
 
 export class SearchReplaceEditTool extends ClientTool {
     static readonly toolName = 'search_replace_edit_file';
@@ -21,7 +22,13 @@ export class SearchReplaceEditTool extends ClientTool {
         try {
 
             const fileSystem = await getFileSystem(args.branchId, editorEngine);
-            const file = await fileSystem.readFile(args.file_path);
+            const timeoutMs = 20000;
+            const file = await withTimeout(
+                fileSystem.readFile(args.file_path),
+                timeoutMs,
+                `Read file for search-replace timed out after ${timeoutMs}ms: ${args.file_path}`
+            );
+
             if (typeof file !== 'string') {
                 throw new Error(`Cannot read file ${args.file_path}: file is not text`);
             }
@@ -43,7 +50,12 @@ export class SearchReplaceEditTool extends ClientTool {
                 newContent = file.replace(args.old_string, args.new_string);
             }
 
-            await fileSystem.writeFile(args.file_path, newContent);
+            await withTimeout(
+                fileSystem.writeFile(args.file_path, newContent),
+                timeoutMs,
+                `Write file after search-replace timed out after ${timeoutMs}ms: ${args.file_path}`
+            );
+
             return `File ${args.file_path} edited successfully`;
         } catch (error) {
             throw new Error(`Cannot edit file ${args.file_path}: ${error}`);

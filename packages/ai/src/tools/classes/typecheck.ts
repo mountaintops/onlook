@@ -2,7 +2,9 @@ import { Icons } from '@onlook/ui/icons';
 import type { EditorEngine } from '@onlook/web-client/src/components/store/editor/engine';
 import { z } from 'zod';
 import { ClientTool } from '../models/client';
+import { withTimeout } from '../shared/helpers/files';
 import { BRANCH_ID_SCHEMA } from '../shared/type';
+
 
 export class TypecheckTool extends ClientTool {
     static readonly toolName = 'typecheck';
@@ -29,7 +31,13 @@ export class TypecheckTool extends ClientTool {
             }
 
             // Run Next.js typecheck command
-            const result = await sandbox.session.runCommand('bunx tsc --noEmit');
+            const timeoutMs = 60000;
+            const result = await withTimeout(
+                sandbox.session.runCommand('bunx tsc --noEmit'),
+                timeoutMs,
+                `Typecheck operation timed out after ${timeoutMs}ms`
+            );
+
 
             if (result.success) {
                 return {

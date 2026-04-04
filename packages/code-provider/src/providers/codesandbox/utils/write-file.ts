@@ -18,6 +18,6 @@ export async function writeFile(
         return { success: true };
     } catch (error) {
         console.error(`Error writing remote file ${normalizedPath}:`, error);
-        return { success: false };
+        throw error;
     }
 }
