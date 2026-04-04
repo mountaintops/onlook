@@ -11,6 +11,7 @@ export class ScreenshotWebTool extends ClientTool {
     static readonly parameters = z.object({
         url: z.string().url().describe('The URL to screenshot (e.g., http://localhost:3000/about)'),
         branchId: BRANCH_ID_SCHEMA,
+        scrollToId: z.string().optional().describe('The ID of the element to scroll to before taking the screenshot'),
     });
     static readonly icon = Icons.Image;
 
@@ -23,7 +24,32 @@ export class ScreenshotWebTool extends ClientTool {
         message?: string;
     }> {
         try {
-            const { base64 } = await editorEngine.api.screenshot(args.url);
+            let finalUrl = args.url;
+
+            // Resolve localhost to public sandbox URL if available
+            if (
+                finalUrl.startsWith('http://localhost') ||
+                finalUrl.startsWith('http://127.0.0.1')
+            ) {
+                const signedPreviewUrl = editorEngine.activeSandbox?.session.signedPreviewUrl;
+                if (signedPreviewUrl) {
+                    try {
+                        const localUrl = new URL(finalUrl);
+                        const publicUrl = new URL(signedPreviewUrl);
+                        // Transfer path and search params
+                        publicUrl.pathname = localUrl.pathname;
+                        publicUrl.search = localUrl.search;
+                        finalUrl = publicUrl.toString();
+                        console.log(
+                            `📡 Resolved local URL ${args.url} to public sandbox URL: ${finalUrl}`,
+                        );
+                    } catch (e) {
+                        console.warn('Failed to parse or resolve URL:', e);
+                    }
+                }
+            }
+
+            const { base64 } = await editorEngine.api.screenshot(finalUrl, args.scrollToId);
             
             let displayName = 'Screenshot';
             try {

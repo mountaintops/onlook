@@ -2,7 +2,7 @@ import { EditorView, keymap, ViewUpdate } from '@codemirror/view';
 import type { CodeNavigationTarget } from '@onlook/models';
 import { convertToBase64DataUrl, getMimeType, isVideoFile } from '@onlook/utility';
 import CodeMirror from '@uiw/react-codemirror';
-import { type RefObject, useEffect, useMemo, useRef, useState } from 'react';
+import React, { memo, type RefObject, useEffect, useMemo, useRef, useState } from 'react';
 import type { BinaryEditorFile, EditorFile } from '../shared/types';
 import { getBasicSetup, getExtensions, highlightElementRange, scrollToLineColumn } from './code-mirror-config';
 import { FloatingAddToChatButton } from './floating-add-to-chat-button';
@@ -19,7 +19,7 @@ interface CodeEditorProps {
     onFocusChatInput?: () => void;
 }
 
-export const CodeEditor = ({
+export const CodeEditor = memo(({
     file,
     isActive,
     navigationTarget,
@@ -30,17 +30,17 @@ export const CodeEditor = ({
     onAddSelectionToChat,
     onFocusChatInput,
 }: CodeEditorProps) => {
-    const [currentSelection, setCurrentSelection] = useState<{ from: number; to: number; text: string } | null>(null);
-    const [selectionAddedToChat, setSelectionAddedToChat] = useState(false);
-    const [showButton, setShowButton] = useState(false);
-    const lastNavigationTargetRef = useRef<CodeNavigationTarget | null>(null);
+    const [currentSelection, setCurrentSelection] = React.useState<{ from: number; to: number; text: string } | null>(null);
+    const [selectionAddedToChat, setSelectionAddedToChat] = React.useState(false);
+    const [showButton, setShowButton] = React.useState(false);
+    const lastNavigationTargetRef = React.useRef<CodeNavigationTarget | null>(null);
 
     const getFileUrl = (file: BinaryEditorFile) => {
         const mime = getMimeType(file.path.toLowerCase());
         return convertToBase64DataUrl(file.content, mime);
     };
 
-    const selectionExtension = useMemo(() => {
+    const selectionExtension = React.useMemo(() => {
         return [
             EditorView.updateListener.of((update: ViewUpdate) => {
                 if (update.selectionSet) {
@@ -115,7 +115,7 @@ export const CodeEditor = ({
         }
     }
 
-    useEffect(() => {
+    React.useEffect(() => {
         // Reset last navigation when target is cleared or file changes
         if (!navigationTarget) {
             lastNavigationTargetRef.current = null;
@@ -217,4 +217,11 @@ export const CodeEditor = ({
             )}
         </div>
     );
-};
+}, (prevProps, nextProps) => {
+    return (
+        prevProps.isActive === nextProps.isActive &&
+        prevProps.file.path === nextProps.file.path &&
+        prevProps.file.content === nextProps.file.content &&
+        prevProps.navigationTarget === nextProps.navigationTarget
+    );
+});

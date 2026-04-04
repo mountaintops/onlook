@@ -309,6 +309,12 @@ export const FrameComponent = observer(
             }, [penpalChild, frame, iframeRef]);
 
             useEffect(() => {
+                if (penpalChild && frame.theme) {
+                    penpalChild.setTheme(frame.theme as unknown as SystemTheme);
+                }
+            }, [penpalChild, frame.theme]);
+
+            useEffect(() => {
                 return () => {
                     if (connectionRef.current) {
                         connectionRef.current.destroy();
@@ -371,7 +377,13 @@ export const FrameComponent = observer(
                         }, [frame.url, editorEngine.branches.getSandboxById(frame.branchId)?.session.signedPreviewUrl])}
                         sandbox="allow-modals allow-forms allow-same-origin allow-scripts allow-popups allow-downloads"
                         allow="geolocation; microphone; camera; midi; encrypted-media"
-                        style={{ width: frame.dimension.width, height: frame.dimension.height, backdropFilter: 'blur(0px)' }}
+                        style={{
+                            width: frame.dimension.width,
+                            height: frame.dimension.height,
+                            backdropFilter: 'blur(0px)',
+                            colorScheme: (frame.theme as string) || 'normal',
+                            backgroundColor: frame.theme === 'dark' ? '#000' : '#fff',
+                        }}
                         onLoad={handleOnLoad}
                         {...props}
                     />

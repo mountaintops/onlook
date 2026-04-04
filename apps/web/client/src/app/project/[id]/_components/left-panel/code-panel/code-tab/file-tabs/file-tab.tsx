@@ -25,7 +25,7 @@ export const FileTab = ({
     const filename = file.path.split('/').pop() || '';
 
     useEffect(() => {
-        isDirty(file).then(setIsFileDirty);
+        setIsFileDirty(isDirty(file));
     }, [file.path, file.content, file.type, file.type === 'text' ? file.originalHash : null]);
 
     return (

@@ -43,26 +43,11 @@ export const CodeEditorArea = ({
     const [activeFileIsDirty, setActiveFileIsDirty] = useState(false);
 
     useEffect(() => {
-        // Guard setActiveFileIsDirty being called after 
-        // the component is unmounted because isDirty is async
-        let isMounted = true;
-
-        async function checkDirty() {
-            if (!activeFile) {
-                setActiveFileIsDirty(false);
-                return;
-            }
-            const dirty = await isDirty(activeFile);
-            if (isMounted) {
-                setActiveFileIsDirty(dirty);
-            }
+        if (!activeFile) {
+            setActiveFileIsDirty(false);
+            return;
         }
-
-        void checkDirty();
-
-        return () => {
-            isMounted = false;
-        };
+        setActiveFileIsDirty(isDirty(activeFile));
     }, [activeFile]);
 
     return (
@@ -75,22 +60,18 @@ export const CodeEditorArea = ({
                         </div>
                     </div>
                 ) : (
-                    // Codemirror keeps track of editor history
-                    // having one for each opened file will make a better experience despite the overhead
-                    openedFiles.map((file) => (
-                        <CodeEditor
-                            key={file.path}
-                            file={file}
-                            isActive={pathsEqual(activeFile?.path, file.path)}
-                            navigationTarget={pathsEqual(navigationTarget?.filePath, file.path) ? navigationTarget : null}
-                            editorViewsRef={editorViewsRef}
-                            onSaveFile={onSaveFile}
-                            onUpdateFileContent={onUpdateFileContent}
-                            onSelectionChange={pathsEqual(activeFile?.path, file.path) ? onSelectionChange : undefined}
-                            onAddSelectionToChat={pathsEqual(activeFile?.path, file.path) ? onAddSelectionToChat : undefined}
-                            onFocusChatInput={pathsEqual(activeFile?.path, file.path) ? onFocusChatInput : undefined}
-                        />
-                    ))
+                    <CodeEditor
+                        key={activeFile.path}
+                        file={activeFile}
+                        isActive={true}
+                        navigationTarget={pathsEqual(navigationTarget?.filePath, activeFile.path) ? navigationTarget : null}
+                        editorViewsRef={editorViewsRef}
+                        onSaveFile={onSaveFile}
+                        onUpdateFileContent={onUpdateFileContent}
+                        onSelectionChange={onSelectionChange}
+                        onAddSelectionToChat={onAddSelectionToChat}
+                        onFocusChatInput={onFocusChatInput}
+                    />
                 )}
             </div>
             {activeFileIsDirty && showUnsavedDialog && (

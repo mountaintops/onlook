@@ -8,7 +8,7 @@ import { MessageContextType } from '@onlook/models';
 import { toast } from '@onlook/ui/sonner';
 import { pathsEqual } from '@onlook/utility';
 import { motion } from 'motion/react';
-import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import React, { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { CodeEditorArea } from './file-content';
 import { FileTabs } from './file-tabs';
 import { CodeControls } from './header-controls';
@@ -43,6 +43,7 @@ const createEditorFile = async (filePath: string, content: string | Uint8Array):
             content: content,
             type: 'binary',
             originalHash: null,
+            originalContent: content,
         } satisfies BinaryEditorFile;
     } else if (typeof content === 'string') {
         const originalHash = await hashContent(content);
@@ -51,6 +52,7 @@ const createEditorFile = async (filePath: string, content: string | Uint8Array):
             content: content,
             type: 'text',
             originalHash,
+            originalContent: content,
         } as TextEditorFile;
     } else {
         throw new Error('Invalid content type');
@@ -59,19 +61,19 @@ const createEditorFile = async (filePath: string, content: string | Uint8Array):
 
 export const CodeTab = memo(forwardRef<CodeTabRef, CodeTabProps>(({ projectId, branchId }, ref) => {
     const editorEngine = useEditorEngine();
-    const editorViewsRef = useRef<Map<string, EditorView>>(new Map());
+    const editorViewsRef = React.useRef<Map<string, EditorView>>(new Map());
     const navigationTarget = useCodeNavigation();
 
-    const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
-    const [activeEditorFile, setActiveEditorFile] = useState<EditorFile | null>(null);
-    const [openedEditorFiles, setOpenedEditorFiles] = useState<EditorFile[]>([]);
-    const [showLocalUnsavedDialog, setShowLocalUnsavedDialog] = useState(false);
-    const [filesToClose, setFilesToClose] = useState<string[]>([]);
-    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-    const [editorSelection, setEditorSelection] = useState<{ from: number; to: number; text: string } | null>(null);
+    const [selectedFilePath, setSelectedFilePath] = React.useState<string | null>(null);
+    const [activeEditorFile, setActiveEditorFile] = React.useState<EditorFile | null>(null);
+    const [openedEditorFiles, setOpenedEditorFiles] = React.useState<EditorFile[]>([]);
+    const [showLocalUnsavedDialog, setShowLocalUnsavedDialog] = React.useState(false);
+    const [filesToClose, setFilesToClose] = React.useState<string[]>([]);
+    const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
+    const [editorSelection, setEditorSelection] = React.useState<{ from: number; to: number; text: string } | null>(null);
 
     // This is a workaround to allow code controls to access the hasUnsavedChanges state
-    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
     const branchData = editorEngine.branches.getBranchDataById(branchId);
     const {
         entries: fileEntries,
@@ -83,7 +85,7 @@ export const CodeTab = memo(forwardRef<CodeTabRef, CodeTabProps>(({ projectId, b
     } = useFile(projectId, branchId, selectedFilePath || '');
 
     // React to loadedContent changes - build local EditorFile and manage opened files
-    useEffect(() => {
+    React.useEffect(() => {
         if (!selectedFilePath || !loadedContent) return;
 
         const processFile = async () => {
@@ -109,15 +111,13 @@ export const CodeTab = memo(forwardRef<CodeTabRef, CodeTabProps>(({ projectId, b
             setActiveEditorFile(updatedFile);
         };
 
-        const addNewFile = async (newFile: EditorFile) => {
+        const addNewFile = (newFile: EditorFile) => {
             // If we've reached the limit, try to close first non-dirty file
             if (openedEditorFiles.length >= SOFT_MAX_OPENED_FILES) {
-                const dirtyChecks = await Promise.all(
-                    openedEditorFiles.map(async file => ({
-                        file,
-                        dirty: await isDirty(file)
-                    }))
-                );
+                const dirtyChecks = openedEditorFiles.map(file => ({
+                    file,
+                    dirty: isDirty(file)
+                }));
 
                 // Find first non-dirty file
                 const fileToClose = dirtyChecks.find(check => !check.dirty)?.file;
@@ -133,7 +133,7 @@ export const CodeTab = memo(forwardRef<CodeTabRef, CodeTabProps>(({ projectId, b
 
         const createUpdatedFile = (existing: EditorFile, newFile: EditorFile): EditorFile => {
             if (existing.type === 'binary') {
-                return { ...existing, content: newFile.content };
+                return { ...existing, content: newFile.content, originalContent: newFile.content };
             }
 
             const existingText = existing as TextEditorFile;
@@ -144,13 +144,14 @@ export const CodeTab = memo(forwardRef<CodeTabRef, CodeTabProps>(({ projectId, b
                 ...existingText,
                 content: diskContentChanged ? newText.content : existingText.content,
                 originalHash: diskContentChanged ? newText.originalHash : existingText.originalHash,
+                originalContent: diskContentChanged ? newText.originalContent : existingText.originalContent,
             };
         };
 
         processFile();
     }, [loadedContent]);
 
-    useEffect(() => {
+    React.useEffect(() => {
         if (!navigationTarget) return;
 
         const { filePath } = navigationTarget;
@@ -161,23 +162,15 @@ export const CodeTab = memo(forwardRef<CodeTabRef, CodeTabProps>(({ projectId, b
     }, [navigationTarget]);
 
     // Track dirty state of opened files
-    useEffect(() => {
-        const checkDirtyState = async () => {
-            if (openedEditorFiles.length === 0) {
-                setHasUnsavedChanges(false);
-                return;
-            }
-
-            const dirtyChecks = await Promise.all(
-                openedEditorFiles.map(file => isDirty(file))
-            );
-            setHasUnsavedChanges(dirtyChecks.some(dirty => dirty));
-        };
-
-        checkDirtyState();
+    const isAnyFileDirty = React.useMemo(() => {
+        return openedEditorFiles.some(file => isDirty(file));
     }, [openedEditorFiles]);
 
-    const refreshFileTree = () => {
+    React.useEffect(() => {
+        setHasUnsavedChanges(isAnyFileDirty);
+    }, [isAnyFileDirty]);
+
+    const refreshFileTree = React.useCallback(() => {
         // Force refresh of file entries
         // This will cause the file tree to re-render with updated file list
         // Note: The useDirectory hook automatically handles file watching,
@@ -186,15 +179,15 @@ export const CodeTab = memo(forwardRef<CodeTabRef, CodeTabProps>(({ projectId, b
             // Simple state update to trigger re-render
             setSelectedFilePath(prev => prev);
         }, 100);
-    };
+    }, []);
 
     // Get current directory from selected file path or default to root
-    const getCurrentPath = () => {
+    const getCurrentPath = React.useCallback(() => {
         if (!selectedFilePath) return '';
         const parts = selectedFilePath.split('/');
         parts.pop(); // Remove filename to get directory
         return parts.join('/');
-    };
+    }, [selectedFilePath]);
 
     const handleFileTreeSelect = (filePath: string, searchTerm?: string) => {
         setSelectedFilePath(filePath);
@@ -211,14 +204,18 @@ export const CodeTab = memo(forwardRef<CodeTabRef, CodeTabProps>(({ projectId, b
         await branchData.codeEditor.writeFile(filePath, file.content || '');
 
         if (file.type === 'text') {
-            const newHash = await hashContent(file.content);
-            return { ...file, originalHash: newHash };
+            const newHash = await hashContent(file.content as string);
+            return {
+                ...file,
+                originalHash: newHash,
+                originalContent: file.content as string
+            };
         }
 
         return file;
     };
 
-    const handleSaveFile = async () => {
+    const handleSaveFile = React.useCallback(async () => {
         if (!selectedFilePath || !activeEditorFile || !branchData) return;
         try {
             // Preserve scroll position and cursor before save
@@ -237,14 +234,14 @@ export const CodeTab = memo(forwardRef<CodeTabRef, CodeTabProps>(({ projectId, b
                 const formattedFile: TextEditorFile = {
                     ...activeEditorFile as TextEditorFile,
                     content: formattedContent,
-                    originalHash: newHash
+                    originalHash: newHash,
+                    originalContent: formattedContent
                 };
 
                 // Update in opened files list
-                const updatedFiles = openedEditorFiles.map(file =>
+                setOpenedEditorFiles(prev => prev.map(file =>
                     pathsEqual(file.path, selectedFilePath) ? formattedFile : file
-                );
-                setOpenedEditorFiles(updatedFiles);
+                ));
                 setActiveEditorFile(formattedFile);
 
                 // Restore scroll position after content update with multiple attempts to ensure it sticks
@@ -268,7 +265,7 @@ export const CodeTab = memo(forwardRef<CodeTabRef, CodeTabProps>(({ projectId, b
             console.error('Failed to save file:', error);
             alert(`Failed to save: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
-    };
+    }, [selectedFilePath, activeEditorFile, branchData, openedEditorFiles, saveFileWithHash]);
 
     const handleSaveAndCloseFiles = async () => {
         try {
@@ -290,38 +287,37 @@ export const CodeTab = memo(forwardRef<CodeTabRef, CodeTabProps>(({ projectId, b
         }
     };
 
-    const closeLocalFile = useCallback((filePath: string) => {
+    const closeLocalFile = React.useCallback((filePath: string) => {
         const fileToClose = openedEditorFiles.find(f => pathsEqual(f.path, filePath));
         if (fileToClose) {
-            isDirty(fileToClose).then(dirty => {
-                if (dirty) {
-                    setFilesToClose([filePath]);
-                    setShowLocalUnsavedDialog(true);
-                    return;
-                }
+            const dirty = isDirty(fileToClose);
+            if (dirty) {
+                setFilesToClose([filePath]);
+                setShowLocalUnsavedDialog(true);
+                return;
+            }
 
-                closeFileInternal(filePath);
-            });
+            closeFileInternal(filePath);
         }
     }, [openedEditorFiles]);
 
     const closeAllLocalFiles = () => {
-        Promise.all(openedEditorFiles.map(async file => ({
+        const fileStatuses = openedEditorFiles.map(file => ({
             file,
-            dirty: await isDirty(file)
-        }))).then(fileStatuses => {
-            // Close clean files immediately
-            const cleanFiles = fileStatuses.filter(status => !status.dirty);
-            cleanFiles.forEach(status => closeFileInternal(status.file.path));
+            dirty: isDirty(file)
+        }));
 
-            // Check if any dirty files remain
-            const dirtyFiles = fileStatuses.filter(status => status.dirty);
-            if (dirtyFiles.length > 0) {
-                setFilesToClose(dirtyFiles.map(status => status.file.path));
-                setShowLocalUnsavedDialog(true);
-                return;
-            }
-        });
+        // Close clean files immediately
+        const cleanFiles = fileStatuses.filter(status => !status.dirty);
+        cleanFiles.forEach(status => closeFileInternal(status.file.path));
+
+        // Check if any dirty files remain
+        const dirtyFiles = fileStatuses.filter(status => status.dirty);
+        if (dirtyFiles.length > 0) {
+            setFilesToClose(dirtyFiles.map(status => status.file.path));
+            setShowLocalUnsavedDialog(true);
+            return;
+        }
     };
 
     const handleLocalFileTabSelect = (file: EditorFile) => {
@@ -329,20 +325,18 @@ export const CodeTab = memo(forwardRef<CodeTabRef, CodeTabProps>(({ projectId, b
         setSelectedFilePath(file.path);
     };
 
-    const updateLocalFileContent = (filePath: string, content: string) => {
-        const updatedFiles = openedEditorFiles.map(file =>
+    const updateLocalFileContent = React.useCallback((filePath: string, content: string) => {
+        setOpenedEditorFiles(prev => prev.map(file =>
             pathsEqual(file.path, filePath)
                 ? { ...file, content }
                 : file
-        );
-        setOpenedEditorFiles(updatedFiles);
+        ));
 
         // Update active file if it's the one being updated
         if (activeEditorFile && pathsEqual(activeEditorFile.path, filePath)) {
-            const updatedActiveFile = { ...activeEditorFile, content };
-            setActiveEditorFile(updatedActiveFile);
+            setActiveEditorFile(prev => prev ? { ...prev, content } : null);
         }
-    };
+    }, [activeEditorFile]);
 
     // Centralized function to close a file and clean up resources
     const closeFileInternal = (filePath: string) => {
@@ -460,7 +454,7 @@ export const CodeTab = memo(forwardRef<CodeTabRef, CodeTabProps>(({ projectId, b
     }), [hasUnsavedChanges, getCurrentPath, handleSaveFile, refreshFileTree, handleCreateFile, handleCreateFolder]);
 
     // Handle adding selection to chat
-    const handleAddSelectionToChat = useCallback((selection: { from: number; to: number; text: string }) => {
+    const handleAddSelectionToChat = React.useCallback((selection: { from: number; to: number; text: string }) => {
         if (!selection || !selectedFilePath || !activeEditorFile?.content) return;
 
         try {
@@ -517,7 +511,7 @@ export const CodeTab = memo(forwardRef<CodeTabRef, CodeTabProps>(({ projectId, b
     }, [selectedFilePath, activeEditorFile, branchId, editorEngine.chat.context]);
 
     // Cleanup editor instances when component unmounts
-    useEffect(() => {
+    React.useEffect(() => {
         return () => {
             editorViewsRef.current.forEach((view) => view.destroy());
             editorViewsRef.current.clear();
@@ -525,7 +519,7 @@ export const CodeTab = memo(forwardRef<CodeTabRef, CodeTabProps>(({ projectId, b
     }, []);
 
     // Handle adding file to chat
-    const handleAddFileToChat = useCallback(async (filePath: string) => {
+    const handleAddFileToChat = React.useCallback(async (filePath: string) => {
         if (!branchData) return;
 
         try {

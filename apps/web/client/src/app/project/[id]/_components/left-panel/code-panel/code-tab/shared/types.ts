@@ -3,12 +3,14 @@ export interface EditorFile {
     type: 'text' | 'binary';
     content: string | Uint8Array;
     originalHash: string | null;
+    originalContent: string | Uint8Array | null;
 }
 
 export interface TextEditorFile extends EditorFile {
     type: 'text';
     content: string;
     originalHash: string;
+    originalContent: string;
 }
 
 // Readonly, no need to dirty or saved content

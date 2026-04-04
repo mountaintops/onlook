@@ -1,33 +1,30 @@
 import { ChatType } from '@onlook/models';
 import { type InferUITools, type ToolSet } from 'ai';
-import {
-    BashEditTool,
-    BashReadTool,
-    CheckWebsiteTool,
-    CheckErrorsTool,
-    FuzzyEditFileTool,
-    GlobTool,
-    GrepTool,
-    ListBranchesTool,
-    ListFilesTool,
-    OnlookInstructionsTool,
-    ReadFileTool,
-    ReadStyleGuideTool,
-    SandboxTool,
-    ScrapeUrlTool,
-    ScreenshotRelevantTool,
-    ScreenshotWebTool,
-    SearchReplaceEditTool,
-    SearchReplaceMultiEditFileTool,
-    TerminalCommandTool,
-    TypecheckTool,
-    UploadImageTool,
-    UploaderTool,
-    WebSearchTool,
-    WriteFileTool,
-    WriteFilesFoldersTool,
-    Base64Tool,
-} from './classes';
+import { BashEditTool } from './classes/bash-edit';
+import { BashReadTool } from './classes/bash-read';
+import { CheckWebsiteTool } from './classes/check-website';
+import { CheckErrorsTool } from './classes/check-errors';
+import { FuzzyEditFileTool } from './classes/fuzzy-edit-file';
+import { GlobTool } from './classes/glob';
+import { GrepTool } from './classes/grep';
+import { ListBranchesTool } from './classes/list-branches';
+import { ListFilesTool } from './classes/list-files';
+import { OnlookInstructionsTool } from './classes/onlook-instructions';
+import { ReadFileTool } from './classes/read-file';
+import { ReadStyleGuideTool } from './classes/read-style-guide';
+import { SandboxTool } from './classes/sandbox';
+import { ScrapeUrlTool } from './classes/scrape-url';
+import { ScreenshotWebTool } from './classes/screenshot-web';
+import { SearchReplaceEditTool } from './classes/search-replace-edit';
+import { SearchReplaceMultiEditFileTool } from './classes/search-replace-multi-edit';
+import { TerminalCommandTool } from './classes/terminal-command';
+import { TypecheckTool } from './classes/typecheck';
+import { UploadImageTool } from './classes/upload-image';
+import { UploaderTool } from './classes/uploader';
+import { WebSearchTool } from './classes/web-search';
+import { WriteFileTool } from './classes/write-file';
+import { WriteFilesFoldersTool } from './classes/write-files-folders';
+import { Base64Tool } from './classes/base64';
 import type { BaseTool } from './models/base';
 
 // Helper function to convert tool classes to ToolSet
@@ -53,7 +50,6 @@ const readOnlyToolClasses = [
     TypecheckTool,
     CheckErrorsTool,
     ScreenshotWebTool,
-    ScreenshotRelevantTool,
 ];
 const editOnlyToolClasses = [
     SearchReplaceEditTool,
