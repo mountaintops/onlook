@@ -237,7 +237,7 @@ export async function screenshitDelete(projectId: string): Promise<ScreenshitJob
 /**
  * Call POST /screenshot to capture a website screenshot as a Buffer.
  */
-export async function screenshitScreenshot(url: string, quality = 80): Promise<Buffer> {
+export async function screenshitScreenshot(url: string, quality = 80, scrollToId?: string): Promise<Buffer> {
     const apiBase = getApiBase();
     const apiUrl = `${apiBase}/screenshot`;
 
@@ -247,7 +247,7 @@ export async function screenshitScreenshot(url: string, quality = 80): Promise<B
             'Content-Type': 'application/json',
             Authorization: `Bearer ${getApiKey()}`,
         },
-        body: JSON.stringify({ url, quality }),
+        body: JSON.stringify({ url, quality, scrollToId }),
     });
 
     if (!response.ok) {

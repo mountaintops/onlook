@@ -461,58 +461,27 @@ export const CodeTab = memo(forwardRef<CodeTabRef, CodeTabProps>(({ projectId, b
 
     // Handle adding selection to chat
     const handleAddSelectionToChat = useCallback((selection: { from: number; to: number; text: string }) => {
-        if (!selection || !selectedFilePath || !activeEditorFile?.content) return;
+        if (!selection || !selectedFilePath || !activeEditorFile || activeEditorFile.type !== 'text') return;
 
         try {
-            // Calculate line numbers from character positions
-            const content = typeof activeEditorFile.content === 'string' ? activeEditorFile.content : '';
-
-            // Validate selection indices
-            if (typeof selection.from !== 'number' || typeof selection.to !== 'number') {
-                console.error('Invalid selection: from and to must be numbers', selection);
-                toast.error('Invalid selection');
-                return;
-            }
-
-            // Ensure from < to
-            if (selection.from >= selection.to) {
-                console.error('Invalid selection: from must be less than to', selection);
-                toast.error('Invalid selection range');
-                return;
-            }
-
-            // Clamp indices to valid range [0, content.length]
-            const from = Math.max(0, Math.min(selection.from, content.length));
-            const to = Math.max(0, Math.min(selection.to, content.length));
-
-            // Double-check after clamping
-            if (from >= to) {
-                console.error('Invalid selection after clamping', { from, to, contentLength: content.length });
-                toast.error('Selection is out of bounds');
-                return;
-            }
-
-            const beforeSelection = content.substring(0, from);
-            const selectionContent = content.substring(from, to);
+            const content = activeEditorFile.content as string;
+            const beforeSelection = content.substring(0, selection.from);
             const startLine = beforeSelection.split('\n').length;
-            const endLine = startLine + selectionContent.split('\n').length - 1;
+            const endLine = startLine + selection.text.split('\n').length - 1;
 
-            const fileName = selectedFilePath.split('/').pop() || selectedFilePath;
-            // Add highlight context (selected code snippet)
             editorEngine.chat.context.addContexts([{
                 type: MessageContextType.HIGHLIGHT,
                 path: selectedFilePath,
                 content: selection.text,
-                displayName: fileName + ' (' + startLine + ':' + endLine + ')',
+                displayName: `${selectedFilePath.split('/').pop() || selectedFilePath} (${startLine}:${endLine})`,
                 start: startLine,
                 end: endLine,
                 branchId: branchId,
             }]);
 
-            toast.success('Selection added to chat context');
+            toast.success('Selection added to chat');
         } catch (error) {
             console.error('Error adding selection to chat:', error);
-            toast.error('Failed to add selection to chat');
         }
     }, [selectedFilePath, activeEditorFile, branchId, editorEngine.chat.context]);
 
