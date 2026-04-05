@@ -5,7 +5,7 @@ import {
 } from '@onlook/models';
 import type { FileUIPart } from 'ai';
 import { AgentRuleContext, BranchContext, ErrorContext, FileContext, ImageContext } from '../contexts/classes';
-import { ARCHITECT_MODE_SYSTEM_PROMPT, ASK_MODE_SYSTEM_PROMPT, CREATE_NEW_PAGE_SYSTEM_PROMPT, SHELL_PROMPT, SUGGESTION_SYSTEM_PROMPT, SUMMARY_PROMPTS, SYSTEM_PROMPT } from './constants';
+import { ARCHITECT_MODE_SYSTEM_PROMPT, ASK_MODE_SYSTEM_PROMPT, CREATE_NEW_PAGE_SYSTEM_PROMPT, SHELL_PROMPT, SUGGESTION_SYSTEM_PROMPT, SUMMARY_PROMPTS, SYSTEM_PROMPT, VISUAL_ANALYSIS_PROMPT } from './constants';
 import { wrapXml } from './helpers';
 
 export interface HydrateMessageOptions {
@@ -162,6 +162,10 @@ export function getHydratedUserMessage(
         prompt += wrapXml('available-images',
             'These are new images that need to be uploaded to the project using the upload_image tool:\n' + imageList
         );
+    }
+
+    if (allImages.length > 0) {
+        prompt += wrapXml('visual-analysis-rules', VISUAL_ANALYSIS_PROMPT);
     }
 
     const textContent = parts

@@ -81,7 +81,7 @@ export class ScreenshotWebTool extends ClientTool {
             }
 
             const uploader = new UploaderTool();
-            const message = await uploader.handle({
+            const uploaderResult = await uploader.handle({
                 base64,
                 displayName,
                 branchId: args.branchId,
@@ -89,8 +89,8 @@ export class ScreenshotWebTool extends ClientTool {
 
             return {
                 success: true,
-                error: null,
-                message,
+                error: uploaderResult.success ? null : uploaderResult.message,
+                message: uploaderResult.message,
                 image: {
                     base64: cleanBase64,
                     mimeType,

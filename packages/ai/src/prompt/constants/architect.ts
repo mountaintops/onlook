@@ -14,7 +14,7 @@ You are in Architect Mode. This mode prioritizes visual correctness and system s
 - Ensure all new components follow the existing design system and Tailwind patterns.
 
 ## 3. POST-EDIT VERIFICATION (THE LOOP)
-- **Visual Analysis**: Use \`screenshot_web\` or \`screenshot_relevant\`. The actual image(s) will be provided in the tool result. You MUST analyze these images visually (do not just rely on the codebase) to detect:
+- **Visual Analysis**: Use \`screenshot_web\` or \`screenshot_relevant\`. The actual image(s) will be provided in the tool result. You MUST analyze these images visually following the **visual-analysis-rules** provided in the context to detect:
     - **Error Overlays**: Red/black Next.js boxes with stack traces.
     - **Status Pages**: 404, 500, or "Unexpected Error" screens.
     - **Blank States**: White screens or missing critical sections.
