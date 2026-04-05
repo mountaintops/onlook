@@ -27,25 +27,32 @@ export class ScreenshotWebTool extends ClientTool {
             let finalUrl = args.url;
 
             // Resolve localhost to public sandbox URL if available
-            if (
-                finalUrl.startsWith('http://localhost') ||
-                finalUrl.startsWith('http://127.0.0.1')
-            ) {
-                const signedPreviewUrl = editorEngine.activeSandbox?.session.signedPreviewUrl;
+            const isLocalhost = finalUrl.includes('localhost') || finalUrl.includes('127.0.0.1');
+
+            if (isLocalhost) {
+                const activeSandbox = editorEngine.activeSandbox;
+                const signedPreviewUrl = activeSandbox?.session.signedPreviewUrl;
+
                 if (signedPreviewUrl) {
                     try {
                         const localUrl = new URL(finalUrl);
                         const publicUrl = new URL(signedPreviewUrl);
-                        // Transfer path and search params
+                        
+                        // Merge the path and search params from the local URL into the public URL
                         publicUrl.pathname = localUrl.pathname;
                         publicUrl.search = localUrl.search;
                         finalUrl = publicUrl.toString();
-                        console.log(
-                            `📡 Resolved local URL ${args.url} to public sandbox URL: ${finalUrl}`,
-                        );
+
+                        console.log(`[ScreenshotWebTool] Resolved local URL to sandbox URL: ${finalUrl}`);
                     } catch (e) {
-                        console.warn('Failed to parse or resolve URL:', e);
+                        console.error('Failed to resolve localhost URL:', e);
                     }
+                } else {
+                    // Fail if it's localhost but no sandbox is available to resolve it
+                    return {
+                        success: false,
+                        error: `The URL "${args.url}" is local and cannot be accessed by the screenshot service. Please ensure your sandbox is active or provide a public URL.`,
+                    };
                 }
             }
 

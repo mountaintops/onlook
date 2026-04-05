@@ -27,9 +27,16 @@ export class ScreenshotRelevantTool extends ClientTool {
                 return { success: true, error: 'No modified files found in recent history.' };
             }
 
+            const activeSandbox = editorEngine.activeSandbox;
+            const signedPreviewUrl = activeSandbox?.session.signedPreviewUrl;
+
+            if (!signedPreviewUrl) {
+                return { success: false, error: 'No active sandbox with a public preview URL found. Please ensure your sandbox is running.' };
+            }
+
             const relevantUrls = await this.getRelevantUrls(modifiedPaths, editorEngine);
             if (relevantUrls.size === 0) {
-                return { success: true, error: 'Could not determine relevant URLs for modified files.' };
+                return { success: true, error: `Could not determine relevant URLs for modified files: ${Array.from(modifiedPaths).join(', ')}` };
             }
 
             const uploadedMessages: string[] = [];
@@ -99,14 +106,14 @@ export class ScreenshotRelevantTool extends ClientTool {
 
     private async getRelevantUrls(paths: Set<string>, editorEngine: EditorEngine): Promise<Set<string>> {
         const urls = new Set<string>();
-        const previewBaseUrl = editorEngine.activeSandbox.session.signedPreviewUrl;
-        if (!previewBaseUrl) return urls;
+        const signedPreviewUrl = editorEngine.activeSandbox?.session.signedPreviewUrl;
+        if (!signedPreviewUrl) return urls;
 
         for (const path of paths) {
-            // Check if it's a page
+            console.log(`[ScreenshotRelevantTool] Mapping path to route: ${path}`);
             const pageRoute = this.getPageRoute(path);
             if (pageRoute !== null) {
-                urls.add(new URL(pageRoute, previewBaseUrl).toString());
+                urls.add(new URL(pageRoute, signedPreviewUrl).toString());
                 continue;
             }
 
@@ -114,7 +121,7 @@ export class ScreenshotRelevantTool extends ClientTool {
             if (path.includes('/components/') || path.endsWith('.tsx') || path.endsWith('.ts')) {
                 const pagesUsingComponent = await this.findPagesUsingFile(path, editorEngine);
                 for (const route of pagesUsingComponent) {
-                    urls.add(new URL(route, previewBaseUrl).toString());
+                    urls.add(new URL(route, signedPreviewUrl).toString());
                 }
             }
         }
@@ -122,16 +129,36 @@ export class ScreenshotRelevantTool extends ClientTool {
     }
 
     private getPageRoute(path: string): string | null {
+        // Handle common monorepo prefixes in this project
+        const appPrefixes = ['apps/web/client/', 'apps/web/server/', 'packages/ai/'];
+        let normalizedPath = path;
+        for (const prefix of appPrefixes) {
+            if (normalizedPath.startsWith(prefix)) {
+                normalizedPath = normalizedPath.substring(prefix.length);
+                break;
+            }
+        }
+
         // Match Next.js app router pages: src/app/**/page.tsx
-        const match = path.match(/src\/app\/(.*)\/page\.tsx$/);
+        const match = normalizedPath.match(/^src\/app\/(.*)\/page\.tsx$/);
         if (match) {
             const route = match[1];
             if (!route || route === '.') return '/';
             // Remove route groups like (auth)
-            return '/' + route.split('/').filter(s => !s.startsWith('(') && !s.endsWith(')')).join('/');
+            const cleanRoute = '/' + route.split('/').filter(s => !s.startsWith('(') && !s.endsWith(')')).join('/');
+            return cleanRoute.replace(/\/+/g, '/'); // Ensure no double slashes
         }
+
+        // Handle Next.js pages router (fallback)
+        const pagesMatch = normalizedPath.match(/^src\/pages\/(.*)\.(tsx|ts|js|jsx)$/);
+        if (pagesMatch) {
+            const route = pagesMatch[1];
+            if (route === 'index' || route === '_app' || route === '_document') return '/';
+            return '/' + route;
+        }
+
         // Root page
-        if (path.endsWith('src/app/page.tsx')) return '/';
+        if (normalizedPath === 'src/app/page.tsx') return '/';
         return null;
     }
 
@@ -143,6 +170,8 @@ export class ScreenshotRelevantTool extends ClientTool {
             if (!fileName) return routes;
 
             const sandbox = editorEngine.activeSandbox;
+            if (!sandbox) return routes;
+
             // Grep for the component name in src/app
             const command = `grep -lR "${fileName}" src/app`;
             const result = await sandbox.session.runCommand(command);
