@@ -2,6 +2,7 @@ import { Icons } from '@onlook/ui/icons';
 import type { EditorEngine } from '@onlook/web-client/src/components/store/editor/engine';
 import type { Action } from '@onlook/models/actions';
 import { z } from 'zod';
+import { generateVisualAudit } from '../../audit/visual-audit';
 import { ClientTool } from '../models/client';
 import { BRANCH_ID_SCHEMA } from '../shared/type';
 import { UploaderTool } from './uploader';
@@ -71,12 +72,19 @@ export class ScreenshotRelevantTool extends ClientTool {
                     }
                     images.push({ base64: cleanBase64, mimeType, displayName });
 
-                    const msg = await uploader.handle({
+                    const uploaderResult = await uploader.handle({
                         base64,
                         displayName,
                         branchId: args.branchId,
                     }, editorEngine);
-                    uploadedMessages.push(msg.message);
+                    uploadedMessages.push(uploaderResult.message);
+
+                    // Perform dedicated visual audit (separate request)
+                    const auditFindings = await generateVisualAudit({
+                        base64: cleanBase64,
+                        mimeType,
+                    });
+                    uploadedMessages.push(`#### Visual Audit for ${displayName}\n${auditFindings}`);
                 } catch (e) {
                     console.error(`Failed to screenshot ${url}:`, e);
                 }

@@ -19,7 +19,8 @@ export async function convertToStreamMessages(messages: ChatMessage[]): Promise<
         return toStreamMessage(message, opt);
     });
 
-    return await convertToModelMessages(streamMessages);
+    const messagesForModel = stripImagesFromToolResults(streamMessages);
+    return await convertToModelMessages(messagesForModel);
 }
 
 export const toStreamMessage = (message: ChatMessage, opt: HydrateMessageOptions): ChatMessage => {
@@ -136,5 +137,31 @@ export const transformToolResultsWithImages = (parts: ChatMessage['parts']): Cha
             }
         }
         return part;
+    });
+};
+
+export const stripImagesFromToolResults = (messages: ChatMessage[]): ChatMessage[] => {
+    return messages.map((message) => {
+        if (!message.parts) return message;
+
+        const strippedParts = message.parts.map((part) => {
+            // Only strip from tool results that we have already processed into parts
+            if (part.type === 'tool-invocation' || part.type === 'tool-result') {
+                const toolPart = part as ToolUIPart;
+                if (toolPart.state === 'output-available' && Array.isArray(toolPart.output)) {
+                    // Filter out the image parts for the LLM context
+                    return {
+                        ...toolPart,
+                        output: toolPart.output.filter((p: any) => p.type !== 'image'),
+                    };
+                }
+            }
+            return part;
+        });
+
+        return {
+            ...message,
+            parts: strippedParts,
+        };
     });
 };

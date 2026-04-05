@@ -1,6 +1,7 @@
 import { Icons } from '@onlook/ui/icons';
 import type { EditorEngine } from '@onlook/web-client/src/components/store/editor/engine';
 import { z } from 'zod';
+import { generateVisualAudit } from '../../audit/visual-audit';
 import { ClientTool } from '../models/client';
 import { BRANCH_ID_SCHEMA } from '../shared/type';
 import { UploaderTool } from './uploader';
@@ -87,10 +88,16 @@ export class ScreenshotWebTool extends ClientTool {
                 branchId: args.branchId,
             }, editorEngine);
 
+            // Perform dedicated visual audit (separate request)
+            const auditFindings = await generateVisualAudit({
+                base64: cleanBase64,
+                mimeType,
+            });
+
             return {
                 success: true,
                 error: uploaderResult.success ? null : uploaderResult.message,
-                message: uploaderResult.message,
+                message: `${uploaderResult.message}\n\n### Visual Audit Report\n${auditFindings}`,
                 image: {
                     base64: cleanBase64,
                     mimeType,
