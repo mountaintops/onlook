@@ -22,6 +22,10 @@ export class ScreenshotRelevantTool extends ClientTool {
         success: boolean;
         error: string | null;
         message?: string;
+        images?: {
+            base64: string;
+            mimeType: string;
+        }[];
     }> {
         try {
             const modifiedPaths = await this.getModifiedPaths(editorEngine);
@@ -42,11 +46,23 @@ export class ScreenshotRelevantTool extends ClientTool {
             }
 
             const uploadedMessages: string[] = [];
+            const images: { base64: string, mimeType: string }[] = [];
             const uploader = new UploaderTool();
 
             for (const url of relevantUrls) {
                 try {
                     const { base64 } = await editorEngine.api.screenshot(url, undefined, args.delayMs);
+                    
+                    // Clean the base64 data and determine mime type
+                    let mimeType = 'image/png';
+                    let cleanBase64 = base64;
+                    const match = base64.match(/^data:([^;]+);base64,(.*)$/);
+                    if (match) {
+                        mimeType = match[1] ?? mimeType;
+                        cleanBase64 = match[2] ?? cleanBase64;
+                    }
+                    images.push({ base64: cleanBase64, mimeType });
+
                     let displayName = 'Screenshot';
                     try {
                         const parsedUrl = new URL(url);
@@ -68,6 +84,7 @@ export class ScreenshotRelevantTool extends ClientTool {
                 success: true,
                 error: uploadedMessages.length === 0 ? 'Failed to capture any screenshots' : null,
                 message: uploadedMessages.join('\n'),
+                images,
             };
         } catch (error: any) {
             console.error('Screenshot relevant failed:', error);

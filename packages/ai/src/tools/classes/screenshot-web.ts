@@ -23,6 +23,10 @@ export class ScreenshotWebTool extends ClientTool {
         success: boolean;
         error: string | null;
         message?: string;
+        image?: {
+            base64: string;
+            mimeType: string;
+        };
     }> {
         try {
             let finalUrl = args.url;
@@ -59,6 +63,15 @@ export class ScreenshotWebTool extends ClientTool {
 
             const { base64 } = await editorEngine.api.screenshot(finalUrl, args.scrollToId, args.delayMs);
             
+            // Clean the base64 data and determine mime type
+            let mimeType = 'image/png';
+            let cleanBase64 = base64;
+            const match = base64.match(/^data:([^;]+);base64,(.*)$/);
+            if (match) {
+                mimeType = match[1] ?? mimeType;
+                cleanBase64 = match[2] ?? cleanBase64;
+            }
+
             let displayName = 'Screenshot';
             try {
                 const parsedUrl = new URL(finalUrl);
@@ -78,6 +91,10 @@ export class ScreenshotWebTool extends ClientTool {
                 success: true,
                 error: null,
                 message,
+                image: {
+                    base64: cleanBase64,
+                    mimeType,
+                },
             };
         } catch (error: any) {
             console.error('Screenshot failed:', error);

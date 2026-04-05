@@ -24,9 +24,11 @@ export async function convertToStreamMessages(messages: ChatMessage[]): Promise<
 
 export const toStreamMessage = (message: ChatMessage, opt: HydrateMessageOptions): ChatMessage => {
     if (message.role === 'assistant') {
+        let transformedParts = ensureToolCallResults(message.parts);
+        transformedParts = transformToolResultsWithImages(transformedParts);
         return {
             ...message,
-            parts: ensureToolCallResults(message.parts),
+            parts: transformedParts,
         };
     } else if (message.role === 'user') {
         const hydratedMessage = getHydratedUserMessage(
@@ -81,6 +83,53 @@ export const ensureToolCallResults = (parts: ChatMessage['parts']): ChatMessage[
                     state: 'output-available',
                     output: 'No tool result returned',
                 };
+            }
+        }
+        return part;
+    });
+};
+
+export const transformToolResultsWithImages = (parts: ChatMessage['parts']): ChatMessage['parts'] => {
+    if (!parts) return parts;
+
+    return parts.map((part) => {
+        if (part.type?.startsWith('tool-')) {
+            const toolPart = part as ToolUIPart;
+            if (toolPart.state === 'output-available' && toolPart.output && typeof toolPart.output === 'object') {
+                const output = toolPart.output as any;
+                
+                // Handle single image (ScreenshotWebTool)
+                if (output.image && typeof output.image === 'object' && output.image.base64) {
+                    return {
+                        ...toolPart,
+                        output: [
+                            { type: 'text', text: output.message || 'Screenshot captured.' },
+                            {
+                                type: 'image',
+                                image: output.image.base64,
+                                mimeType: output.image.mimeType || 'image/png',
+                            },
+                        ],
+                    };
+                }
+
+                // Handle multiple images (ScreenshotRelevantTool)
+                if (Array.isArray(output.images) && output.images.length > 0) {
+                    const resultParts: any[] = [{ type: 'text', text: output.message || 'Screenshots captured.' }];
+                    output.images.forEach((img: any) => {
+                        if (img.base64) {
+                            resultParts.push({
+                                type: 'image',
+                                image: img.base64,
+                                mimeType: img.mimeType || 'image/png',
+                            });
+                        }
+                    });
+                    return {
+                        ...toolPart,
+                        output: resultParts,
+                    };
+                }
             }
         }
         return part;
