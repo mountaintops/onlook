@@ -118,6 +118,9 @@ export const transformToolResultsWithImages = (parts: ChatMessage['parts']): Cha
                     const resultParts: any[] = [{ type: 'text', text: output.message || 'Screenshots captured.' }];
                     output.images.forEach((img: any) => {
                         if (img.base64) {
+                            if (img.displayName) {
+                                resultParts.push({ type: 'text', text: `\n### ${img.displayName}` });
+                            }
                             resultParts.push({
                                 type: 'image',
                                 image: img.base64,

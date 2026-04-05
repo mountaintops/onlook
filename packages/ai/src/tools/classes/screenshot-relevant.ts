@@ -25,6 +25,7 @@ export class ScreenshotRelevantTool extends ClientTool {
         images?: {
             base64: string;
             mimeType: string;
+            displayName: string;
         }[];
     }> {
         try {
@@ -46,7 +47,7 @@ export class ScreenshotRelevantTool extends ClientTool {
             }
 
             const uploadedMessages: string[] = [];
-            const images: { base64: string, mimeType: string }[] = [];
+            const images: { base64: string, mimeType: string, displayName: string }[] = [];
             const uploader = new UploaderTool();
 
             for (const url of relevantUrls) {
@@ -61,7 +62,6 @@ export class ScreenshotRelevantTool extends ClientTool {
                         mimeType = match[1] ?? mimeType;
                         cleanBase64 = match[2] ?? cleanBase64;
                     }
-                    images.push({ base64: cleanBase64, mimeType });
 
                     let displayName = 'Screenshot';
                     try {
@@ -69,12 +69,14 @@ export class ScreenshotRelevantTool extends ClientTool {
                         displayName = `Screenshot of ${parsedUrl.pathname}`;
                     } catch (e) {
                     }
+                    images.push({ base64: cleanBase64, mimeType, displayName });
+
                     const msg = await uploader.handle({
                         base64,
                         displayName,
                         branchId: args.branchId,
                     }, editorEngine);
-                    uploadedMessages.push(msg);
+                    uploadedMessages.push(msg.message);
                 } catch (e) {
                     console.error(`Failed to screenshot ${url}:`, e);
                 }

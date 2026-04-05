@@ -24,7 +24,14 @@ export class UploaderTool extends ClientTool {
     async handle(
         args: z.infer<typeof UploaderTool.parameters>,
         editorEngine: EditorEngine,
-    ): Promise<string> {
+    ): Promise<{
+        success: boolean;
+        message: string;
+        image?: {
+            base64: string;
+            mimeType: string;
+        };
+    }> {
         try {
             const { base64, displayName, destinationPath = 'public/images', branchId } = args;
             
@@ -34,7 +41,10 @@ export class UploaderTool extends ClientTool {
             const approxSizeBytes = (base64.length * 3) / 4; 
             
             if (approxSizeBytes > MAX_SIZE_BYTES) {
-                return `Error: Base64 image data is too large (~${(approxSizeBytes / (1024 * 1024)).toFixed(1)}MB). The limit is 2MB to prevent connection timeouts and internal errors. Please provide a smaller image or a direct link if possible.`;
+                return {
+                    success: false,
+                    message: `Error: Base64 image data is too large (~${(approxSizeBytes / (1024 * 1024)).toFixed(1)}MB). The limit is 2MB to prevent connection timeouts and internal errors. Please provide a smaller image or a direct link if possible.`,
+                };
             }
 
             // 1. Clean the base64 data and determine mime type
@@ -75,9 +85,19 @@ export class UploaderTool extends ClientTool {
 
             editorEngine.chat.context.addContexts([imageContext]);
 
-            return `Image "${name}" successfully uploaded to ${fullPath} and added to conversation context.`;
+            return {
+                success: true,
+                message: `Image "${name}" successfully uploaded to ${fullPath} and added to conversation context.`,
+                image: {
+                    base64: cleanBase64,
+                    mimeType,
+                },
+            };
         } catch (error) {
-            throw new Error(`Failed to upload image: ${error}`);
+            return {
+                success: false,
+                message: `Failed to upload image: ${error}`,
+            };
         }
     }
 
