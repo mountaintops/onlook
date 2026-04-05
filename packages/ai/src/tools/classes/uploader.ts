@@ -27,6 +27,15 @@ export class UploaderTool extends ClientTool {
     ): Promise<string> {
         try {
             const { base64, displayName, destinationPath = 'public/images', branchId } = args;
+            
+            // 0. Payload size check (Guard against Internal Error)
+            // 2MB is a safe limit for modern LLM contexts and serverless request bodies
+            const MAX_SIZE_BYTES = 2 * 1024 * 1024;
+            const approxSizeBytes = (base64.length * 3) / 4; 
+            
+            if (approxSizeBytes > MAX_SIZE_BYTES) {
+                return `Error: Base64 image data is too large (~${(approxSizeBytes / (1024 * 1024)).toFixed(1)}MB). The limit is 2MB to prevent connection timeouts and internal errors. Please provide a smaller image or a direct link if possible.`;
+            }
 
             // 1. Clean the base64 data and determine mime type
             let mimeType = 'image/png';
