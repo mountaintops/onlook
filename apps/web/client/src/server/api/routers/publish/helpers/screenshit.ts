@@ -237,12 +237,9 @@ export async function screenshitDelete(projectId: string): Promise<ScreenshitJob
 /**
  * Call POST /screenshot to capture a website screenshot as a Buffer.
  */
-export async function screenshitScreenshot(url: string, quality = 80, scrollToId?: string): Promise<Buffer> {
+export async function screenshitScreenshot(url: string, quality = 80, scrollToId?: string, delay?: number): Promise<Buffer> {
     const apiBase = getApiBase();
     const apiUrl = `${apiBase}/screenshot`;
-
-    // Wait for 3 seconds to allow page to load/hydrate
-    await sleep(3000);
 
     const response = await fetch(apiUrl, {
         method: 'POST',
@@ -250,7 +247,7 @@ export async function screenshitScreenshot(url: string, quality = 80, scrollToId
             'Content-Type': 'application/json',
             Authorization: `Bearer ${getApiKey()}`,
         },
-        body: JSON.stringify({ url, quality, scrollToId }),
+        body: JSON.stringify({ url, quality, scrollToId, delay }),
     });
 
     if (!response.ok) {

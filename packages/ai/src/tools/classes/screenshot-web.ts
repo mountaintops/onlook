@@ -7,11 +7,12 @@ import { UploaderTool } from './uploader';
 
 export class ScreenshotWebTool extends ClientTool {
     static readonly toolName = 'screenshot_web';
-    static readonly description = 'Take a screenshot of a specific URL or the current application page. If the user mentions a bug or UI issue on a specific page, use this to see it.';
+    static readonly description = 'Take a screenshot of a specific URL or the current application page. If the user mentions a bug or UI issue on a specific page, use this to see it. By default, it waits 3 seconds for the page to load, but you can specify a custom delay.';
     static readonly parameters = z.object({
         url: z.string().url().describe('The URL to screenshot (e.g., http://localhost:3000/about)'),
         branchId: BRANCH_ID_SCHEMA,
         scrollToId: z.string().optional().describe('The ID of the element to scroll to before taking the screenshot'),
+        delayMs: z.number().optional().describe('Optional delay in milliseconds to wait before taking the screenshot (default: 3000)'),
     });
     static readonly icon = Icons.Image;
 
@@ -56,7 +57,7 @@ export class ScreenshotWebTool extends ClientTool {
                 }
             }
 
-            const { base64 } = await editorEngine.api.screenshot(finalUrl, args.scrollToId);
+            const { base64 } = await editorEngine.api.screenshot(finalUrl, args.scrollToId, args.delayMs);
             
             let displayName = 'Screenshot';
             try {

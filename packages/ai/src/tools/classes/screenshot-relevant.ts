@@ -1,6 +1,6 @@
 import { Icons } from '@onlook/ui/icons';
 import type { EditorEngine } from '@onlook/web-client/src/components/store/editor/engine';
-import { Action } from '@onlook/models/actions';
+import type { Action } from '@onlook/models/actions';
 import { z } from 'zod';
 import { ClientTool } from '../models/client';
 import { BRANCH_ID_SCHEMA } from '../shared/type';
@@ -11,6 +11,7 @@ export class ScreenshotRelevantTool extends ClientTool {
     static readonly description = 'Take screenshots of all pages that were edited or created in this conversation. If a component was edited, this will screenshot the page(s) that include it.';
     static readonly parameters = z.object({
         branchId: BRANCH_ID_SCHEMA,
+        delayMs: z.number().optional().describe('Optional delay in milliseconds to wait before each screenshot (default: 3000)'),
     });
     static readonly icon = Icons.Image;
 
@@ -45,7 +46,7 @@ export class ScreenshotRelevantTool extends ClientTool {
 
             for (const url of relevantUrls) {
                 try {
-                    const { base64 } = await editorEngine.api.screenshot(url);
+                    const { base64 } = await editorEngine.api.screenshot(url, undefined, args.delayMs);
                     let displayName = 'Screenshot';
                     try {
                         const parsedUrl = new URL(url);

@@ -419,10 +419,11 @@ export const screenshitRouter = createTRPCRouter({
         .input(z.object({ 
             url: z.string().url(), 
             quality: z.number().optional().default(80),
-            scrollToId: z.string().optional()
+            scrollToId: z.string().optional(),
+            delay: z.number().optional(),
         }))
         .mutation(async ({ input }): Promise<{ base64: string }> => {
-            const buffer = await screenshitScreenshot(input.url, input.quality, input.scrollToId);
+            const buffer = await screenshitScreenshot(input.url, input.quality, input.scrollToId, input.delay);
             return { base64: buffer.toString('base64') };
         }),
 });
