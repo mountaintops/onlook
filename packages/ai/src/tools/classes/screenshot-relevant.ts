@@ -1,5 +1,6 @@
 import { Icons } from '@onlook/ui/icons';
 import type { EditorEngine } from '@onlook/web-client/src/components/store/editor/engine';
+import { Action } from '@onlook/models/actions';
 import { z } from 'zod';
 import { ClientTool } from '../models/client';
 import { BRANCH_ID_SCHEMA } from '../shared/type';
@@ -79,18 +80,19 @@ export class ScreenshotRelevantTool extends ClientTool {
     private async getModifiedPaths(editorEngine: EditorEngine): Promise<Set<string>> {
         const paths = new Set<string>();
         // @ts-ignore - access private field for tool logic
-        const undoStack = editorEngine.history.undoStack;
+        const undoStack = (editorEngine.history as any).undoStack as Action[];
 
         for (const action of undoStack) {
             if (action.type === 'write-code') {
-                action.diffs.forEach(diff => paths.add(diff.path));
+                (action as any).diffs.forEach((diff: any) => paths.add(diff.path));
             } else if ('targets' in action) {
-                for (const target of action.targets) {
-                    if (target.oid) {
+                const targets = (action as any).targets as any[];
+                for (const target of targets) {
+                    if ((target as any).oid) {
                         try {
-                            const branchData = editorEngine.branches.getBranchDataById(target.branchId);
+                            const branchData = editorEngine.branches.getBranchDataById((target as any).branchId);
                             const codeEditor = branchData?.codeEditor || editorEngine.fileSystem;
-                            const metadata = await codeEditor.getJsxElementMetadata(target.oid);
+                            const metadata = await codeEditor.getJsxElementMetadata((target as any).oid);
                             if (metadata?.path) {
                                 paths.add(metadata.path);
                             }

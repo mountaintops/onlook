@@ -241,6 +241,9 @@ export async function screenshitScreenshot(url: string, quality = 80, scrollToId
     const apiBase = getApiBase();
     const apiUrl = `${apiBase}/screenshot`;
 
+    // Wait for 3 seconds to allow page to load/hydrate
+    await sleep(3000);
+
     const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
