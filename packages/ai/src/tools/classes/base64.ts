@@ -25,8 +25,20 @@ export class Base64Tool extends ClientTool {
         try {
             const { data, action, displayName, branchId } = args;
 
+            // 0. Payload size check (Guard against Internal Error)
+            const MAX_SIZE_BYTES = 2 * 1024 * 1024;
+            const approxSizeBytes = (data.length * 3) / 4; 
+            
+            if (approxSizeBytes > MAX_SIZE_BYTES) {
+                return `Error: Base64 data is too large (~${(approxSizeBytes / (1024 * 1024)).toFixed(1)}MB). The limit is 2MB to prevent connection timeouts and internal errors. Please provide a smaller string or file.`;
+            }
+
             if (action === 'decode') {
                 const decoded = atob(data);
+                const MAX_LENGTH = 100000;
+                if (decoded.length > MAX_LENGTH) {
+                    return `Decoded text (truncated):\n${decoded.substring(0, MAX_LENGTH)}\n\n[RESULTS TRUNCATED: Decoded content exceeds ${MAX_LENGTH} character limit.]`;
+                }
                 return `Decoded text:\n${decoded}`;
             } else {
                 const uploader = new UploaderTool();

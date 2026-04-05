@@ -29,8 +29,6 @@ export class ReadFileTool extends ClientTool {
             ),
         branchId: BRANCH_ID_SCHEMA,
     });
-    static readonly icon = Icons.EyeOpen;
-
     async handle(args: z.infer<typeof ReadFileTool.parameters>, editorEngine: EditorEngine): Promise<{
         content: string;
         lines: number;
@@ -45,30 +43,31 @@ export class ReadFileTool extends ClientTool {
             const lines = file.split('\n');
             const totalLines = lines.length;
 
-            if (args.offset || args.limit) {
-                const start = Math.max(0, (args.offset || 1) - 1); // Convert to 0-based indexing
-                const end = args.limit ? start + args.limit : lines.length;
-                const selectedLines = lines.slice(start, end);
+            const MAX_CHARS = 100000;
+            const maxLines = 2000;
 
-                return {
-                    content: selectedLines.map((line: string, index: number) => `${start + index + 1}→${line}`).join('\n'),
-                    lines: selectedLines.length,
-                };
+            let start = Math.max(0, (args.offset || 1) - 1);
+            let end = args.limit ? start + args.limit : lines.length;
+            
+            // If No offset/limit, apply default 2000 line limit
+            if (!args.offset && !args.limit && lines.length > maxLines) {
+                end = maxLines;
             }
 
-            // Limit to 2000 lines by default to match Claude's behavior
-            const maxLines = 2000;
-            if (lines.length > maxLines) {
-                const selectedLines = lines.slice(0, maxLines);
-                return {
-                    content: selectedLines.map((line: string, index: number) => `${index + 1}→${line}`).join('\n') + `\n... (truncated, showing first ${maxLines} of ${totalLines} lines)`,
-                    lines: maxLines,
-                };
+            const selectedLines = lines.slice(start, end);
+            let finalContent = selectedLines.map((line: string, index: number) => `${start + index + 1}→${line}`).join('\n');
+            let finalLinesCount = selectedLines.length;
+
+            if (finalContent.length > MAX_CHARS) {
+                finalContent = finalContent.substring(0, MAX_CHARS) + `\n\n[RESULTS TRUNCATED: Content exceeds ${MAX_CHARS} character limit. Use "offset" and "limit" parameters to read specific parts of the file.]`;
+                finalLinesCount = Math.min(finalLinesCount, Math.floor(MAX_CHARS / 30)); 
+            } else if (!args.offset && !args.limit && lines.length > maxLines) {
+                finalContent += `\n\n[RESULTS TRUNCATED: Showing first ${maxLines} of ${totalLines} lines. Use "offset" and "limit" to read more.]`;
             }
 
             return {
-                content: lines.map((line: string, index: number) => `${index + 1}→${line}`).join('\n'),
-                lines: lines.length,
+                content: finalContent,
+                lines: finalLinesCount,
             };
         } catch (error) {
             throw new Error(`Cannot read file ${args.file_path}: ${error instanceof Error ? error.message : String(error)}`);
