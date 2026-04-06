@@ -122,15 +122,18 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
         const mcpServers = projectSettingsData?.mcpServers ?? [];
 
         // Fetch project branches to get the sandboxId for MCP execution
-        let sandboxId: string | undefined;
+        let sandboxId: string | undefined = process.env.CSB_SANDBOX_ID || process.env.ONLOOK_SANDBOX_ID;
         try {
             const projectBranches = await api.project.branch.getByProjectId({
                 projectId,
                 onlyDefault: true
             });
-            sandboxId = projectBranches[0]?.sandboxId;
+            const defaultSandboxId = projectBranches[0]?.sandboxId;
+            if (defaultSandboxId) {
+                sandboxId = defaultSandboxId;
+            }
         } catch (error) {
-            console.warn(`[Chat] Failed to fetch branches for project ${projectId}, falling back to local MCP execution:`, error);
+            console.warn(`[Chat] Failed to fetch branches for project ${projectId}, falling back to environment or local MCP execution:`, error);
         }
 
         let codeProvider;

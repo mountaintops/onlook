@@ -203,7 +203,7 @@ export class McpClientManager {
             case McpTransportType.CODESANDBOX: {
                 if (this.codeProvider) {
                     console.log(
-                        `[MCP] Connecting to CodeSandbox server: "${config.name}" with command: ${config.command} ${config.args?.join(' ')}`,
+                        `[MCP] Connecting to CodeSandbox server: "${config.name}" using ${this.codeProvider.constructor.name} with command: ${config.command} ${config.args?.join(' ')}`,
                     );
                     return createMCPClient({
                         transport: new VmStdioMCPTransport(this.codeProvider, {
