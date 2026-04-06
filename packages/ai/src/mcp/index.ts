@@ -201,15 +201,26 @@ export class McpClientManager {
             }
 
             case McpTransportType.CODESANDBOX: {
-                if (!this.codeProvider) {
-                    throw new Error(`CodeProvider not available for transport CODESANDBOX`);
+                if (this.codeProvider) {
+                    console.log(
+                        `[MCP] Connecting to CodeSandbox server: "${config.name}" with command: ${config.command} ${config.args?.join(' ')}`,
+                    );
+                    return createMCPClient({
+                        transport: new VmStdioMCPTransport(this.codeProvider, {
+                            command: config.command!,
+                            args: config.args,
+                            env: config.env,
+                        }),
+                    });
                 }
 
+                // Fallback to local execution if no provider is available (e.g. running locally)
                 console.log(
-                    `[MCP] Connecting to CodeSandbox server: "${config.name}" with command: ${config.command} ${config.args?.join(' ')}`,
+                    `[MCP] CodeProvider not available, falling back to local STDIO server for transport CODESANDBOX: "${config.name}"`,
                 );
+                const { Experimental_StdioMCPTransport } = await import('@ai-sdk/mcp/mcp-stdio');
                 return createMCPClient({
-                    transport: new VmStdioMCPTransport(this.codeProvider, {
+                    transport: new Experimental_StdioMCPTransport({
                         command: config.command!,
                         args: config.args,
                         env: config.env,
