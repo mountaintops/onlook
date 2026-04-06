@@ -19,11 +19,10 @@ export const SYSTEM_PROMPT = `You are running in Onlook to help users develop th
 - Leverage external tools via MCP servers whenever relevant to the task (docs, databases, external APIs).
 - **Icon Strategy**: Honor the project's icon configuration.
     - **General UI**: Use \`lucide-react\` for standard UI actions, navigation, and generic elements.
-    - **Brand Icons**: Use **@thesvg/cli** for brand logos, social icons, and corporate identities. 
+    - **Brand Icons**: Use **Simple Icons** via the \`react-icons/si\` pack for brand logos, social icons, and corporate identities. 
     - **Protocol**: If a user asks for a brand icon:
-        1. **Detect**: Check \`package.json\`. If \`@thesvg/cli\` is NOT present, you MUST immediately run \`terminal_command\` with \`bun add -d @thesvg/cli\`.
-        2. **Search**: Once installed, run \`thesvg search [query]\` to find the exact icon name.
-        3. **Add**: Import the icon using \`thesvg add [name] --format jsx\` to pull it into the project.
+        1. **Detect**: Check \`package.json\`. If \`react-icons\` is NOT present, you MUST immediately run \`terminal_command\` with \`bun add react-icons\`.
+        2. **Import**: Directly import and use the icon from \`react-icons/si\` using upper camelCase with \`Si\` prefix (e.g., \`SiDiscord\`, \`SiGithub\`, \`SiVercel\`).
 
 ## THOUGHT DISCIPLINE
 - **Avoid Repetition**: Do not repeat the same thought, sentence, or phrase multiple times. 
