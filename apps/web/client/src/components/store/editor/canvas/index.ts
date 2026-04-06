@@ -61,22 +61,34 @@ export class CanvasManager {
     }
 
     // 5 second debounce. Database is used to save working state per user, so we don't need to save too often.
-    saveCanvas = debounce(this.undebouncedSaveCanvas, 5000);
+    saveCanvas = debounce(() => this.undebouncedSaveCanvas(), 5000);
 
-    private async undebouncedSaveCanvas() {
-        const success = await api.userCanvas.update.mutate({
-            projectId: this.editorEngine.projectId,
-            canvasId: this.id,
-            canvas: {
-                scale: this.scale.toString(),
-                x: this.position.x.toString(),
-                y: this.position.y.toString(),
-            },
-        });
-        if (!success) {
-            console.error('Failed to update canvas');
+    private undebouncedSaveCanvas = async () => {
+        if (!this.id || !this.editorEngine.projectId) {
+            console.warn('CanvasManager: Skipping save - projectId or canvasId missing', {
+                projectId: this.editorEngine.projectId,
+                canvasId: this.id,
+            });
+            return;
         }
-    }
+
+        try {
+            const success = await api.userCanvas.update.mutate({
+                projectId: this.editorEngine.projectId,
+                canvasId: this.id,
+                canvas: {
+                    scale: this.scale.toString(),
+                    x: this.position.x.toString(),
+                    y: this.position.y.toString(),
+                },
+            });
+            if (!success) {
+                console.error('Failed to update canvas');
+            }
+        } catch (error) {
+            console.error('Error updating user canvas:', error);
+        }
+    };
 
     clear() {
         this._scale = DefaultSettings.SCALE;

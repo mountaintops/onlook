@@ -8,30 +8,33 @@ import { UploaderTool } from './uploader';
 export class ScreenshotWebTool extends ClientTool {
     static readonly toolName = 'screenshot_web';
     static readonly description = `Take a screenshot of a specific URL or the current application page. 
-    This tool is your 'eyes' and allows you to interact with the page before seeing it.
+    This tool allows you to perform an interaction before capturing the image and then tell the visual auditor exactly what to look for.
 
-    USE THIS TOOL WHEN:
-    - You want to verify your code changes visually.
-    - You need to check for UI regressions, layout bugs, or design inconsistencies.
-    - You need to see the state of the app after an interaction (e.g., after clicking a menu).
+    KEY ARGUMENTS:
+    1. 'action' (INTERACTION): Use Stagehand/Playwright instructions to interact with the page before the screenshot (e.g., "Click the signup button", "Hover over the nav menu").
+    2. 'focus' (ANALYSIS): Tell the Gemini Visual Auditor exactly what to verify in the resulting image. This prevents general audits and focuses on your specific change.
+    3. 'delayMs': Optional delay before capture. Default is 1600ms.
 
-    ADVANCED INTERACTIONS (via 'action'):
-    Use the 'action' parameter to perform Stagehand/Playwright instructions before the screenshot is taken. 
-    This is essential for:
-    - Animations: Use "Hover over the button" to trigger hover animations.
-    - Dynamic UI: Use "Click the dropdown menu" to reveal hidden elements.
-    - Form States: Use "Type 'test' in the search bar" to see how the UI reacts.
-    - Complex Layouts: Use "Scroll to the middle of the page" if 'scrollToId' is not specific enough.
+    EXAMPLES OF SYNERGY:
+    - Verifying a Hover State: 
+      action: "Hover over the primary button"
+      focus: "Is the button now showing a darker shade of blue? Does a tooltip appear?"
+    - Verifying a Color Change:
+      focus: "Please focus on the 'Submit' button. Is it correctly colored red (#ef4444)?"
+    - Verifying Error States:
+      action: "Click the Submit button without filling the form"
+      focus: "Check if a red validation error message appears under the email input."
 
-    Note: Static screenshots cannot capture animations in progress, but you can capture the 'end state' of an animation by using a 'delayMs' alongside an 'action'.`;
+    ALWAYS fill 'action' if you need to change the page state, and ALWAYS fill 'focus' to give the visual auditor a specific goal.`;
 
     static readonly parameters = z.object({
         url: z.string().url().describe('The URL to screenshot (e.g., http://localhost:3000/about)'),
         branchId: BRANCH_ID_SCHEMA,
         scrollToId: z.string().optional().describe('The ID of the element to scroll to before taking the screenshot'),
-        delayMs: z.number().optional().describe('Optional delay in milliseconds to wait before taking the screenshot (default: 3000)'),
+        delayMs: z.number().optional().describe('Wait before capture. (default: 1600)'),
         visualAudit: z.boolean().optional().default(true).describe('Whether to perform a Gemini-powered visual audit of the screenshot (default: true)'),
-        action: z.string().optional().describe('A Stagehand instruction to perform before the screenshot (e.g. "Hover over the menu", "Click the login button")'),
+        action: z.string().optional().describe('Stagehand interaction (e.g. "Click the menu", "Hover over the button")'),
+        focus: z.string().optional().describe('Visual analysis focus for Gemini (e.g. "Is the button red?", "Are there layout shifts?")'),
     });
     static readonly icon = Icons.Image;
 
@@ -42,6 +45,7 @@ export class ScreenshotWebTool extends ClientTool {
         success: boolean;
         error: string | null;
         message?: string;
+        auditPassed?: boolean;
         image?: {
             base64: string;
             mimeType: string;
@@ -80,7 +84,7 @@ export class ScreenshotWebTool extends ClientTool {
                 }
             }
 
-            const { base64, visualAuditReport } = await editorEngine.api.screenshot(finalUrl, args.scrollToId, args.delayMs, args.visualAudit, args.action);
+            const { base64, visualAuditReport } = await editorEngine.api.screenshot(finalUrl, args.scrollToId, args.delayMs, args.visualAudit, args.action, args.focus);
             
             // Clean the base64 data and determine mime type
             let mimeType = 'image/png';
@@ -107,11 +111,21 @@ export class ScreenshotWebTool extends ClientTool {
             }, editorEngine);
 
             const auditFindings = visualAuditReport || "No visual audit was performed.";
+            
+            // Heuristic detection: if the audit contains alarming keywords, set auditPassed to false.
+            const errorKeywords = ['broken', 'overlapping', 'not centered', 'missing', 'error', '404', 'failed', 'issue', 'misaligned'];
+            const auditPassed = !errorKeywords.some(keyword => auditFindings.toLowerCase().includes(keyword));
+            
+            let finalMessage = `${uploaderResult.message}\n\n### Visual Audit Report\n${auditFindings}`;
+            if (!auditPassed) {
+                finalMessage = `⚠️ [ACTION REQUIRED: UI IS BROKEN]\n${finalMessage}\n\nCRITICAL: The audit report indicates issues. You MUST provide a fix and re-verify. DO NOT end the turn.`;
+            }
 
             return {
                 success: true,
                 error: uploaderResult.success ? null : uploaderResult.message,
-                message: `${uploaderResult.message}\n\n### Visual Audit Report\n${auditFindings}`,
+                message: finalMessage,
+                auditPassed,
                 image: {
                     base64: cleanBase64,
                     mimeType,
