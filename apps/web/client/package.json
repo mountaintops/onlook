@@ -85,6 +85,7 @@
     "localforage": "^1.10.0",
     "lru-cache": "^11.2.1",
     "lucide-react": "^0.486.0",
+    "@thesvg/cli": "latest",
     "mobx-react-lite": "^4.1.0",
     "motion": "^12.23.19",
     "next": "16.0.7",

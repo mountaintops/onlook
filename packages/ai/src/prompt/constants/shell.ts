@@ -11,4 +11,5 @@ IMPORTANT: This project uses Bun as the package manager. Always suggest Bun comm
 Examples of when to suggest shell commands:
 - If you changed a CLI program, suggest the command to run it to see the new behavior.
 - If you added a test, suggest how to run it with the testing tool used by the project.
-- If your code changes add new dependencies, suggest the command to install them.`;
+- If your code changes add new dependencies, suggest the command to install them.
+- **Brand Icons**: Use \`thesvg search [brand]\` and \`thesvg add [name] --format jsx\` to find and add brand icons from the SVG registry.`;
