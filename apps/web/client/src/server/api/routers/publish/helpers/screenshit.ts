@@ -235,9 +235,16 @@ export async function screenshitDelete(projectId: string): Promise<ScreenshitJob
 }
 
 /**
- * Call POST /screenshot to capture a website screenshot as a Buffer.
+ * Call POST /screenshot to capture a website screenshot.
+ * Returns both the base64-encoded image and an optional visual audit report.
  */
-export async function screenshitScreenshot(url: string, quality = 80, scrollToId?: string, delay?: number): Promise<Buffer> {
+export async function screenshitScreenshot(
+    url: string, 
+    quality = 80, 
+    scrollToId?: string, 
+    delay?: number,
+    visualAudit = true, // Default to true as requested by user
+): Promise<{ base64: string; visualAuditReport?: string | null }> {
     const apiBase = getApiBase();
     const apiUrl = `${apiBase}/screenshot`;
 
@@ -247,7 +254,7 @@ export async function screenshitScreenshot(url: string, quality = 80, scrollToId
             'Content-Type': 'application/json',
             Authorization: `Bearer ${getApiKey()}`,
         },
-        body: JSON.stringify({ url, quality, scrollToId, delay }),
+        body: JSON.stringify({ url, quality, scrollToId, delay, visualAudit }),
     });
 
     if (!response.ok) {
@@ -255,8 +262,20 @@ export async function screenshitScreenshot(url: string, quality = 80, scrollToId
         throw new Error(`screenshit /screenshot failed (HTTP ${response.status}): ${body}`);
     }
 
-    const arrayBuffer = await response.arrayBuffer();
-    return Buffer.from(arrayBuffer);
+    const contentType = response.headers.get('Content-Type') || '';
+    
+    if (contentType.includes('application/json')) {
+        const json = (await response.json()) as { base64: string; visualAuditReport?: string; success: boolean };
+        return { 
+            base64: json.base64,
+            visualAuditReport: json.visualAuditReport || null
+        };
+    } else {
+        // Fallback binary response (legacy or non-audit)
+        const arrayBuffer = await response.arrayBuffer();
+        const base64 = Buffer.from(arrayBuffer).toString('base64');
+        return { base64 };
+    }
 }
 
 function sleep(ms: number): Promise<void> {

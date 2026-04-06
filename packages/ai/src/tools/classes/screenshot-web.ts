@@ -1,7 +1,6 @@
 import { Icons } from '@onlook/ui/icons';
 import type { EditorEngine } from '@onlook/web-client/src/components/store/editor/engine';
 import { z } from 'zod';
-import { generateVisualAudit } from '../../audit/visual-audit';
 import { ClientTool } from '../models/client';
 import { BRANCH_ID_SCHEMA } from '../shared/type';
 import { UploaderTool } from './uploader';
@@ -14,6 +13,7 @@ export class ScreenshotWebTool extends ClientTool {
         branchId: BRANCH_ID_SCHEMA,
         scrollToId: z.string().optional().describe('The ID of the element to scroll to before taking the screenshot'),
         delayMs: z.number().optional().describe('Optional delay in milliseconds to wait before taking the screenshot (default: 3000)'),
+        visualAudit: z.boolean().optional().default(true).describe('Whether to perform a Gemini-powered visual audit of the screenshot (default: true)'),
     });
     static readonly icon = Icons.Image;
 
@@ -62,7 +62,7 @@ export class ScreenshotWebTool extends ClientTool {
                 }
             }
 
-            const { base64 } = await editorEngine.api.screenshot(finalUrl, args.scrollToId, args.delayMs);
+            const { base64, visualAuditReport } = await editorEngine.api.screenshot(finalUrl, args.scrollToId, args.delayMs, args.visualAudit);
             
             // Clean the base64 data and determine mime type
             let mimeType = 'image/png';
@@ -88,11 +88,7 @@ export class ScreenshotWebTool extends ClientTool {
                 branchId: args.branchId,
             }, editorEngine);
 
-            // Perform dedicated visual audit (separate request)
-            const auditFindings = await generateVisualAudit({
-                base64: cleanBase64,
-                mimeType,
-            });
+            const auditFindings = visualAuditReport || "No visual audit was performed.";
 
             return {
                 success: true,

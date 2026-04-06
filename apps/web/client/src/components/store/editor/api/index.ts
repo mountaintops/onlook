@@ -44,7 +44,7 @@ export class ApiManager {
         return await api.chat.message.getAll.query({ conversationId });
     }
 
-    async screenshot(url: string, scrollToId?: string, delay?: number) {
-        return await api.publish.screenshit.screenshot.mutate({ url, scrollToId, delay });
+    async screenshot(url: string, scrollToId?: string, delay?: number, visualAudit?: boolean) {
+        return await api.publish.screenshit.screenshot.mutate({ url, scrollToId, delay, visualAudit });
     }
 }

@@ -2,7 +2,6 @@ import { Icons } from '@onlook/ui/icons';
 import type { EditorEngine } from '@onlook/web-client/src/components/store/editor/engine';
 import type { Action } from '@onlook/models/actions';
 import { z } from 'zod';
-import { generateVisualAudit } from '../../audit/visual-audit';
 import { ClientTool } from '../models/client';
 import { BRANCH_ID_SCHEMA } from '../shared/type';
 import { UploaderTool } from './uploader';
@@ -13,6 +12,7 @@ export class ScreenshotRelevantTool extends ClientTool {
     static readonly parameters = z.object({
         branchId: BRANCH_ID_SCHEMA,
         delayMs: z.number().optional().describe('Optional delay in milliseconds to wait before each screenshot (default: 3000)'),
+        visualAudit: z.boolean().optional().default(true).describe('Whether to perform a Gemini-powered visual audit of each screenshot (default: true)'),
     });
     static readonly icon = Icons.Image;
 
@@ -53,7 +53,7 @@ export class ScreenshotRelevantTool extends ClientTool {
 
             for (const url of relevantUrls) {
                 try {
-                    const { base64 } = await editorEngine.api.screenshot(url, undefined, args.delayMs);
+                    const { base64, visualAuditReport } = await editorEngine.api.screenshot(url, undefined, args.delayMs, args.visualAudit);
                     
                     // Clean the base64 data and determine mime type
                     let mimeType = 'image/png';
@@ -79,11 +79,7 @@ export class ScreenshotRelevantTool extends ClientTool {
                     }, editorEngine);
                     uploadedMessages.push(uploaderResult.message);
 
-                    // Perform dedicated visual audit (separate request)
-                    const auditFindings = await generateVisualAudit({
-                        base64: cleanBase64,
-                        mimeType,
-                    });
+                    const auditFindings = visualAuditReport || "No visual audit was performed.";
                     uploadedMessages.push(`#### Visual Audit for ${displayName}\n${auditFindings}`);
                 } catch (e) {
                     console.error(`Failed to screenshot ${url}:`, e);

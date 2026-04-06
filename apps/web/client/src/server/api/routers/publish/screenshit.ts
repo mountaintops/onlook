@@ -421,9 +421,15 @@ export const screenshitRouter = createTRPCRouter({
             quality: z.number().optional().default(80),
             scrollToId: z.string().optional(),
             delay: z.number().optional(),
+            visualAudit: z.boolean().optional().default(true),
         }))
-        .mutation(async ({ input }): Promise<{ base64: string }> => {
-            const buffer = await screenshitScreenshot(input.url, input.quality, input.scrollToId, input.delay);
-            return { base64: buffer.toString('base64') };
+        .mutation(async ({ input }): Promise<{ base64: string; visualAuditReport?: string | null }> => {
+            return await screenshitScreenshot(
+                input.url, 
+                input.quality, 
+                input.scrollToId, 
+                input.delay, 
+                input.visualAudit
+            );
         }),
 });
