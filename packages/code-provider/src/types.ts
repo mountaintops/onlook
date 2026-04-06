@@ -296,6 +296,7 @@ export abstract class ProviderBackgroundCommand {
     abstract open(): Promise<string>;
     abstract restart(): Promise<void>;
     abstract kill(): Promise<void>;
+    abstract write(input: string): Promise<void>;
     // must call open() before running
     abstract onOutput(callback: (data: string) => void): () => void;
 }

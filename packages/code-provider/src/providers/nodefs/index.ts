@@ -306,6 +306,10 @@ export class NodeFsCommand extends ProviderBackgroundCommand {
         return Promise.resolve();
     }
 
+    write(_input: string): Promise<void> {
+        return Promise.resolve();
+    }
+
     onOutput(callback: (data: string) => void): () => void {
         return () => {};
     }

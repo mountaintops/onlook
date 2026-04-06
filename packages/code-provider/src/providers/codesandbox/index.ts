@@ -99,6 +99,10 @@ export class CodesandboxProvider extends Provider {
         return this._client;
     }
 
+    get sandboxId() {
+        return this.options.sandboxId;
+    }
+
     async initialize(input: InitializeInput): Promise<InitializeOutput> {
         if (!this.options.sandboxId) {
             return {};
@@ -608,6 +612,10 @@ export class CodesandboxBackgroundCommand extends ProviderBackgroundCommand {
 
     kill(): Promise<void> {
         return this._command.kill();
+    }
+    
+    write(input: string): Promise<void> {
+        return (this._command as any).write?.(input) || Promise.resolve();
     }
 
     onOutput(callback: (data: string) => void): () => void {

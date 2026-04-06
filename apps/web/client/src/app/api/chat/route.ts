@@ -8,6 +8,7 @@ import { type NextRequest } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { checkMessageLimit, decrementUsage, errorHandler, getSupabaseUser, incrementUsage } from './helpers';
 import { MODAL_GLM5_LOCK_KEY, tryAcquireLock, releaseLock } from './locks';
+import { CodeProvider, createCodeProviderClient } from '@onlook/code-provider';
 
 export async function POST(req: NextRequest) {
     try {
@@ -120,6 +121,39 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
         const projectSettingsData = await api.settings.get({ projectId });
         const mcpServers = projectSettingsData?.mcpServers ?? [];
 
+        // Fetch project branches to get the sandboxId for MCP execution
+        let sandboxId: string | undefined;
+        try {
+            const projectBranches = await api.project.branch.getByProjectId({
+                projectId,
+                onlyDefault: true
+            });
+            sandboxId = projectBranches[0]?.sandboxId;
+        } catch (error) {
+            console.warn(`[Chat] Failed to fetch branches for project ${projectId}, falling back to local MCP execution:`, error);
+        }
+
+        let codeProvider;
+        if (sandboxId) {
+            try {
+                codeProvider = createCodeProviderClient(CodeProvider.CodeSandbox, {
+                    providerOptions: {
+                        codesandbox: {
+                            sandboxId,
+                            userId,
+                            tier: 'Pico',
+                            initClient: true,
+                        },
+                    },
+                });
+                await codeProvider.initialize({});
+                console.log(`[Chat] Initialized CodeSandbox provider for project ${projectId} (sandbox: ${sandboxId})`);
+            } catch (error) {
+                console.error(`[Chat] Failed to initialize CodeSandbox provider for sandbox ${sandboxId}:`, error);
+                codeProvider = undefined;
+            }
+        }
+
         const isGLM5 = chatModel?.provider === LLMProvider.MODAL;
         if (isGLM5) {
             if (!tryAcquireLock(MODAL_GLM5_LOCK_KEY)) {
@@ -145,6 +179,7 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
                 messages,
                 mcpServers,
                 chatModel,
+                codeProvider,
             });
             stream = result.stream;
             selectedModel = result.model;
@@ -170,6 +205,9 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
             },
             onFinish: async ({ messages: finalMessages }: { messages: ChatMessage[] }) => {
                 if (isGLM5) releaseLock(MODAL_GLM5_LOCK_KEY);
+                if (codeProvider) {
+                    await codeProvider.destroy().catch(err => console.error('[Chat] Error destroying codeProvider:', err));
+                }
                 const messagesToStore = finalMessages
                     .filter(msg =>
                         (msg.role === 'user' || msg.role === 'assistant')
@@ -183,6 +221,9 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
             },
             onError: (err: any) => {
                 if (isGLM5) releaseLock(MODAL_GLM5_LOCK_KEY);
+                if (codeProvider) {
+                    codeProvider.destroy().catch(e => console.error('[Chat] Error destroying codeProvider in error handler:', e));
+                }
                 return errorHandler(err);
             },
         });

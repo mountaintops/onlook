@@ -1,6 +1,59 @@
-import { createMCPClient, type MCPClient } from '@ai-sdk/mcp';
+import { createMCPClient, type MCPClient, type MCPTransport, type JSONRPCMessage } from '@ai-sdk/mcp';
 import { McpTransportType, type McpServerConfig } from '@onlook/models';
+import type { Provider, ProviderBackgroundCommand } from '@onlook/code-provider';
 import type { ToolSet } from 'ai';
+
+/**
+ * MCP transport that runs a command in a remote VM using the CodeProvider.
+ */
+class VmStdioMCPTransport implements MCPTransport {
+    private command: ProviderBackgroundCommand | null = null;
+
+    constructor(
+        private readonly codeProvider: Provider,
+        private readonly config: { command: string; args?: string[]; env?: Record<string, string> },
+    ) { }
+
+    onclose?: () => void;
+    onerror?: (error: Error) => void;
+    onmessage?: (message: JSONRPCMessage) => void;
+
+    async start(): Promise<void> {
+        const fullCommand = [this.config.command, ...(this.config.args || [])].join(' ');
+        const { command } = await this.codeProvider.runBackgroundCommand({
+            args: { command: fullCommand },
+        });
+        this.command = command;
+        await this.command.open();
+        this.command.onOutput((data) => {
+            // Split by lines as MCP often sends multiple JSON-RPC messages separated by newlines
+            const lines = data.split('\n').filter((l) => l.trim().length > 0);
+            for (const line of lines) {
+                try {
+                    const message = JSON.parse(line) as JSONRPCMessage;
+                    this.onmessage?.(message);
+                } catch (e) {
+                    // Ignore non-JSON output (e.g. log messages from the server)
+                }
+            }
+        });
+    }
+
+    async send(message: JSONRPCMessage): Promise<void> {
+        if (!this.command) {
+            throw new Error('Transport not started');
+        }
+        await this.command.write(JSON.stringify(message) + '\n');
+    }
+
+    async close(): Promise<void> {
+        if (this.command) {
+            await this.command.kill();
+            this.command = null;
+        }
+        this.onclose?.();
+    }
+}
 
 /**
  * Manages MCP client connections and aggregates their tools.
@@ -8,8 +61,12 @@ import type { ToolSet } from 'ai';
  */
 export class McpClientManager {
     private clients: MCPClient[] = [];
+    private providers: Provider[] = [];
 
-    constructor(private configs: McpServerConfig[]) { }
+    constructor(
+        private configs: McpServerConfig[],
+        private codeProvider?: Provider,
+    ) { }
 
     /**
      * Connect to all enabled MCP servers and return a merged ToolSet.
@@ -84,6 +141,13 @@ export class McpClientManager {
             }))
         );
         this.clients = [];
+
+        await Promise.allSettled(
+            this.providers.map((provider) => provider.destroy().catch((err) => {
+                console.error('[MCP] Error destroying provider:', err);
+            }))
+        );
+        this.providers = [];
     }
 
     private async createClient(config: McpServerConfig): Promise<MCPClient> {
@@ -109,11 +173,62 @@ export class McpClientManager {
                 });
 
             case McpTransportType.STDIO: {
-                console.log(`[MCP] Connecting to STDIO server: "${config.name}" with command: ${config.command} ${config.args?.join(' ')}`);
+                if (this.codeProvider) {
+                    console.log(
+                        `[MCP] Connecting to VM STDIO server: "${config.name}" with command: ${config.command} ${config.args?.join(' ')}`,
+                    );
+                    return createMCPClient({
+                        transport: new VmStdioMCPTransport(this.codeProvider, {
+                            command: config.command!,
+                            args: config.args,
+                            env: config.env,
+                        }),
+                    });
+                }
+
+                console.log(
+                    `[MCP] Connecting to local STDIO server: "${config.name}" with command: ${config.command} ${config.args?.join(' ')}`,
+                );
                 // Dynamic import to avoid bundling stdio in production builds
                 const { Experimental_StdioMCPTransport } = await import('@ai-sdk/mcp/mcp-stdio');
                 return createMCPClient({
                     transport: new Experimental_StdioMCPTransport({
+                        command: config.command!,
+                        args: config.args,
+                        env: config.env,
+                    }),
+                });
+            }
+
+            case McpTransportType.CODESANDBOX: {
+                let provider = this.codeProvider;
+                const isMatchingSandbox = provider &&
+                    'sandboxId' in provider &&
+                    (provider as any).sandboxId === config.sandboxId;
+
+                if (!isMatchingSandbox && config.sandboxId) {
+                    console.log(`[MCP] Creating dedicated CodeSandbox provider for sandbox: ${config.sandboxId}`);
+                    const { createCodeProviderClient, CodeProvider } = await import('@onlook/code-provider');
+                    provider = await createCodeProviderClient(CodeProvider.CodeSandbox, {
+                        providerOptions: {
+                            codesandbox: {
+                                sandboxId: config.sandboxId,
+                                initClient: true,
+                            },
+                        },
+                    });
+                    this.providers.push(provider);
+                }
+
+                if (!provider) {
+                    throw new Error(`CodeSandbox provider not available for transport CODESANDBOX (sandboxId: ${config.sandboxId})`);
+                }
+
+                console.log(
+                    `[MCP] Connecting to CodeSandbox server: "${config.name}" (sandbox: ${config.sandboxId}) with command: ${config.command} ${config.args?.join(' ')}`,
+                );
+                return createMCPClient({
+                    transport: new VmStdioMCPTransport(provider, {
                         command: config.command!,
                         args: config.args,
                         env: config.env,
