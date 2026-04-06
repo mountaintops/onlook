@@ -65,7 +65,10 @@ export function initModel({
 function getGoogleProvider(model: GOOGLE_MODELS): LanguageModel {
     const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_AI_STUDIO_API_KEY;
     if (!apiKey) {
-        throw new Error('GOOGLE_GENERATIVE_AI_API_KEY must be set to use Google models. Please check your .env file.');
+        // Fallback to a dummy key that will only fail at runtime if actually invoked.
+        // This prevents initialization crashes when the key is not strictly required.
+        const google = createGoogleGenerativeAI({ apiKey: 'MISSING_API_KEY' });
+        return google(model);
     }
     const google = createGoogleGenerativeAI({ apiKey });
     return google(model);

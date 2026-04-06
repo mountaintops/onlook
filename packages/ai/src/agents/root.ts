@@ -33,19 +33,23 @@ const getModelFromType = (chatType: ChatType, chatModel?: any): ModelConfig => {
         } as InitialModelPayload);
     }
 
+    const hasGoogleKey = !!(process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_AI_STUDIO_API_KEY);
+    const defaultProvider = hasGoogleKey ? LLMProvider.GOOGLE : LLMProvider.MISTRAL;
+    const defaultModel = hasGoogleKey ? GOOGLE_MODELS.GEMMA_4_31B : MISTRAL_MODELS.MISTRAL_LARGE_2411;
+
     switch (chatType) {
         case ChatType.CREATE:
         case ChatType.FIX:
             return initModel({
-                provider: LLMProvider.GOOGLE,
-                model: GOOGLE_MODELS.GEMMA_4_31B,
+                provider: defaultProvider,
+                model: defaultModel,
             } as InitialModelPayload);
         case ChatType.ASK:
         case ChatType.EDIT:
         default:
             return initModel({
-                provider: LLMProvider.GOOGLE,
-                model: GOOGLE_MODELS.GEMMA_4_31B,
+                provider: defaultProvider,
+                model: defaultModel,
             } as InitialModelPayload);
     }
 };
@@ -65,9 +69,10 @@ export const repairToolCall = async ({ toolCall, tools, error }: { toolCall: Too
         `Invalid parameter for tool ${toolCall.toolName} with args ${JSON.stringify(toolCall.input)}, attempting to fix`,
     );
 
+    const hasGoogleKey = !!(process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_AI_STUDIO_API_KEY);
     const { model } = initModel({
-        provider: LLMProvider.GOOGLE,
-        model: GOOGLE_MODELS.GEMMA_4_31B,
+        provider: hasGoogleKey ? LLMProvider.GOOGLE : LLMProvider.MISTRAL,
+        model: hasGoogleKey ? GOOGLE_MODELS.GEMMA_4_31B : MISTRAL_MODELS.MISTRAL_LARGE_2411,
     } as InitialModelPayload);
 
     const { object: repairedArgs } = await generateObject({
@@ -106,6 +111,15 @@ const runArchitectMode = async (messages: ChatMessage[]) => {
 
     // Heuristic: Very short prompts or tool-related keywords favor devstral
     if (content.length < 20 || toolKeywords.some((keyword) => contentLower.includes(keyword))) {
+        return {
+            provider: LLMProvider.MISTRAL,
+            model: MISTRAL_MODELS.DEVSTRAL_2512,
+        };
+    }
+
+    const hasGoogleKey = !!(process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_AI_STUDIO_API_KEY);
+    if (!hasGoogleKey) {
+        console.log('[ArchitectMode] No Google API key found, skipping classification and using default fallback (Devstral)');
         return {
             provider: LLMProvider.MISTRAL,
             model: MISTRAL_MODELS.DEVSTRAL_2512,
