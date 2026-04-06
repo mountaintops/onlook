@@ -37,7 +37,7 @@ export const env = createEnv({
         GOOGLE_PRIVATE_KEY_ID: z.string().optional(),
 
         // Model providers
-        GOOGLE_GENERATIVE_AI_API_KEY: z.string(),
+        GOOGLE_GENERATIVE_AI_API_KEY: z.string().optional(),
         ANTHROPIC_API_KEY: z.string().optional(),
         GOOGLE_AI_STUDIO_API_KEY: z.string().optional(),
         OPENAI_API_KEY: z.string().optional(),
