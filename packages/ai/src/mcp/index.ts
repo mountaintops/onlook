@@ -1,6 +1,6 @@
 import { createMCPClient, type MCPClient, type MCPTransport, type JSONRPCMessage } from '@ai-sdk/mcp';
 import { McpTransportType, type McpServerConfig } from '@onlook/models';
-import type { Provider, ProviderBackgroundCommand } from '@onlook/code-provider';
+import type { Provider, ProviderBackgroundCommand, ProviderTerminal } from '@onlook/code-provider';
 import type { ToolSet } from 'ai';
 
 /**
@@ -30,17 +30,23 @@ class VmStdioMCPTransport implements MCPTransport {
         await this.command.open();
         this.onLog?.('info', '[MCP] Transport command opened');
 
+        let buffer = '';
         this.command.onOutput((data) => {
-            // Split by lines as MCP often sends multiple JSON-RPC messages separated by newlines
-            const lines = data.split('\n').filter((l) => l.trim().length > 0);
+            buffer += data;
+            // Split raw data buffers by newline since MCP JSON-RPC are newline-delimited.
+            // A chunk might contain incomplete messages at the end, so we save the remainder.
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
             for (const line of lines) {
-                this.onLog?.('received', line);
+                const trimmed = line.trim();
+                if (trimmed.length === 0) continue;
+                this.onLog?.('received', trimmed);
                 try {
-                    const message = JSON.parse(line) as JSONRPCMessage;
+                    const message = JSON.parse(trimmed) as JSONRPCMessage;
                     this.onmessage?.(message);
                 } catch (e) {
                     // Log non-JSON output if it might be an error or useful info
-                    this.onLog?.('info', `[MCP] Server output: ${line}`);
+                    this.onLog?.('info', `[MCP] Server output: ${trimmed}`);
                 }
             }
         });
@@ -61,6 +67,89 @@ class VmStdioMCPTransport implements MCPTransport {
             this.onLog?.('info', `[MCP] Closing transport for command: ${fullCommand}`);
             await this.command.kill();
             this.command = null;
+        }
+        this.onclose?.();
+    }
+}
+
+/**
+ * MCP transport that runs an interactive terminal in CodeSandbox.
+ * Required because CodeSandbox SDK background tasks do not easily support stdin (`write`).
+ */
+class CodeSandboxTerminalMCPTransport implements MCPTransport {
+    private terminal: ProviderTerminal | null = null;
+    private onOutputDisposable: (() => void) | null = null;
+
+    constructor(
+        private readonly codeProvider: Provider,
+        private readonly config: { command: string; args?: string[]; env?: Record<string, string> },
+        private readonly onLog?: (type: 'info' | 'error' | 'sent' | 'received', message: string) => void,
+    ) { }
+
+    onclose?: () => void;
+    onerror?: (error: Error) => void;
+    onmessage?: (message: JSONRPCMessage) => void;
+
+    async start(): Promise<void> {
+        const fullCommand = [this.config.command, ...(this.config.args || [])].join(' ');
+        this.onLog?.('info', `[MCP] Starting CodeSandbox terminal transport for command: ${fullCommand}`);
+
+        const { terminal } = await this.codeProvider.createTerminal({
+            args: {}
+        });
+        this.terminal = terminal;
+        await this.terminal.open();
+        this.onLog?.('info', '[MCP] CodeSandbox terminal opened');
+
+        let buffer = '';
+        this.onOutputDisposable = this.terminal.onOutput((data) => {
+            buffer += data;
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+            for (const line of lines) {
+                const trimmed = line.trim();
+                // Because it is a PTY terminal, we might get back prompts and non-JSON artifacts.
+                // We strictly parse only things that evaluate as JSON-RPC arrays/objects.
+                if (trimmed.length === 0) continue;
+                if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+                    continue; // Skip terminal artifacts like bash prompts
+                }
+                
+                try {
+                    const message = JSON.parse(trimmed) as JSONRPCMessage;
+                    setTimeout(() => {
+                        this.onLog?.('received', trimmed);
+                        this.onmessage?.(message);
+                    }, 0);
+                } catch (e) {
+                    // Likely a partial artifact or terminal echo, ignore silently to avoid log spam
+                }
+            }
+        });
+
+        // Run the command explicitly silencing terminal echo so it doesn't bounce our requests back
+        await this.terminal.write(`stty -echo && ${fullCommand}\r`);
+    }
+
+    async send(message: JSONRPCMessage): Promise<void> {
+        if (!this.terminal) {
+            throw new Error('CodeSandbox transport not started');
+        }
+        const data = JSON.stringify(message);
+        this.onLog?.('sent', data);
+        await this.terminal.write(data + '\r');
+    }
+
+    async close(): Promise<void> {
+        if (this.onOutputDisposable) {
+            this.onOutputDisposable();
+            this.onOutputDisposable = null;
+        }
+        if (this.terminal) {
+            const fullCommand = [this.config.command, ...(this.config.args || [])].join(' ');
+            this.onLog?.('info', `[MCP] Closing CodeSandbox terminal transport for command: ${fullCommand}`);
+            await this.terminal.kill();
+            this.terminal = null;
         }
         this.onclose?.();
     }
@@ -243,11 +332,11 @@ export class McpClientManager {
                 }
 
                 this.onLog?.('info',
-                    `[MCP] Connecting to CodeSandbox server: "${config.name}" using ${this.codeProvider.constructor.name} with command: ${config.command} ${config.args?.join(' ')}`,
+                    `[MCP] Connecting to CodeSandbox server: "${config.name}" using interactive Terminal with command: ${config.command} ${config.args?.join(' ')}`,
                 );
                 try {
                     return createMCPClient({
-                        transport: new VmStdioMCPTransport(this.codeProvider, {
+                        transport: new CodeSandboxTerminalMCPTransport(this.codeProvider, {
                             command: config.command!,
                             args: config.args,
                             env: config.env,
