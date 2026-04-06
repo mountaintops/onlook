@@ -12,6 +12,15 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createMistral } from '@ai-sdk/mistral';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import type { LanguageModel } from 'ai';
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
+
+// Fallback: try to load from the web app's env if we're in a monorepo structure
+if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+    dotenv.config({ path: '../../apps/web/client/.env' });
+}
 
 export function initModel({
     provider: requestedProvider,
