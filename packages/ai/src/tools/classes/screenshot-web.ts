@@ -7,13 +7,31 @@ import { UploaderTool } from './uploader';
 
 export class ScreenshotWebTool extends ClientTool {
     static readonly toolName = 'screenshot_web';
-    static readonly description = 'Take a screenshot of a specific URL or the current application page. If the user mentions a bug or UI issue on a specific page, use this to see it. By default, it waits 3 seconds for the page to load, but you can specify a custom delay.';
+    static readonly description = `Take a screenshot of a specific URL or the current application page. 
+    This tool is your 'eyes' and allows you to interact with the page before seeing it.
+
+    USE THIS TOOL WHEN:
+    - You want to verify your code changes visually.
+    - You need to check for UI regressions, layout bugs, or design inconsistencies.
+    - You need to see the state of the app after an interaction (e.g., after clicking a menu).
+
+    ADVANCED INTERACTIONS (via 'action'):
+    Use the 'action' parameter to perform Stagehand/Playwright instructions before the screenshot is taken. 
+    This is essential for:
+    - Animations: Use "Hover over the button" to trigger hover animations.
+    - Dynamic UI: Use "Click the dropdown menu" to reveal hidden elements.
+    - Form States: Use "Type 'test' in the search bar" to see how the UI reacts.
+    - Complex Layouts: Use "Scroll to the middle of the page" if 'scrollToId' is not specific enough.
+
+    Note: Static screenshots cannot capture animations in progress, but you can capture the 'end state' of an animation by using a 'delayMs' alongside an 'action'.`;
+
     static readonly parameters = z.object({
         url: z.string().url().describe('The URL to screenshot (e.g., http://localhost:3000/about)'),
         branchId: BRANCH_ID_SCHEMA,
         scrollToId: z.string().optional().describe('The ID of the element to scroll to before taking the screenshot'),
         delayMs: z.number().optional().describe('Optional delay in milliseconds to wait before taking the screenshot (default: 3000)'),
         visualAudit: z.boolean().optional().default(true).describe('Whether to perform a Gemini-powered visual audit of the screenshot (default: true)'),
+        action: z.string().optional().describe('A Stagehand instruction to perform before the screenshot (e.g. "Hover over the menu", "Click the login button")'),
     });
     static readonly icon = Icons.Image;
 
@@ -62,7 +80,7 @@ export class ScreenshotWebTool extends ClientTool {
                 }
             }
 
-            const { base64, visualAuditReport } = await editorEngine.api.screenshot(finalUrl, args.scrollToId, args.delayMs, args.visualAudit);
+            const { base64, visualAuditReport } = await editorEngine.api.screenshot(finalUrl, args.scrollToId, args.delayMs, args.visualAudit, args.action);
             
             // Clean the base64 data and determine mime type
             let mimeType = 'image/png';

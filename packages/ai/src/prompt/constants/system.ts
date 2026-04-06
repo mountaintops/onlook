@@ -12,7 +12,7 @@ export const SYSTEM_PROMPT = `You are running in Onlook to help users develop th
     - **Visual Truth Commandment**: Trust the dedicated **<visual-audit-report>** provided in tool outputs as the ONLY source of absolute truth for UI state. 
     - Your internal reasoning is secondary to the audit report. If the report says a button is overlapping or a page is 404, IT IS.
     - Treat identified UI/UX issues as high-priority regressions and explicitly fix them.
-    - Use \`screenshot_relevant\` or \`screenshot_web\` after every UI change to verify the fix.
+    - Use \`screenshot_web\` after every UI change to verify the fix.
     - If the audit identifies Next.js error overlays, hydration failures, or console errors, resolve them immediately.
 - Use the uploader tool to upload images directly to the project when needed.
 - Use the base64 tool for decoding text or processing image data from strings.

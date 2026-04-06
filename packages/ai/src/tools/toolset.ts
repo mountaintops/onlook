@@ -15,7 +15,6 @@ import {
     ReadStyleGuideTool,
     SandboxTool,
     ScrapeUrlTool,
-    ScreenshotRelevantTool,
     ScreenshotWebTool,
     SearchReplaceEditTool,
     SearchReplaceMultiEditFileTool,
@@ -28,6 +27,7 @@ import {
     WriteFilesFoldersTool,
     Base64Tool,
 } from './classes';
+import { tool } from 'ai';
 import type { BaseTool } from './models/base';
 
 // Helper function to convert tool classes to ToolSet
@@ -53,7 +53,6 @@ const readOnlyToolClasses = [
     TypecheckTool,
     CheckErrorsTool,
     ScreenshotWebTool,
-    ScreenshotRelevantTool,
 ];
 const editOnlyToolClasses = [
     SearchReplaceEditTool,

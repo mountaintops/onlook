@@ -244,6 +244,7 @@ export async function screenshitScreenshot(
     scrollToId?: string, 
     delay?: number,
     visualAudit = true, // Default to true as requested by user
+    action?: string,
 ): Promise<{ base64: string; visualAuditReport?: string | null }> {
     const apiBase = getApiBase();
     const apiUrl = `${apiBase}/screenshot`;
@@ -254,7 +255,7 @@ export async function screenshitScreenshot(
             'Content-Type': 'application/json',
             Authorization: `Bearer ${getApiKey()}`,
         },
-        body: JSON.stringify({ url, quality, scrollToId, delay, visualAudit }),
+        body: JSON.stringify({ url, quality, scrollToId, delay, visualAudit, action }),
     });
 
     if (!response.ok) {
