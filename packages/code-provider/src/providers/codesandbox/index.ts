@@ -99,10 +99,6 @@ export class CodesandboxProvider extends Provider {
         return this._client;
     }
 
-    get sandboxId() {
-        return this.options.sandboxId;
-    }
-
     async initialize(input: InitializeInput): Promise<InitializeOutput> {
         if (!this.options.sandboxId) {
             return {};

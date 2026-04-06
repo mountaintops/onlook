@@ -12,8 +12,6 @@ export interface McpServerConfig {
     transport: McpTransportType;
     /** URL for HTTP/SSE transports */
     url?: string;
-    /** Sandbox ID for CODESANDBOX transport */
-    sandboxId?: string;
     /** HTTP headers for HTTP/SSE transports */
     headers?: Record<string, string>;
     /** Command for stdio/codesandbox transport */

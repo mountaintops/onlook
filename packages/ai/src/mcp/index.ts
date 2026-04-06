@@ -201,34 +201,15 @@ export class McpClientManager {
             }
 
             case McpTransportType.CODESANDBOX: {
-                let provider = this.codeProvider;
-                const isMatchingSandbox = provider &&
-                    'sandboxId' in provider &&
-                    (provider as any).sandboxId === config.sandboxId;
-
-                if (!isMatchingSandbox && config.sandboxId) {
-                    console.log(`[MCP] Creating dedicated CodeSandbox provider for sandbox: ${config.sandboxId}`);
-                    const { createCodeProviderClient, CodeProvider } = await import('@onlook/code-provider');
-                    provider = await createCodeProviderClient(CodeProvider.CodeSandbox, {
-                        providerOptions: {
-                            codesandbox: {
-                                sandboxId: config.sandboxId,
-                                initClient: true,
-                            },
-                        },
-                    });
-                    this.providers.push(provider);
-                }
-
-                if (!provider) {
-                    throw new Error(`CodeSandbox provider not available for transport CODESANDBOX (sandboxId: ${config.sandboxId})`);
+                if (!this.codeProvider) {
+                    throw new Error(`CodeProvider not available for transport CODESANDBOX`);
                 }
 
                 console.log(
-                    `[MCP] Connecting to CodeSandbox server: "${config.name}" (sandbox: ${config.sandboxId}) with command: ${config.command} ${config.args?.join(' ')}`,
+                    `[MCP] Connecting to CodeSandbox server: "${config.name}" with command: ${config.command} ${config.args?.join(' ')}`,
                 );
                 return createMCPClient({
-                    transport: new VmStdioMCPTransport(provider, {
+                    transport: new VmStdioMCPTransport(this.codeProvider, {
                         command: config.command!,
                         args: config.args,
                         env: config.env,

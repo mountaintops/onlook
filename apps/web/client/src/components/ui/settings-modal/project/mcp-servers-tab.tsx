@@ -19,7 +19,6 @@ const EMPTY_SERVER: Omit<McpServerConfig, 'id'> = {
     enabled: true,
     transport: McpTransportType.HTTP,
     url: '',
-    sandboxId: '',
     headers: {},
     command: '',
     args: [],
@@ -266,16 +265,6 @@ export const McpServersTab = observer(() => {
                     {editingServer.transport === McpTransportType.CODESANDBOX && (
                         <>
                             <div className="flex flex-col gap-1.5">
-                                <Label>Sandbox ID</Label>
-                                <Input
-                                    value={editingServer.sandboxId || ''}
-                                    onChange={(e) =>
-                                        setEditingServer({ ...editingServer, sandboxId: e.target.value })
-                                    }
-                                    placeholder="e1fg2h..."
-                                />
-                            </div>
-                            <div className="flex flex-col gap-1.5">
                                 <Label>Command</Label>
                                 <Input
                                     value={editingServer.command || ''}
@@ -304,7 +293,7 @@ export const McpServersTab = observer(() => {
                                 />
                             </div>
                             <p className="text-xs text-blue-500">
-                                ℹ CodeSandbox servers run inside a remote VM. They work in both local and cloud environments.
+                                ℹ CodeSandbox servers run inside the project's active VM.
                             </p>
                         </>
                     )}
@@ -366,7 +355,7 @@ export const McpServersTab = observer(() => {
                                 <span className="text-xs text-muted-foreground truncate">
                                     {server.transport === McpTransportType.HTTP || server.transport === McpTransportType.SSE
                                         ? server.url
-                                        : `${server.command} ${server.args?.join(' ') ?? ''}${server.sandboxId ? ` (Sandbox: ${server.sandboxId})` : ''}`}
+                                        : `${server.command} ${server.args?.join(' ') ?? ''}`}
                                 </span>
                             </div>
                             <div className="flex items-center gap-2 ml-4 shrink-0">
