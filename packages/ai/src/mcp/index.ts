@@ -12,6 +12,7 @@ class VmStdioMCPTransport implements MCPTransport {
     constructor(
         private readonly codeProvider: Provider,
         private readonly config: { command: string; args?: string[]; env?: Record<string, string> },
+        private readonly onLog?: (type: 'info' | 'error' | 'sent' | 'received', message: string) => void,
     ) { }
 
     onclose?: () => void;
@@ -20,20 +21,26 @@ class VmStdioMCPTransport implements MCPTransport {
 
     async start(): Promise<void> {
         const fullCommand = [this.config.command, ...(this.config.args || [])].join(' ');
+        this.onLog?.('info', `[MCP] Starting transport for command: ${fullCommand}`);
+
         const { command } = await this.codeProvider.runBackgroundCommand({
             args: { command: fullCommand },
         });
         this.command = command;
         await this.command.open();
+        this.onLog?.('info', '[MCP] Transport command opened');
+
         this.command.onOutput((data) => {
             // Split by lines as MCP often sends multiple JSON-RPC messages separated by newlines
             const lines = data.split('\n').filter((l) => l.trim().length > 0);
             for (const line of lines) {
+                this.onLog?.('received', line);
                 try {
                     const message = JSON.parse(line) as JSONRPCMessage;
                     this.onmessage?.(message);
                 } catch (e) {
-                    // Ignore non-JSON output (e.g. log messages from the server)
+                    // Log non-JSON output if it might be an error or useful info
+                    this.onLog?.('info', `[MCP] Server output: ${line}`);
                 }
             }
         });
@@ -43,11 +50,15 @@ class VmStdioMCPTransport implements MCPTransport {
         if (!this.command) {
             throw new Error('Transport not started');
         }
-        await this.command.write(JSON.stringify(message) + '\n');
+        const data = JSON.stringify(message);
+        this.onLog?.('sent', data);
+        await this.command.write(data + '\n');
     }
 
     async close(): Promise<void> {
         if (this.command) {
+            const fullCommand = [this.config.command, ...(this.config.args || [])].join(' ');
+            this.onLog?.('info', `[MCP] Closing transport for command: ${fullCommand}`);
             await this.command.kill();
             this.command = null;
         }
@@ -66,6 +77,7 @@ export class McpClientManager {
     constructor(
         private configs: McpServerConfig[],
         private codeProvider?: Provider,
+        private onLog?: (type: 'info' | 'error' | 'sent' | 'received', message: string) => void,
     ) { }
 
     /**
@@ -111,10 +123,10 @@ export class McpClientManager {
                         ...tool,
                         execute: tool.execute ? async (...args: any[]) => {
                             const [input] = args;
-                            console.log(`[MCP] Calling tool: ${toolName} with args:`, JSON.stringify(input, null, 2));
+                            this.onLog?.('info', `[MCP] Calling tool: ${toolName} with args: ${JSON.stringify(input, null, 2)}`);
                             try {
                                 const result = await (tool.execute as any)(...args);
-                                console.log(`[MCP] Tool ${toolName} returned result:`, JSON.stringify(result, null, 2));
+                                this.onLog?.('info', `[MCP] Tool ${toolName} returned result: ${JSON.stringify(result, null, 2)}`);
                                 return result;
                             } catch (error) {
                                 console.error(`[MCP] Error calling tool ${toolName}:`, error);
@@ -182,7 +194,7 @@ export class McpClientManager {
                             command: config.command!,
                             args: config.args,
                             env: config.env,
-                        }),
+                        }, this.onLog),
                     });
                 }
 
@@ -210,7 +222,7 @@ export class McpClientManager {
                             command: config.command!,
                             args: config.args,
                             env: config.env,
-                        }),
+                        }, this.onLog),
                     });
                 }
 

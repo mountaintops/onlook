@@ -100,6 +100,7 @@ export class CodesandboxProvider extends Provider {
     }
 
     async initialize(input: InitializeInput): Promise<InitializeOutput> {
+        console.log(`[CodesandboxProvider] Initializing for sandbox ${this.options.sandboxId || 'unknown'}`);
         if (!this.options.sandboxId) {
             return {};
         }
@@ -139,6 +140,7 @@ export class CodesandboxProvider extends Provider {
                 console.error(`[CodesandboxProvider] Sandbox not found after resume: ${this.options.sandboxId}`);
                 throw new Error('Sandbox not found');
             }
+            console.log(`[CodesandboxProvider] Sandbox resumed: ${this.options.sandboxId}`);
 
             try {
                 // If tier is not provided or is Pico (default), skip update to avoid redundant restarts/API errors
@@ -157,6 +159,7 @@ export class CodesandboxProvider extends Provider {
             if (this.options.initClient) {
                 try {
                     this._client = await this.sandbox.connect();
+                    console.log(`[CodesandboxProvider] Connected to sandbox WebSocket: ${this.options.sandboxId}`);
                 } catch (error) {
                     console.error(`[CodesandboxProvider] Failed to connect to sandbox WebSocket ${this.options.sandboxId}:`, error);
                     throw new Error(`Failed to connect to sandbox: ${error instanceof Error ? error.message : String(error)}`);
@@ -409,6 +412,7 @@ export class CodesandboxProvider extends Provider {
         if (!this.client) {
             throw new Error('Client not initialized');
         }
+        console.log(`[CodesandboxProvider] Running command: ${args.command}`);
         const output = await this.client.commands.run(args.command);
         return {
             output,
@@ -421,6 +425,7 @@ export class CodesandboxProvider extends Provider {
         if (!this.client) {
             throw new Error('Client not initialized');
         }
+        console.log(`[CodesandboxProvider] Running background command: ${input.args.command}`);
         const command = await this.client.commands.runBackground(input.args.command);
         return {
             command: new CodesandboxBackgroundCommand(command),
