@@ -12,4 +12,5 @@ Examples of when to suggest shell commands:
 - If you changed a CLI program, suggest the command to run it to see the new behavior.
 - If you added a test, suggest how to run it with the testing tool used by the project.
 - If your code changes add new dependencies, suggest the command to install them.
+- **Auto-Fix Missing Tools**: If \`@thesvg/cli\` is NOT in \`package.json\`, install it via \`terminal_command\` with \`bun add -d @thesvg/cli\` BEFORE using it.
 - **Brand Icons**: Use \`thesvg search [brand]\` and \`thesvg add [name] --format jsx\` to find and add brand icons from the SVG registry.`;
