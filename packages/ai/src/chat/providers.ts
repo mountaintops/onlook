@@ -65,7 +65,7 @@ export function initModel({
 function getGoogleProvider(model: GOOGLE_MODELS): LanguageModel {
     const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_AI_STUDIO_API_KEY;
     if (!apiKey) {
-        throw new Error('GOOGLE_GENERATIVE_AI_API_KEY must be set to use Google models. If you are using screenshit for audits, this key is not required in Onlook, but it is required for the conversational agent if using Gemini.');
+        throw new Error('GOOGLE_GENERATIVE_AI_API_KEY must be set to use Google models. Please check your .env file.');
     }
     const google = createGoogleGenerativeAI({ apiKey });
     return google(model);
