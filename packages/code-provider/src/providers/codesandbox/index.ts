@@ -128,10 +128,16 @@ export class CodesandboxProvider extends Provider {
         } else {
             // backend path, use environment variables
             const sdk = new CodeSandbox();
-            this.sandbox = await sdk.sandboxes.resume(this.options.sandboxId);
+            try {
+                this.sandbox = await sdk.sandboxes.resume(this.options.sandboxId);
+            } catch (error) {
+                console.error(`[CodesandboxProvider] Failed to resume sandbox ${this.options.sandboxId}:`, error);
+                throw new Error(`Failed to resume sandbox: ${error instanceof Error ? error.message : String(error)}`);
+            }
+
             if (!this.sandbox) {
-                console.error(`[CodesandboxProvider] Failed to resume sandbox: ${this.options.sandboxId}`);
-                throw new Error('Failed to resume sandbox');
+                console.error(`[CodesandboxProvider] Sandbox not found after resume: ${this.options.sandboxId}`);
+                throw new Error('Sandbox not found');
             }
 
             try {
@@ -147,8 +153,14 @@ export class CodesandboxProvider extends Provider {
                     error,
                 );
             }
+
             if (this.options.initClient) {
-                this._client = await this.sandbox.connect();
+                try {
+                    this._client = await this.sandbox.connect();
+                } catch (error) {
+                    console.error(`[CodesandboxProvider] Failed to connect to sandbox WebSocket ${this.options.sandboxId}:`, error);
+                    throw new Error(`Failed to connect to sandbox: ${error instanceof Error ? error.message : String(error)}`);
+                }
             }
         }
         return {};

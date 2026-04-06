@@ -94,24 +94,32 @@ export const sandboxRouter = createTRPCRouter({
         )
         .mutation(async ({ input, ctx }) => {
             const userId = ctx.user?.id ?? 'guest-user-id';
-            const provider = await getProvider({
-                sandboxId: input.sandboxId,
-                userId,
-                tier: 'Pico',
-            });
-            const session = await provider.createSession({
-                args: {
-                    id: shortenUuid(userId, 20),
-                },
-            });
+            const sandboxId = input.sandboxId;
 
-            // Note: start requires projectId to get settings, but it's not passed here. 
-            // We should require projectId in the input if we want to run hooks, but that's a breaking API change.
-            // I'll add the hook execution to the mutations in branch.ts which do have the projectId.
-            // Let me pause here and add it to branch.ts first.
+            try {
+                const provider = await getProvider({
+                    sandboxId,
+                    userId,
+                    tier: 'Pico',
+                    initClient: false, // Don't need WebSocket connection for session creation
+                });
 
-            await provider.destroy();
-            return session;
+                const session = await provider.createSession({
+                    args: {
+                        id: shortenUuid(userId, 20),
+                    },
+                });
+
+                await provider.destroy().catch(() => {});
+                return session;
+            } catch (error) {
+                console.error(`[Sandbox] Failed to start sandbox ${sandboxId}:`, error);
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Failed to start sandbox session: ${error instanceof Error ? error.message : String(error)}`,
+                    cause: error,
+                });
+            }
         }),
     hibernate: protectedProcedure
         .input(
@@ -120,7 +128,11 @@ export const sandboxRouter = createTRPCRouter({
             }),
         )
         .mutation(async ({ input }) => {
-            const provider = await getProvider({ sandboxId: input.sandboxId, tier: 'Pico' });
+            const provider = await getProvider({ 
+                sandboxId: input.sandboxId, 
+                tier: 'Pico',
+                initClient: false // Only need to call hibernate API
+            });
             try {
                 await provider.pauseProject({});
             } finally {
@@ -128,9 +140,12 @@ export const sandboxRouter = createTRPCRouter({
             }
         }),
     list: publicProcedure.input(z.object({ sandboxId: z.string() })).query(async ({ input }) => {
-        const provider = await getProvider({ sandboxId: input.sandboxId, tier: 'Pico' });
+        const provider = await getProvider({ 
+            sandboxId: input.sandboxId, 
+            tier: 'Pico',
+            initClient: false // Only need to call list API
+        });
         const res = await provider.listProjects({});
-        // TODO future iteration of code provider abstraction will need this code to be refactored
         if ('projects' in res) {
             return res.projects;
         }
@@ -200,7 +215,11 @@ export const sandboxRouter = createTRPCRouter({
             }),
         )
         .mutation(async ({ input }) => {
-            const provider = await getProvider({ sandboxId: input.sandboxId, tier: 'Pico' });
+            const provider = await getProvider({ 
+                sandboxId: input.sandboxId, 
+                tier: 'Pico',
+                initClient: false // Only need to call stop API
+            });
             try {
                 await provider.stopProject({});
             } finally {
