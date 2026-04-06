@@ -124,7 +124,7 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
         // Fetch project branches to get the sandboxId for MCP execution
         let sandboxId: string | undefined = process.env.CSB_SANDBOX_ID || process.env.ONLOOK_SANDBOX_ID;
         try {
-            const projectBranches = await api.branch.getByProjectId({
+            const projectBranches = await (api as any).branch.getByProjectId({
                 projectId,
                 onlyDefault: true
             });

@@ -30,7 +30,7 @@ export const toDbProjectSettings = (projectId: string, projectSettings: ProjectS
         id: s.id,
         name: s.name,
         enabled: s.enabled,
-        transport: s.transport,
+        transport: s.transport as any,
         url: s.url,
         headers: s.headers,
         command: s.command,

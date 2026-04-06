@@ -191,58 +191,36 @@ export class McpClientManager {
                 });
 
             case McpTransportType.STDIO: {
-                if (this.codeProvider) {
-                    this.onLog?.('info',
-                        `[MCP] Connecting to VM STDIO server: "${config.name}" with command: ${config.command} ${config.args?.join(' ')}`,
-                    );
-                    return createMCPClient({
-                        transport: new VmStdioMCPTransport(this.codeProvider, {
-                            command: config.command!,
-                            args: config.args,
-                            env: config.env,
-                        }, this.onLog),
-                    });
+                if (!this.codeProvider) {
+                    throw new Error(`CodeProvider not available for transport STDIO: "${config.name}". Cannot connect to remote VM.`);
                 }
 
                 this.onLog?.('info',
-                    `[MCP] Connecting to local STDIO server: "${config.name}" with command: ${config.command} ${config.args?.join(' ')}`,
+                    `[MCP] Connecting to VM STDIO server: "${config.name}" with command: ${config.command} ${config.args?.join(' ')}`,
                 );
-                // Dynamic import to avoid bundling stdio in production builds
-                const { Experimental_StdioMCPTransport } = await import('@ai-sdk/mcp/mcp-stdio');
                 return createMCPClient({
-                    transport: new Experimental_StdioMCPTransport({
+                    transport: new VmStdioMCPTransport(this.codeProvider, {
                         command: config.command!,
                         args: config.args,
                         env: config.env,
-                    }),
+                    }, this.onLog),
                 });
             }
 
             case McpTransportType.CODESANDBOX: {
-                if (this.codeProvider) {
-                    this.onLog?.('info',
-                        `[MCP] Connecting to CodeSandbox server: "${config.name}" using ${this.codeProvider.constructor.name} with command: ${config.command} ${config.args?.join(' ')}`,
-                    );
-                    return createMCPClient({
-                        transport: new VmStdioMCPTransport(this.codeProvider, {
-                            command: config.command!,
-                            args: config.args,
-                            env: config.env,
-                        }, this.onLog),
-                    });
+                if (!this.codeProvider) {
+                    throw new Error(`CodeProvider not available for transport CODESANDBOX: "${config.name}". Cannot connect to Sandbox.`);
                 }
 
-                // Fallback to local execution if no provider is available (e.g. running locally)
                 this.onLog?.('info',
-                    `[MCP] CodeProvider not available, falling back to local STDIO server for transport CODESANDBOX: "${config.name}"`,
+                    `[MCP] Connecting to CodeSandbox server: "${config.name}" using ${this.codeProvider.constructor.name} with command: ${config.command} ${config.args?.join(' ')}`,
                 );
-                const { Experimental_StdioMCPTransport } = await import('@ai-sdk/mcp/mcp-stdio');
                 return createMCPClient({
-                    transport: new Experimental_StdioMCPTransport({
+                    transport: new VmStdioMCPTransport(this.codeProvider, {
                         command: config.command!,
                         args: config.args,
                         env: config.env,
-                    }),
+                    }, this.onLog),
                 });
             }
 

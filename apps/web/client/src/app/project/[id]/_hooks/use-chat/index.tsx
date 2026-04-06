@@ -105,7 +105,7 @@ export function useChat({ conversationId, projectId, initialMessages }: UseChatP
                 continue;
             }
 
-            for (const part of message.parts) {
+            for (const part of message.parts as any[]) {
                 if (part.type === 'data' && (part.data as any)?.type === 'mcp-log') {
                     const dataPart = part.data as any;
                     const partId = `${message.id}-${JSON.stringify(dataPart)}`;
@@ -122,6 +122,13 @@ export function useChat({ conversationId, projectId, initialMessages }: UseChatP
                         console.debug(formattedMessage);
                     } else {
                         console.log(formattedMessage);
+                    }
+
+                    // Also write to the dedicated MCP terminal tab
+                    const mcpSession = Array.from((editorEngine.activeSandbox.session as any).terminalSessions.values() as any[])
+                        .find((s: any) => s.name === 'mcp');
+                    if (mcpSession?.xterm) {
+                        mcpSession.xterm.write(formattedMessage + '\r\n');
                     }
                     processedParts.current.add(partId);
                 }

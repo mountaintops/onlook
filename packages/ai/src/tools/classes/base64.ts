@@ -46,7 +46,7 @@ export class Base64Tool extends ClientTool {
                     base64: data,
                     displayName,
                     branchId,
-                }, editorEngine) as string;
+                }, editorEngine) as unknown as string;
             }
         } catch (error) {
             throw new Error(`Base64 operation failed: ${error}`);
