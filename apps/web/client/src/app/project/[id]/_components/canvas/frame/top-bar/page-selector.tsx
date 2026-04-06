@@ -136,6 +136,7 @@ export const PageSelector = observer(({ frame, className, tooltipSide = "top", s
             setIsOpen(open);
             if (open) {
                 editorEngine.frames.select([frame]);
+                editorEngine.pages.scanPages();
             }
         }}>
             <HoverOnlyTooltip content="Page" side={tooltipSide} className="mb-1" hideArrow disabled={isOpen}>

@@ -85,6 +85,7 @@ export class SandboxManager {
         await this.sync.start();
         await this.ensurePreloadScriptExists();
         await this.fs.rebuildIndex();
+        this.editorEngine.pages.scanPages();
     }
 
     private async ensurePreloadScriptExists(): Promise<void> {

@@ -29,7 +29,7 @@ export class PagesManager {
 
     async scanPages() {
         try {
-            if (this._isScanning) {
+            if (this._isScanning || !this.editorEngine.activeSandbox) {
                 return;
             }
             this._isScanning = true;
