@@ -1,6 +1,6 @@
 import type { ToolCall } from '@ai-sdk/provider-utils';
 import { ChatType, LLMProvider, GOOGLE_MODELS, MISTRAL_MODELS, MODAL_MODELS, type ChatMessage, type McpServerConfig, type ModelConfig, type InitialModelPayload } from '@onlook/models';
-import { NoSuchToolError, generateObject, generateText, smoothStream, stepCountIs, streamText, StreamData, type ToolSet, type StreamTextResult } from 'ai';
+import { NoSuchToolError, generateObject, generateText, smoothStream, stepCountIs, streamText, type ToolSet, type StreamTextResult, type UIMessageChunk } from 'ai';
 import { convertToStreamMessages, getArchitectModeClassificationPrompt, getAskModeSystemPrompt, getCreatePageSystemPrompt, getSystemPrompt, getToolSetFromType, initModel } from '../index';
 import { McpClientManager } from '../mcp';
 import { type Provider } from '@onlook/code-provider';
@@ -36,7 +36,7 @@ const getModelFromType = (chatType: ChatType, chatModel?: any): ModelConfig => {
 
     const hasGoogleKey = !!(process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_AI_STUDIO_API_KEY);
     const defaultProvider = hasGoogleKey ? LLMProvider.GOOGLE : LLMProvider.MISTRAL;
-    const defaultModel = hasGoogleKey ? GOOGLE_MODELS.GEMMA_4_31B : MISTRAL_MODELS.MISTRAL_LARGE_2411;
+    const defaultModel = hasGoogleKey ? GOOGLE_MODELS.GEMMA_4_31B : MISTRAL_MODELS.MISTRAL_LARGE_2512;
 
     switch (chatType) {
         case ChatType.CREATE:
@@ -73,7 +73,7 @@ export const repairToolCall = async ({ toolCall, tools, error }: { toolCall: Too
     const hasGoogleKey = !!(process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_AI_STUDIO_API_KEY);
     const { model } = initModel({
         provider: hasGoogleKey ? LLMProvider.GOOGLE : LLMProvider.MISTRAL,
-        model: hasGoogleKey ? GOOGLE_MODELS.GEMMA_4_31B : MISTRAL_MODELS.MISTRAL_LARGE_2411,
+        model: hasGoogleKey ? GOOGLE_MODELS.GEMMA_4_31B : MISTRAL_MODELS.MISTRAL_LARGE_2512,
     } as InitialModelPayload);
 
     const { object: repairedArgs } = await generateObject({
@@ -189,7 +189,13 @@ export const createRootAgentStream = async ({
     chatModel?: any;
     codeProvider?: Provider;
 }) => {
-    const data = new StreamData();
+    let logController: ReadableStreamDefaultController<UIMessageChunk> | null = null;
+    const logStream = new ReadableStream<UIMessageChunk>({
+        start(controller) {
+            logController = controller;
+        },
+    });
+
     let finalChatModel = chatModel;
     if (chatType === ChatType.ARCHITECT && !chatModel) {
         finalChatModel = await runArchitectMode(messages);
@@ -204,12 +210,15 @@ export const createRootAgentStream = async ({
 
     if (mcpServers && mcpServers.length > 0) {
         mcpManager = new McpClientManager(mcpServers, codeProvider, (type, message) => {
-            data.append({
-                type: 'mcp-log',
-                logType: type,
-                message: message,
-                timestamp: new Date().toISOString(),
-            });
+                logController?.enqueue({
+                    type: 'data-mcp-log',
+                    data: {
+                        type: 'mcp-log',
+                        logType: type,
+                        message: message,
+                        timestamp: new Date().toISOString(),
+                    },
+                } as any);
         });
         try {
             const mcpTools = await mcpManager.getTools();
@@ -239,12 +248,13 @@ export const createRootAgentStream = async ({
                     if (mcpManager) {
                         await mcpManager.closeAll();
                     }
-                    data.close();
+                    logController?.close();
                 },
                 onError: async () => {
                     if (mcpManager) {
                         await mcpManager.closeAll();
                     }
+                    logController?.close();
                 },
                 experimental_telemetry: {
                     isEnabled: true,
@@ -273,6 +283,6 @@ export const createRootAgentStream = async ({
         }
     };
 
-    const stream = await runStream(modelConfig);
-    return { stream, model: finalChatModel, data };
+    const streamResult = await runStream(modelConfig);
+    return { streamResult, model: finalChatModel, logStream };
 };

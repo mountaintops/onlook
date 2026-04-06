@@ -1,4 +1,4 @@
-import { createUIMessageStreamResponse } from 'ai';
+import { createUIMessageStream, createUIMessageStreamResponse } from 'ai';
 import { trackEvent } from '@/utils/analytics/server';
 import { createClient as createTRPCClient } from '@/trpc/request-server';
 import { createRootAgentStream } from '@onlook/ai/src/server';
@@ -8,7 +8,7 @@ import { type NextRequest } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { checkMessageLimit, decrementUsage, errorHandler, getSupabaseUser, incrementUsage } from './helpers';
 import { MODAL_GLM5_LOCK_KEY, tryAcquireLock, releaseLock } from './locks';
-import { CodeProvider, createCodeProviderClient } from '@onlook/code-provider';
+import { CodeProvider, createCodeProviderClient, type Provider } from '@onlook/code-provider';
 
 export async function POST(req: NextRequest) {
     try {
@@ -124,7 +124,7 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
         // Fetch project branches to get the sandboxId for MCP execution
         let sandboxId: string | undefined = process.env.CSB_SANDBOX_ID || process.env.ONLOOK_SANDBOX_ID;
         try {
-            const projectBranches = await api.project.branch.getByProjectId({
+            const projectBranches = await api.branch.getByProjectId({
                 projectId,
                 onlyDefault: true
             });
@@ -136,7 +136,7 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
             console.warn(`[Chat] Failed to fetch branches for project ${projectId}, falling back to environment or local MCP execution:`, error);
         }
 
-        let codeProvider;
+        let codeProvider: Provider | undefined;
         if (sandboxId) {
             try {
                 codeProvider = createCodeProviderClient(CodeProvider.CodeSandbox, {
@@ -148,7 +148,7 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
                             initClient: true,
                         },
                     },
-                });
+                }) as Provider;
                 await codeProvider.initialize({});
                 console.log(`[Chat] Initialized CodeSandbox provider for project ${projectId} (sandbox: ${sandboxId})`);
             } catch (error) {
@@ -170,9 +170,9 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
             }
         }
 
-        let stream;
+        let streamResult;
         let selectedModel;
-        let data;
+        let logStream;
         try {
             const result = await createRootAgentStream({
                 chatType,
@@ -185,40 +185,33 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
                 chatModel,
                 codeProvider,
             });
-            stream = result.stream;
+            streamResult = result.streamResult;
             selectedModel = result.model;
-            data = result.data;
+            logStream = result.logStream;
         } catch (err) {
             if (isGLM5) releaseLock(MODAL_GLM5_LOCK_KEY);
             throw err;
         }
 
-        return stream.toUIMessageStreamResponse({
-            data,
+        const stream = createUIMessageStream({
             originalMessages: messages,
-            generateMessageId: () => uuidv4(),
-            messageMetadata: (options: any) => {
-                const part = options.part;
-                return {
-                    createdAt: new Date(),
-                    conversationId,
-                    context: [],
-                    checkpoints: [],
-                    finishReason: part.type === 'finish-step' ? part.finishReason : undefined,
-                    usage: part.type === 'finish-step' ? part.usage : undefined,
-                    chatModel: selectedModel,
-                } satisfies ChatMetadata;
-            },
+            generateId: () => uuidv4(),
             onFinish: async ({ messages: finalMessages }: { messages: ChatMessage[] }) => {
                 if (isGLM5) releaseLock(MODAL_GLM5_LOCK_KEY);
                 if (codeProvider) {
                     await codeProvider.destroy().catch(err => console.error('[Chat] Error destroying codeProvider:', err));
                 }
                 const messagesToStore = finalMessages
-                    .filter(msg =>
-                        (msg.role === 'user' || msg.role === 'assistant')
-                    )
-                    .map(msg => toDbMessage(msg, conversationId));
+                    .filter(msg => (msg.role === 'user' || msg.role === 'assistant'))
+                    .map(msg => toDbMessage({
+                        ...msg,
+                        metadata: {
+                            ...msg.metadata,
+                            createdAt: new Date(),
+                            conversationId,
+                            chatModel: selectedModel,
+                        }
+                    } as any, conversationId));
 
                 await api.chat.message.replaceConversationMessages({
                     conversationId,
@@ -232,7 +225,17 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
                 }
                 return errorHandler(err);
             },
+            execute: async ({ writer }) => {
+                if (streamResult) {
+                    writer.merge(streamResult.toUIMessageStream());
+                }
+                if (logStream) {
+                    writer.merge(logStream as any);
+                }
+            }
         });
+
+        return createUIMessageStreamResponse({ stream });
     } catch (error) {
         console.error('Error in streamResponse setup', error);
         if (usageRecord) {
@@ -240,4 +243,4 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
         }
         throw error;
     }
-}
+};

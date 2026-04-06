@@ -43,7 +43,7 @@ export function useChat({ conversationId, projectId, initialMessages }: UseChatP
     const isProcessingQueue = useRef(false);
     const requestCount = useRef(0);
 
-    const { addToolResult, messages, error, stop, setMessages, regenerate, status, data } =
+    const { addToolResult, messages, error, stop, setMessages, regenerate, status } =
         useAiChat<ChatMessage>({
             id: 'user-chat',
             messages: initialMessages,
@@ -98,29 +98,36 @@ export function useChat({ conversationId, projectId, initialMessages }: UseChatP
         editorEngine.chat.setIsStreaming(isStreaming);
     }, [editorEngine.chat, isStreaming]);
 
-    const lastProcessedLogIndex = useRef(0);
+    const processedParts = useRef(new Set<string>());
     useEffect(() => {
-        if (!data || data.length === 0) {
-            lastProcessedLogIndex.current = 0;
-            return;
-        }
+        for (const message of messages) {
+            if (message.role !== 'assistant' || !message.parts) {
+                continue;
+            }
 
-        for (let i = lastProcessedLogIndex.current; i < data.length; i++) {
-            const part = data[i] as any;
-            if (part && typeof part === 'object' && part.type === 'mcp-log') {
-                const { logType, message } = part;
-                const formattedMessage = `[MCP] ${message}`;
-                if (logType === 'error') {
-                    console.error(formattedMessage);
-                } else if (logType === 'sent' || logType === 'received') {
-                    console.debug(formattedMessage);
-                } else {
-                    console.log(formattedMessage);
+            for (const part of message.parts) {
+                if (part.type === 'data' && (part.data as any)?.type === 'mcp-log') {
+                    const dataPart = part.data as any;
+                    const partId = `${message.id}-${JSON.stringify(dataPart)}`;
+                    
+                    if (processedParts.current.has(partId)) {
+                        continue;
+                    }
+
+                    const { logType, message: logMsg } = dataPart;
+                    const formattedMessage = `[MCP] ${logMsg}`;
+                    if (logType === 'error') {
+                        console.error(formattedMessage);
+                    } else if (logType === 'sent' || logType === 'received') {
+                        console.debug(formattedMessage);
+                    } else {
+                        console.log(formattedMessage);
+                    }
+                    processedParts.current.add(partId);
                 }
             }
         }
-        lastProcessedLogIndex.current = data.length;
-    }, [data]);
+    }, [messages]);
 
     // Store messages in a ref to avoid re-rendering sendMessage/editMessage
     const messagesRef = useRef(messages);
