@@ -172,6 +172,7 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
 
         let stream;
         let selectedModel;
+        let data;
         try {
             const result = await createRootAgentStream({
                 chatType,
@@ -186,12 +187,14 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
             });
             stream = result.stream;
             selectedModel = result.model;
+            data = result.data;
         } catch (err) {
             if (isGLM5) releaseLock(MODAL_GLM5_LOCK_KEY);
             throw err;
         }
 
         return stream.toUIMessageStreamResponse({
+            data,
             originalMessages: messages,
             generateMessageId: () => uuidv4(),
             messageMetadata: (options: any) => {

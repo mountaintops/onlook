@@ -248,6 +248,7 @@ export async function screenshitScreenshot(
     focus?: string,
 ): Promise<{ base64: string; visualAuditReport?: string | null }> {
     const apiBase = getApiBase();
+    console.log(`[screenshit] Capturing screenshot for URL: ${url} (visualAudit: ${visualAudit})`);
     const apiUrl = `${apiBase}/screenshot`;
 
     const response = await fetch(apiUrl, {

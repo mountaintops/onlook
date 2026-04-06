@@ -1,6 +1,6 @@
 import type { ToolCall } from '@ai-sdk/provider-utils';
 import { ChatType, LLMProvider, GOOGLE_MODELS, MISTRAL_MODELS, MODAL_MODELS, type ChatMessage, type McpServerConfig, type ModelConfig, type InitialModelPayload } from '@onlook/models';
-import { NoSuchToolError, generateObject, generateText, smoothStream, stepCountIs, streamText, type ToolSet, type StreamTextResult } from 'ai';
+import { NoSuchToolError, generateObject, generateText, smoothStream, stepCountIs, streamText, StreamData, type ToolSet, type StreamTextResult } from 'ai';
 import { convertToStreamMessages, getArchitectModeClassificationPrompt, getAskModeSystemPrompt, getCreatePageSystemPrompt, getSystemPrompt, getToolSetFromType, initModel } from '../index';
 import { McpClientManager } from '../mcp';
 import { type Provider } from '@onlook/code-provider';
@@ -189,6 +189,7 @@ export const createRootAgentStream = async ({
     chatModel?: any;
     codeProvider?: Provider;
 }) => {
+    const data = new StreamData();
     let finalChatModel = chatModel;
     if (chatType === ChatType.ARCHITECT && !chatModel) {
         finalChatModel = await runArchitectMode(messages);
@@ -202,7 +203,14 @@ export const createRootAgentStream = async ({
     let mergedTools: ToolSet = builtInTools;
 
     if (mcpServers && mcpServers.length > 0) {
-        mcpManager = new McpClientManager(mcpServers, codeProvider);
+        mcpManager = new McpClientManager(mcpServers, codeProvider, (type, message) => {
+            data.append({
+                type: 'mcp-log',
+                logType: type,
+                message: message,
+                timestamp: new Date().toISOString(),
+            });
+        });
         try {
             const mcpTools = await mcpManager.getTools();
             mergedTools = { ...builtInTools, ...mcpTools };
@@ -231,6 +239,7 @@ export const createRootAgentStream = async ({
                     if (mcpManager) {
                         await mcpManager.closeAll();
                     }
+                    data.close();
                 },
                 onError: async () => {
                     if (mcpManager) {
@@ -265,5 +274,5 @@ export const createRootAgentStream = async ({
     };
 
     const stream = await runStream(modelConfig);
-    return { stream, model: finalChatModel };
+    return { stream, model: finalChatModel, data };
 };

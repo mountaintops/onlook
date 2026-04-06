@@ -78,7 +78,13 @@ export class McpClientManager {
         private configs: McpServerConfig[],
         private codeProvider?: Provider,
         private onLog?: (type: 'info' | 'error' | 'sent' | 'received', message: string) => void,
-    ) { }
+    ) {
+        if (this.codeProvider) {
+            this.codeProvider.onLog = (message: string) => {
+                this.onLog?.('info', message);
+            };
+        }
+    }
 
     /**
      * Connect to all enabled MCP servers and return a merged ToolSet.
@@ -129,14 +135,14 @@ export class McpClientManager {
                                 this.onLog?.('info', `[MCP] Tool ${toolName} returned result: ${JSON.stringify(result, null, 2)}`);
                                 return result;
                             } catch (error) {
-                                console.error(`[MCP] Error calling tool ${toolName}:`, error);
+                                this.onLog?.('error', `[MCP] Error calling tool ${toolName}: ${error instanceof Error ? error.message : String(error)}`);
                                 throw error;
                             }
                         } : undefined,
                     };
                 }
             } else {
-                console.error(`[MCP] Failed to fetch tools from "${config.name}" (${config.transport}):`, result.reason);
+                this.onLog?.('error', `[MCP] Failed to fetch tools from "${config.name}" (${config.transport}): ${result.reason}`);
             }
         });
 
@@ -149,14 +155,14 @@ export class McpClientManager {
     async closeAll(): Promise<void> {
         await Promise.allSettled(
             this.clients.map((client) => client.close().catch((err) => {
-                console.error('[MCP] Error closing client:', err);
+                this.onLog?.('error', `[MCP] Error closing client: ${err instanceof Error ? err.message : String(err)}`);
             }))
         );
         this.clients = [];
 
         await Promise.allSettled(
             this.providers.map((provider) => provider.destroy().catch((err) => {
-                console.error('[MCP] Error destroying provider:', err);
+                this.onLog?.('error', `[MCP] Error destroying provider: ${err instanceof Error ? err.message : String(err)}`);
             }))
         );
         this.providers = [];
@@ -165,7 +171,7 @@ export class McpClientManager {
     private async createClient(config: McpServerConfig): Promise<MCPClient> {
         switch (config.transport) {
             case McpTransportType.HTTP:
-                console.log(`[MCP] Connecting to HTTP server: "${config.name}" at ${config.url}`);
+                this.onLog?.('info', `[MCP] Connecting to HTTP server: "${config.name}" at ${config.url}`);
                 return createMCPClient({
                     transport: {
                         type: 'http',
@@ -175,7 +181,7 @@ export class McpClientManager {
                 });
 
             case McpTransportType.SSE:
-                console.log(`[MCP] Connecting to SSE server: "${config.name}" at ${config.url}`);
+                this.onLog?.('info', `[MCP] Connecting to SSE server: "${config.name}" at ${config.url}`);
                 return createMCPClient({
                     transport: {
                         type: 'sse',
@@ -186,7 +192,7 @@ export class McpClientManager {
 
             case McpTransportType.STDIO: {
                 if (this.codeProvider) {
-                    console.log(
+                    this.onLog?.('info',
                         `[MCP] Connecting to VM STDIO server: "${config.name}" with command: ${config.command} ${config.args?.join(' ')}`,
                     );
                     return createMCPClient({
@@ -198,7 +204,7 @@ export class McpClientManager {
                     });
                 }
 
-                console.log(
+                this.onLog?.('info',
                     `[MCP] Connecting to local STDIO server: "${config.name}" with command: ${config.command} ${config.args?.join(' ')}`,
                 );
                 // Dynamic import to avoid bundling stdio in production builds
@@ -214,7 +220,7 @@ export class McpClientManager {
 
             case McpTransportType.CODESANDBOX: {
                 if (this.codeProvider) {
-                    console.log(
+                    this.onLog?.('info',
                         `[MCP] Connecting to CodeSandbox server: "${config.name}" using ${this.codeProvider.constructor.name} with command: ${config.command} ${config.args?.join(' ')}`,
                     );
                     return createMCPClient({
@@ -227,7 +233,7 @@ export class McpClientManager {
                 }
 
                 // Fallback to local execution if no provider is available (e.g. running locally)
-                console.log(
+                this.onLog?.('info',
                     `[MCP] CodeProvider not available, falling back to local STDIO server for transport CODESANDBOX: "${config.name}"`,
                 );
                 const { Experimental_StdioMCPTransport } = await import('@ai-sdk/mcp/mcp-stdio');

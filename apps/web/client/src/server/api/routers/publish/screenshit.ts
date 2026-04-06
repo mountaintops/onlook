@@ -426,14 +426,20 @@ export const screenshitRouter = createTRPCRouter({
             focus: z.string().optional(),
         }))
         .mutation(async ({ input }): Promise<{ base64: string; visualAuditReport?: string | null }> => {
-            return await screenshitScreenshot(
-                input.url, 
-                input.quality, 
-                input.scrollToId, 
-                input.delay, 
-                input.visualAudit,
-                input.action,
-                input.focus
-            );
+            console.log(`[screenshit] mutation: screenshot input:`, input);
+            try {
+                return await screenshitScreenshot(
+                    input.url, 
+                    input.quality, 
+                    input.scrollToId, 
+                    input.delay, 
+                    input.visualAudit,
+                    input.action,
+                    input.focus
+                );
+            } catch (error) {
+                console.error(`[screenshit] mutation: screenshot failed:`, error);
+                throw error;
+            }
         }),
 });

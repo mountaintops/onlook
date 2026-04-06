@@ -76,6 +76,7 @@ export interface CodesandboxProviderOptions {
     // returns a session object used by codesandbox SDK
     // only populate this property in the browser
     getSession?: (sandboxId: string, userId?: string) => Promise<SandboxBrowserSession | null>;
+    onLog?: (message: string) => void;
 }
 
 export interface CodesandboxCreateSessionInput extends CreateSessionInput {}
@@ -92,6 +93,23 @@ export class CodesandboxProvider extends Provider {
     constructor(options: CodesandboxProviderOptions) {
         super();
         this.options = options;
+        this.onLog = options.onLog;
+    }
+
+    private log(level: 'info' | 'warn' | 'error', message: string, ...args: any[]) {
+        const formattedMessage = `[CodesandboxProvider] ${message}`;
+        const logFn = this.onLog || this.options.onLog;
+        if (logFn) {
+            logFn(formattedMessage + (args.length > 0 ? ' ' + args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ') : ''));
+        }
+
+        // Only log to server console if no onLog is provided to avoid clutter
+        const isBrowser = typeof window !== 'undefined';
+        if (isBrowser || !logFn) {
+            if (level === 'error') console.error(formattedMessage, ...args);
+            else if (level === 'warn') console.warn(formattedMessage, ...args);
+            else console.log(formattedMessage, ...args);
+        }
     }
 
     // may be removed in the future once the code completely interfaces through the provider
@@ -100,7 +118,7 @@ export class CodesandboxProvider extends Provider {
     }
 
     async initialize(input: InitializeInput): Promise<InitializeOutput> {
-        console.log(`[CodesandboxProvider] Initializing for sandbox ${this.options.sandboxId || 'unknown'}`);
+        this.log('info', `Initializing for sandbox ${this.options.sandboxId || 'unknown'}`);
         if (!this.options.sandboxId) {
             return {};
         }
@@ -115,16 +133,13 @@ export class CodesandboxProvider extends Provider {
                     getSession: async (id) =>
                         (await this.options.getSession?.(id, this.options.userId)) || null,
                 });
-                    try {
-                        this._client.keepActiveWhileConnected(
-                            this.options.keepActiveWhileConnected ?? true,
-                        );
-                    } catch (error) {
-                        console.warn(
-                            '[CodesandboxProvider] Failed to set keepActiveWhileConnected:',
-                            error,
-                        );
-                    }
+                try {
+                    this._client.keepActiveWhileConnected(
+                        this.options.keepActiveWhileConnected ?? true,
+                    );
+                } catch (error) {
+                    this.log('warn', 'Failed to set keepActiveWhileConnected:', error);
+                }
             }
         } else {
             // backend path, use environment variables
@@ -132,15 +147,19 @@ export class CodesandboxProvider extends Provider {
             try {
                 this.sandbox = await sdk.sandboxes.resume(this.options.sandboxId);
             } catch (error) {
-                console.error(`[CodesandboxProvider] Failed to resume sandbox ${this.options.sandboxId}:`, error);
-                throw new Error(`Failed to resume sandbox: ${error instanceof Error ? error.message : String(error)}`);
+                this.log('error', `Failed to resume sandbox ${this.options.sandboxId}:`, error);
+                throw new Error(
+                    `Failed to resume sandbox: ${
+                        error instanceof Error ? error.message : String(error)
+                    }`,
+                );
             }
 
             if (!this.sandbox) {
-                console.error(`[CodesandboxProvider] Sandbox not found after resume: ${this.options.sandboxId}`);
+                this.log('error', `Sandbox not found after resume: ${this.options.sandboxId}`);
                 throw new Error('Sandbox not found');
             }
-            console.log(`[CodesandboxProvider] Sandbox resumed: ${this.options.sandboxId}`);
+            this.log('info', `Sandbox resumed: ${this.options.sandboxId}`);
 
             try {
                 // If tier is not provided or is Pico (default), skip update to avoid redundant restarts/API errors
@@ -150,18 +169,15 @@ export class CodesandboxProvider extends Provider {
                     await this.sandbox.updateTier(tier);
                 }
             } catch (error) {
-                console.warn(
-                    `[CodesandboxProvider] Failed to update VM tier to ${this.options.tier}:`,
-                    error,
-                );
+                this.log('warn', `Failed to update VM tier to ${this.options.tier}:`, error);
             }
 
             if (this.options.initClient) {
                 try {
                     this._client = await this.sandbox.connect();
-                    console.log(`[CodesandboxProvider] Connected to sandbox WebSocket: ${this.options.sandboxId}`);
+                    this.log('info', `Connected to sandbox WebSocket: ${this.options.sandboxId}`);
                 } catch (error) {
-                    console.error(`[CodesandboxProvider] Failed to connect to sandbox WebSocket ${this.options.sandboxId}:`, error);
+                    this.log('error', `Failed to connect to sandbox WebSocket ${this.options.sandboxId}:`, error);
                     throw new Error(`Failed to connect to sandbox: ${error instanceof Error ? error.message : String(error)}`);
                 }
             }
@@ -190,7 +206,7 @@ export class CodesandboxProvider extends Provider {
             await this.client?.commands.run('echo "ping"');
             return true;
         } catch (error) {
-            console.error('Failed to ping sandbox', error);
+            this.log('error', 'Failed to ping sandbox', error);
             return false;
         }
     }
@@ -412,7 +428,7 @@ export class CodesandboxProvider extends Provider {
         if (!this.client) {
             throw new Error('Client not initialized');
         }
-        console.log(`[CodesandboxProvider] Running command: ${args.command}`);
+        this.log('info', `Running command: ${args.command}`);
         const output = await this.client.commands.run(args.command);
         return {
             output,
@@ -425,7 +441,7 @@ export class CodesandboxProvider extends Provider {
         if (!this.client) {
             throw new Error('Client not initialized');
         }
-        console.log(`[CodesandboxProvider] Running background command: ${input.args.command}`);
+        this.log('info', `Running background command: ${input.args.command}`);
         const command = await this.client.commands.runBackground(input.args.command);
         return {
             command: new CodesandboxBackgroundCommand(command),
@@ -476,7 +492,7 @@ export class CodesandboxProvider extends Provider {
             }
             return session;
         } catch (error) {
-            console.warn('[CodesandboxProvider] Failed to generate signed preview URL:', error);
+            this.log('warn', 'Failed to generate signed preview URL:', error);
             return session;
         }
     }
@@ -614,7 +630,7 @@ export class CodesandboxBackgroundCommand extends ProviderBackgroundCommand {
     kill(): Promise<void> {
         return this._command.kill();
     }
-    
+
     write(input: string): Promise<void> {
         return (this._command as any).write?.(input) || Promise.resolve();
     }

@@ -241,6 +241,11 @@ export abstract class Provider {
     abstract stopProject(input: StopProjectInput): Promise<StopProjectOutput>;
     abstract listProjects(input: ListProjectsInput): Promise<ListProjectsOutput>;
 
+    /**
+     * Optional callback for logging provider-specific events.
+     */
+    onLog?: (message: string) => void;
+
     // this is called when the provider instance is no longer needed
     abstract destroy(): Promise<void>;
 }
