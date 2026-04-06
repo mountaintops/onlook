@@ -93,24 +93,32 @@ export class McpClientManager {
     async getTools(): Promise<ToolSet> {
         const enabledConfigs = this.configs.filter((c) => c.enabled);
         if (enabledConfigs.length === 0) {
+            this.onLog?.('info', '[MCP] No enabled MCP servers found.');
             return {};
         }
+
+        this.onLog?.('info', `[MCP] Fetching tools from ${enabledConfigs.length} enabled servers: ${enabledConfigs.map(c => c.name).join(', ')}`);
 
         const TIMEOUT_MS = 15000; // 15 seconds timeout per server
         const results = await Promise.allSettled(
             enabledConfigs.map(async (config) => {
-                const fetchToolsPromise = (async () => {
+                try {
+                    this.onLog?.('info', `[MCP] Requesting client for "${config.name}"...`);
                     const client = await this.createClient(config);
                     this.clients.push(client);
-                    return await client.tools();
-                })();
+                    this.onLog?.('info', `[MCP] Successfully created client for "${config.name}". Fetching tools...`);
 
-                return await Promise.race([
-                    fetchToolsPromise,
-                    new Promise<ToolSet>((_, reject) =>
-                        setTimeout(() => reject(new Error(`Connection timeout after ${TIMEOUT_MS}ms`)), TIMEOUT_MS)
-                    ),
-                ]);
+                    const fetchToolsPromise = client.tools();
+                    return await Promise.race([
+                        fetchToolsPromise,
+                        new Promise<ToolSet>((_, reject) =>
+                            setTimeout(() => reject(new Error(`Connection timeout after ${TIMEOUT_MS}ms`)), TIMEOUT_MS)
+                        ),
+                    ]);
+                } catch (error) {
+                    this.onLog?.('error', `[MCP] Error initializing or fetching tools from "${config.name}": ${error instanceof Error ? error.message : String(error)}`);
+                    throw error;
+                }
             })
         );
 
@@ -123,6 +131,9 @@ export class McpClientManager {
             if (result.status === 'fulfilled') {
                 const prefix = config.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
                 const tools = result.value;
+                const toolNames = Object.keys(tools);
+                this.onLog?.('info', `[MCP] Successfully registered ${toolNames.length} tools from "${config.name}" with prefix "${prefix}_": ${toolNames.join(', ')}`);
+
                 for (const [name, tool] of Object.entries(tools)) {
                     const toolName = `${prefix}_${name}`;
                     allTools[toolName] = {
@@ -142,7 +153,7 @@ export class McpClientManager {
                     };
                 }
             } else {
-                this.onLog?.('error', `[MCP] Failed to fetch tools from "${config.name}" (${config.transport}): ${result.reason}`);
+                this.onLog?.('error', `[MCP] Final failure for "${config.name}" (${config.transport}): ${result.reason}`);
             }
         });
 
@@ -153,6 +164,7 @@ export class McpClientManager {
      * Close all active MCP client connections.
      */
     async closeAll(): Promise<void> {
+        this.onLog?.('info', `[MCP] Closing ${this.clients.length} active client connections...`);
         await Promise.allSettled(
             this.clients.map((client) => client.close().catch((err) => {
                 this.onLog?.('error', `[MCP] Error closing client: ${err instanceof Error ? err.message : String(err)}`);
@@ -160,35 +172,48 @@ export class McpClientManager {
         );
         this.clients = [];
 
-        await Promise.allSettled(
-            this.providers.map((provider) => provider.destroy().catch((err) => {
-                this.onLog?.('error', `[MCP] Error destroying provider: ${err instanceof Error ? err.message : String(err)}`);
-            }))
-        );
-        this.providers = [];
+        if (this.providers.length > 0) {
+            this.onLog?.('info', `[MCP] Destroying ${this.providers.length} resource providers...`);
+            await Promise.allSettled(
+                this.providers.map((provider) => provider.destroy().catch((err) => {
+                    this.onLog?.('error', `[MCP] Error destroying provider: ${err instanceof Error ? err.message : String(err)}`);
+                }))
+            );
+            this.providers = [];
+        }
     }
 
     private async createClient(config: McpServerConfig): Promise<MCPClient> {
         switch (config.transport) {
             case McpTransportType.HTTP:
                 this.onLog?.('info', `[MCP] Connecting to HTTP server: "${config.name}" at ${config.url}`);
-                return createMCPClient({
-                    transport: {
-                        type: 'http',
-                        url: config.url!,
-                        headers: config.headers,
-                    },
-                });
+                try {
+                    return createMCPClient({
+                        transport: {
+                            type: 'http',
+                            url: config.url!,
+                            headers: config.headers,
+                        },
+                    });
+                } catch (err) {
+                    this.onLog?.('error', `[MCP] HTTP transport initialization failed for "${config.name}": ${err}`);
+                    throw err;
+                }
 
             case McpTransportType.SSE:
                 this.onLog?.('info', `[MCP] Connecting to SSE server: "${config.name}" at ${config.url}`);
-                return createMCPClient({
-                    transport: {
-                        type: 'sse',
-                        url: config.url!,
-                        headers: config.headers,
-                    },
-                });
+                try {
+                    return createMCPClient({
+                        transport: {
+                            type: 'sse',
+                            url: config.url!,
+                            headers: config.headers,
+                        },
+                    });
+                } catch (err) {
+                    this.onLog?.('error', `[MCP] SSE transport initialization failed for "${config.name}": ${err}`);
+                    throw err;
+                }
 
             case McpTransportType.STDIO: {
                 if (!this.codeProvider) {
@@ -198,13 +223,18 @@ export class McpClientManager {
                 this.onLog?.('info',
                     `[MCP] Connecting to VM STDIO server: "${config.name}" with command: ${config.command} ${config.args?.join(' ')}`,
                 );
-                return createMCPClient({
-                    transport: new VmStdioMCPTransport(this.codeProvider, {
-                        command: config.command!,
-                        args: config.args,
-                        env: config.env,
-                    }, this.onLog),
-                });
+                try {
+                    return createMCPClient({
+                        transport: new VmStdioMCPTransport(this.codeProvider, {
+                            command: config.command!,
+                            args: config.args,
+                            env: config.env,
+                        }, this.onLog),
+                    });
+                } catch (err) {
+                    this.onLog?.('error', `[MCP] VM STDIO transport initialization failed for "${config.name}": ${err}`);
+                    throw err;
+                }
             }
 
             case McpTransportType.CODESANDBOX: {
@@ -215,13 +245,18 @@ export class McpClientManager {
                 this.onLog?.('info',
                     `[MCP] Connecting to CodeSandbox server: "${config.name}" using ${this.codeProvider.constructor.name} with command: ${config.command} ${config.args?.join(' ')}`,
                 );
-                return createMCPClient({
-                    transport: new VmStdioMCPTransport(this.codeProvider, {
-                        command: config.command!,
-                        args: config.args,
-                        env: config.env,
-                    }, this.onLog),
-                });
+                try {
+                    return createMCPClient({
+                        transport: new VmStdioMCPTransport(this.codeProvider, {
+                            command: config.command!,
+                            args: config.args,
+                            env: config.env,
+                        }, this.onLog),
+                    });
+                } catch (err) {
+                    this.onLog?.('error', `[MCP] CodeSandbox transport initialization failed for "${config.name}": ${err}`);
+                    throw err;
+                }
             }
 
             default:

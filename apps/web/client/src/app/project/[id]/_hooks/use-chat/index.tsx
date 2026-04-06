@@ -106,6 +106,10 @@ export function useChat({ conversationId, projectId, initialMessages }: UseChatP
             }
 
             for (const part of message.parts as any[]) {
+                if (part.type === 'data') {
+                    console.log(`[Chat] Processing data part:`, part.data);
+                }
+
                 if (part.type === 'data' && (part.data as any)?.type === 'mcp-log') {
                     const dataPart = part.data as any;
                     const partId = `${message.id}-${JSON.stringify(dataPart)}`;

@@ -210,7 +210,8 @@ export const createRootAgentStream = async ({
 
     if (mcpServers && mcpServers.length > 0) {
         mcpManager = new McpClientManager(mcpServers, codeProvider, (type, message) => {
-                logController?.enqueue({
+            if (logController) {
+                logController.enqueue({
                     type: 'data-mcp-log',
                     data: {
                         type: 'mcp-log',
@@ -219,7 +220,22 @@ export const createRootAgentStream = async ({
                         timestamp: new Date().toISOString(),
                     },
                 } as any);
+            } else {
+                console.warn('[Chat] Log controller not available, dropping log:', message);
+            }
         });
+        
+        // Signal that the log stream has started
+        (logController as any)?.enqueue({
+            type: 'data-mcp-log',
+            data: {
+                type: 'mcp-log',
+                logType: 'info',
+                message: '[Chat] Log stream initialized. Connecting to MCP servers...',
+                timestamp: new Date().toISOString(),
+            },
+        } as any);
+
         try {
             const mcpTools = await mcpManager.getTools();
             mergedTools = { ...builtInTools, ...mcpTools };
