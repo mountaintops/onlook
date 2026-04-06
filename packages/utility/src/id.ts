@@ -25,9 +25,6 @@ export function shortenUuid(uuid: string, maxLength: number): string {
     // Convert to base36 (alphanumeric) for compact representation
     const base36 = Math.abs(hash).toString(36);
 
-    // Pad with leading zeros if needed
-    const padded = base36.padStart(maxLength, '0');
-
     // Truncate if longer than maxLength
-    return padded.slice(-maxLength);
+    return base36.slice(-maxLength);
 }

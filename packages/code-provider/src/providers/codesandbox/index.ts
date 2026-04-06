@@ -129,14 +129,21 @@ export class CodesandboxProvider extends Provider {
             // backend path, use environment variables
             const sdk = new CodeSandbox();
             this.sandbox = await sdk.sandboxes.resume(this.options.sandboxId);
+            if (!this.sandbox) {
+                console.error(`[CodesandboxProvider] Failed to resume sandbox: ${this.options.sandboxId}`);
+                throw new Error('Failed to resume sandbox');
+            }
+
             try {
-                const tier = this.options.tier
-                    ? VMTier.fromName(this.options.tier as any)
-                    : VMTier.Pico;
-                await this.sandbox.updateTier(tier);
+                // If tier is not provided or is Pico (default), skip update to avoid redundant restarts/API errors
+                const requestedTier = this.options.tier ? this.options.tier.toLowerCase() : 'pico';
+                if (requestedTier !== 'pico') {
+                    const tier = VMTier.fromName(requestedTier as any);
+                    await this.sandbox.updateTier(tier);
+                }
             } catch (error) {
                 console.warn(
-                    `[CodesandboxProvider] Failed to update VM tier to ${this.options.tier || 'Pico'}:`,
+                    `[CodesandboxProvider] Failed to update VM tier to ${this.options.tier}:`,
                     error,
                 );
             }
