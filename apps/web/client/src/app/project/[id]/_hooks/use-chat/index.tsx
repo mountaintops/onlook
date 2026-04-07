@@ -7,6 +7,7 @@ import { useChat as useAiChat } from '@ai-sdk/react';
 import { ChatType, type ChatMessage, type GitMessageCheckpoint, type MessageContext, type QueuedMessage } from '@onlook/models';
 import { jsonClone } from '@onlook/utility';
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls, type FinishReason } from 'ai';
+import { toast } from '@onlook/ui/sonner';
 import { usePostHog } from 'posthog-js/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
@@ -135,6 +136,27 @@ export function useChat({ conversationId, projectId, initialMessages }: UseChatP
                         mcpSession.xterm.write(formattedMessage + '\r\n');
                     }
                     processedParts.current.add(partId);
+                }
+
+                if (part.type === 'data' && (part.data as any)?.type === 'mcp-auth-required') {
+                    const dataPart = part.data as any;
+                    const partId = `auth-${message.id}-${dataPart.serverId}`;
+
+                    if (processedParts.current.has(partId)) {
+                        continue;
+                    }
+                    processedParts.current.add(partId);
+
+                    const { serverName, authUrl } = dataPart;
+                    // Show a persistent toast with the authorization link
+                    toast(`🔐 ${serverName} requires authorization`, {
+                        description: 'Click the link below to connect your account.',
+                        duration: 60000,
+                        action: {
+                            label: 'Authorize →',
+                            onClick: () => window.open(authUrl, '_blank', 'noopener,noreferrer'),
+                        },
+                    });
                 }
             }
         }

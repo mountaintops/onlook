@@ -12,18 +12,21 @@ export type McpServerConfigDb = {
     url?: string;
     headers?: Record<string, string>;
     oauth?: {
-        clientId: string;
-        redirectUri?: string;
-        scopes?: string[];
+        /** Optional — from Dynamic Client Registration */
+        clientId?: string;
+        clientSecret?: string;
         tokens?: {
             access_token: string;
             token_type: string;
-            expires_at?: number;
+            expires_in?: number;
             refresh_token?: string;
             scope?: string;
+            id_token?: string;
         };
         codeVerifier?: string;
         state?: string;
+        pendingAuthUrl?: string;
+        pendingAuthCode?: string;
     };
 };
 

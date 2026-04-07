@@ -124,6 +124,7 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
 
         let streamResult;
         let selectedModel;
+        let pendingAuths: { serverId: string; serverName: string; authUrl: string }[] = [];
         try {
             const result = await createRootAgentStream({
                 chatType,
@@ -149,6 +150,7 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
             });
             streamResult = result.streamResult;
             selectedModel = result.model;
+            pendingAuths = result.pendingAuths;
         } catch (err) {
             if (isGLM5) releaseLock(MODAL_GLM5_LOCK_KEY);
             throw err;
@@ -182,6 +184,20 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
                 return errorHandler(err);
             },
             execute: async ({ writer }) => {
+                // Surface any servers that require OAuth authorization as data parts
+                if (pendingAuths.length > 0) {
+                    for (const pending of pendingAuths) {
+                        (writer as any).write({
+                            type: 'data',
+                            data: {
+                                type: 'mcp-auth-required',
+                                serverId: pending.serverId,
+                                serverName: pending.serverName,
+                                authUrl: pending.authUrl,
+                            },
+                        });
+                    }
+                }
                 if (streamResult) {
                     writer.merge(streamResult.toUIMessageStream());
                 }

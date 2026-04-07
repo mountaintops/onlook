@@ -2,7 +2,7 @@ import type { ToolCall } from '@ai-sdk/provider-utils';
 import { ChatType, LLMProvider, GOOGLE_MODELS, MISTRAL_MODELS, MODAL_MODELS, type ChatMessage, type McpServerConfig, type ModelConfig, type InitialModelPayload } from '@onlook/models';
 import { NoSuchToolError, generateObject, generateText, smoothStream, stepCountIs, streamText, type ToolSet, type StreamTextResult } from 'ai';
 import { convertToStreamMessages, getArchitectModeClassificationPrompt, getAskModeSystemPrompt, getCreatePageSystemPrompt, getSystemPrompt, getToolSetFromType, initModel } from '../index';
-import { McpClientManager } from '../mcp';
+import { McpClientManager, type PendingOAuth } from '../mcp';
 
 
 const ARCHITECT_FALLBACK_MODELS = [
@@ -204,7 +204,8 @@ export const createRootAgentStream = async ({
     if (mcpServers && mcpServers.length > 0) {
         mcpManager = new McpClientManager(
             mcpServers,
-            (type, message) => {
+            projectId,
+            (type: 'info' | 'error' | 'sent' | 'received', message: string) => {
                 const formattedMessage = `[MCP] ${message}`;
                 if (type === 'error') {
                     console.error(formattedMessage);
@@ -284,5 +285,6 @@ export const createRootAgentStream = async ({
     };
 
     const streamResult = await runStream(modelConfig);
-    return { streamResult, model: finalChatModel };
+    const pendingAuths: PendingOAuth[] = mcpManager?.getPendingAuths() ?? [];
+    return { streamResult, model: finalChatModel, pendingAuths };
 };
