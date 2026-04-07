@@ -10,9 +10,6 @@ export const fromDbProjectSettings = (dbProjectSettings: DbProjectSettings): Pro
         transport: s.transport as McpServerConfig['transport'],
         url: s.url,
         headers: s.headers,
-        command: s.command,
-        args: s.args,
-        env: s.env,
     }));
 
     return {
@@ -33,9 +30,6 @@ export const toDbProjectSettings = (projectId: string, projectSettings: ProjectS
         transport: s.transport as any,
         url: s.url,
         headers: s.headers,
-        command: s.command,
-        args: s.args,
-        env: s.env,
     }));
 
     return {

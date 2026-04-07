@@ -8,12 +8,9 @@ export type McpServerConfigDb = {
     id: string;
     name: string;
     enabled: boolean;
-    transport: 'http' | 'sse' | 'stdio';
+    transport: 'http' | 'sse';
     url?: string;
     headers?: Record<string, string>;
-    command?: string;
-    args?: string[];
-    env?: Record<string, string>;
 };
 
 export const projectSettings = pgTable('project_settings', {

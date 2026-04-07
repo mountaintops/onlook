@@ -3,7 +3,7 @@ import { ChatType, LLMProvider, GOOGLE_MODELS, MISTRAL_MODELS, MODAL_MODELS, typ
 import { NoSuchToolError, generateObject, generateText, smoothStream, stepCountIs, streamText, type ToolSet, type StreamTextResult } from 'ai';
 import { convertToStreamMessages, getArchitectModeClassificationPrompt, getAskModeSystemPrompt, getCreatePageSystemPrompt, getSystemPrompt, getToolSetFromType, initModel } from '../index';
 import { McpClientManager } from '../mcp';
-import { type Provider } from '@onlook/code-provider';
+
 
 const ARCHITECT_FALLBACK_MODELS = [
     { provider: LLMProvider.GOOGLE, model: GOOGLE_MODELS.GEMMA_4_26B },
@@ -177,7 +177,6 @@ export const createRootAgentStream = async ({
     messages,
     mcpServers,
     chatModel,
-    codeProvider,
 }: {
     chatType: ChatType;
     conversationId: string;
@@ -187,7 +186,6 @@ export const createRootAgentStream = async ({
     messages: ChatMessage[];
     mcpServers?: McpServerConfig[];
     chatModel?: any;
-    codeProvider?: Provider;
 }) => {
     let finalChatModel = chatModel;
     if (chatType === ChatType.ARCHITECT && !chatModel) {
@@ -202,7 +200,7 @@ export const createRootAgentStream = async ({
     let mergedTools: ToolSet = builtInTools;
 
     if (mcpServers && mcpServers.length > 0) {
-        mcpManager = new McpClientManager(mcpServers, codeProvider, (type, message) => {
+        mcpManager = new McpClientManager(mcpServers, (type, message) => {
             const formattedMessage = `[MCP] ${message}`;
             if (type === 'error') {
                 console.error(formattedMessage);

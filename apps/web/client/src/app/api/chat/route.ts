@@ -3,12 +3,11 @@ import { trackEvent } from '@/utils/analytics/server';
 import { createClient as createTRPCClient } from '@/trpc/request-server';
 import { createRootAgentStream } from '@onlook/ai/src/server';
 import { toDbMessage } from '@onlook/db';
-import { ChatType, LLMProvider, type ChatMessage, type ChatMetadata } from '@onlook/models';
+import { ChatType, LLMProvider, type ChatMessage } from '@onlook/models';
 import { type NextRequest } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { checkMessageLimit, decrementUsage, errorHandler, getSupabaseUser, incrementUsage } from './helpers';
 import { MODAL_GLM5_LOCK_KEY, tryAcquireLock, releaseLock } from './locks';
-import { CodeProvider, createCodeProviderClient, getStaticCodeProvider, type Provider } from '@onlook/code-provider';
 
 export async function POST(req: NextRequest) {
     try {
@@ -27,22 +26,11 @@ export async function POST(req: NextRequest) {
             });
         }
 
-        const { messages, chatType, conversationId, projectId, chatModel } = body as {
-            messages: ChatMessage[],
-            chatType: ChatType,
-            conversationId: string,
+        const { projectId } = body as {
             projectId: string,
-            chatModel?: any,
         };
 
         if (!projectId) {
-            console.error('Missing projectId in /api/chat request body. Detailed debug info:', {
-                method: req.method,
-                url: req.url,
-                headers: Object.fromEntries(req.headers.entries()),
-                bodyKeys: Object.keys(body),
-                bodyContent: JSON.stringify(body, null, 2),
-            });
             return new Response(JSON.stringify({
                 error: 'Missing projectId in request body',
                 code: 400,
@@ -121,106 +109,6 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
         const projectSettingsData = await api.settings.get({ projectId });
         const mcpServers = projectSettingsData?.mcpServers ?? [];
 
-        // Fetch project branches to get the sandboxId for MCP execution
-        let sandboxId: string | undefined = process.env.CSB_SANDBOX_ID || process.env.ONLOOK_SANDBOX_ID;
-        let branchId: string | undefined;
-        try {
-            const projectBranches = await (api as any).branch.getByProjectId({
-                projectId,
-                onlyDefault: true
-            });
-            const defaultBranch = projectBranches[0];
-            const defaultSandboxId = defaultBranch?.sandbox?.id;
-            if (defaultSandboxId) {
-                sandboxId = defaultSandboxId;
-                branchId = defaultBranch?.id;
-            }
-        } catch (error) {
-            console.warn(`[Chat] Failed to fetch branches for project ${projectId}, falling back to environment or local MCP execution:`, error);
-        }
-
-        let codeProvider: Provider | undefined;
-        if (sandboxId) {
-            try {
-                codeProvider = (await createCodeProviderClient(CodeProvider.CodeSandbox, {
-                    providerOptions: {
-                        codesandbox: {
-                            sandboxId,
-                            userId,
-                            tier: 'Pico',
-                            initClient: true,
-                        },
-                    },
-                })) as Provider;
-                console.log(`[Chat] Initialized CodeSandbox provider for project ${projectId} (sandbox: ${sandboxId})`);
-            } catch (error: any) {
-                console.warn(`[Chat] Failed to initialize CodeSandbox Provider: ${error?.message || String(error)}. Attempting to spawn new instance...`);
-                try {
-                    const CodeSandboxStatic = await getStaticCodeProvider(CodeProvider.CodeSandbox);
-                    const forkedSandbox = await CodeSandboxStatic.createProject({
-                        source: 'template',
-                        id: sandboxId,
-                        title: 'Onlook Auto Fork',
-                        tags: ['fallback-fork'],
-                        tier: 'Pico',
-                    });
-                    
-                    const newSandboxId = forkedSandbox.id;
-                    console.log(`[Chat] Successfully spawned new sandbox instance: ${newSandboxId}`);
-                    
-                    if (branchId) {
-                        try {
-                            await (api as any).branch.update({ id: branchId, sandboxId: newSandboxId });
-                            console.log(`[Chat] Updated branch ${branchId} with new sandboxId: ${newSandboxId}`);
-                        } catch (updateError) {
-                            console.error('[Chat] Failed to update branch with new sandbox ID:', updateError);
-                        }
-                    } else {
-                        console.warn('[Chat] No branchId found to update with new sandbox instance.');
-                    }
-
-                    // Retry initializing the client with the new sandboxId
-                    codeProvider = (await createCodeProviderClient(CodeProvider.CodeSandbox, {
-                        providerOptions: {
-                            codesandbox: {
-                                sandboxId: newSandboxId,
-                                userId,
-                                tier: 'Pico',
-                                initClient: true,
-                            },
-                        },
-                    })) as Provider;
-                    
-                    // Assign to sandboxId so downstream code knows the active one
-                    sandboxId = newSandboxId;
-                    console.log(`[Chat] Initialized CodeSandbox provider with fallback sandbox: ${newSandboxId}`);
-                } catch (fallbackError: any) {
-                    console.error('\n' + '='.repeat(80));
-                    console.error(`[FATAL CHAT ERROR] Failed to initialize CodeSandbox Provider and failed to spawn new instance:`);
-                    console.error(fallbackError instanceof Error ? fallbackError.message : String(fallbackError));
-                    console.error(`This is why MCP is giving "Cannot connect to Sandbox". Check credentials!`);
-                    console.error('='.repeat(80) + '\n');
-                    codeProvider = undefined;
-                }
-            }
-        }
-
-        const isLocalMcpDisabled = process.env.DISABLE_LOCAL_MCP !== 'false';
-        if (!codeProvider && isLocalMcpDisabled) {
-            console.warn(`[Chat] Local MCP fallback is DISABLED (DISABLE_LOCAL_MCP=true) and CodeSandbox is unavailable. MCP servers requiring CodeProvider will fail to connect.`);
-        } else if (!codeProvider) {
-            try {
-                codeProvider = (await createCodeProviderClient(CodeProvider.NodeFs, {
-                    providerOptions: {
-                        nodefs: {},
-                    },
-                })) as Provider;
-                console.log(`[Chat] Initialized NodeFs provider for project local execution.`);
-            } catch (error) {
-                console.error(`[Chat] Failed to initialize NodeFs provider:`, error);
-            }
-        }
-
         const isGLM5 = chatModel?.provider === LLMProvider.MODAL;
         if (isGLM5) {
             if (!tryAcquireLock(MODAL_GLM5_LOCK_KEY)) {
@@ -246,7 +134,6 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
                 messages,
                 mcpServers,
                 chatModel,
-                codeProvider,
             });
             streamResult = result.streamResult;
             selectedModel = result.model;
@@ -260,9 +147,7 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
             generateId: () => uuidv4(),
             onFinish: async ({ messages: finalMessages }: { messages: ChatMessage[] }) => {
                 if (isGLM5) releaseLock(MODAL_GLM5_LOCK_KEY);
-                if (codeProvider) {
-                    await codeProvider.destroy().catch(err => console.error('[Chat] Error destroying codeProvider:', err));
-                }
+                
                 const messagesToStore = finalMessages
                     .filter(msg => (msg.role === 'user' || msg.role === 'assistant'))
                     .map(msg => toDbMessage({
@@ -282,9 +167,6 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
             },
             onError: (err: any) => {
                 if (isGLM5) releaseLock(MODAL_GLM5_LOCK_KEY);
-                if (codeProvider) {
-                    codeProvider.destroy().catch(e => console.error('[Chat] Error destroying codeProvider in error handler:', e));
-                }
                 return errorHandler(err);
             },
             execute: async ({ writer }) => {

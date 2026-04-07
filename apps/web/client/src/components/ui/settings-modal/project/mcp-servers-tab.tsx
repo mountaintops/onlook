@@ -20,9 +20,6 @@ const EMPTY_SERVER: Omit<McpServerConfig, 'id'> = {
     transport: McpTransportType.HTTP,
     url: '',
     headers: {},
-    command: '',
-    args: [],
-    env: {},
 };
 
 export const McpServersTab = observer(() => {
@@ -35,8 +32,6 @@ export const McpServersTab = observer(() => {
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [headersText, setHeadersText] = useState('');
-    const [argsText, setArgsText] = useState('');
-    const [envText, setEnvText] = useState('');
 
     const { data: settings, refetch } = api.settings.get.useQuery(
         { projectId: projectId ?? '' },
@@ -92,8 +87,6 @@ export const McpServersTab = observer(() => {
     const startAdding = () => {
         setEditingServer({ ...EMPTY_SERVER, id: uuidv4() });
         setHeadersText('');
-        setArgsText('');
-        setEnvText('');
         setIsAdding(true);
     };
 
@@ -101,10 +94,6 @@ export const McpServersTab = observer(() => {
         setEditingServer({ ...server });
         setHeadersText(
             server.headers ? Object.entries(server.headers).map(([k, v]) => `${k}: ${v}`).join('\n') : '',
-        );
-        setArgsText(server.args?.join('\n') ?? '');
-        setEnvText(
-            server.env ? Object.entries(server.env).map(([k, v]) => `${k}=${v}`).join('\n') : '',
         );
         setIsAdding(true);
     };
@@ -124,23 +113,9 @@ export const McpServersTab = observer(() => {
             }
         });
 
-        // Parse args from newline-separated
-        const args = argsText.split('\n').filter(Boolean);
-
-        // Parse env from multi-line "KEY=VALUE" format
-        const env: Record<string, string> = {};
-        envText.split('\n').filter(Boolean).forEach((line) => {
-            const idx = line.indexOf('=');
-            if (idx > 0) {
-                env[line.slice(0, idx).trim()] = line.slice(idx + 1).trim();
-            }
-        });
-
         const serverToSave: McpServerConfig = {
             ...editingServer,
             headers: Object.keys(headers).length > 0 ? headers : undefined,
-            args: args.length > 0 ? args : undefined,
-            env: Object.keys(env).length > 0 ? env : undefined,
         };
 
         const existingIdx = servers.findIndex((s) => s.id === serverToSave.id);
@@ -201,102 +176,25 @@ export const McpServersTab = observer(() => {
                         </div>
                     </div>
 
-                    {(editingServer.transport === McpTransportType.HTTP ||
-                        editingServer.transport === McpTransportType.SSE) && (
-                            <>
-                                <div className="flex flex-col gap-1.5">
-                                    <Label>URL</Label>
-                                    <Input
-                                        value={editingServer.url || ''}
-                                        onChange={(e) =>
-                                            setEditingServer({ ...editingServer, url: e.target.value })
-                                        }
-                                        placeholder="https://your-server.com/mcp"
-                                    />
-                                </div>
-                                <div className="flex flex-col gap-1.5">
-                                    <Label>Headers (one per line, Key: Value)</Label>
-                                    <textarea
-                                        className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                        value={headersText}
-                                        onChange={(e) => setHeadersText(e.target.value)}
-                                        placeholder="Authorization: Bearer your-key"
-                                    />
-                                </div>
-                            </>
-                        )}
-
-                    {editingServer.transport === McpTransportType.STDIO && (
-                        <>
-                            <div className="flex flex-col gap-1.5">
-                                <Label>Command</Label>
-                                <Input
-                                    value={editingServer.command || ''}
-                                    onChange={(e) =>
-                                        setEditingServer({ ...editingServer, command: e.target.value })
-                                    }
-                                    placeholder="node"
-                                />
-                            </div>
-                            <div className="flex flex-col gap-1.5">
-                                <Label>Arguments (one per line)</Label>
-                                <textarea
-                                    className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                    value={argsText}
-                                    onChange={(e) => setArgsText(e.target.value)}
-                                    placeholder="server.js"
-                                />
-                            </div>
-                            <div className="flex flex-col gap-1.5">
-                                <Label>Environment Variables (one per line, KEY=VALUE)</Label>
-                                <textarea
-                                    className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                    value={envText}
-                                    onChange={(e) => setEnvText(e.target.value)}
-                                    placeholder="API_KEY=your-key"
-                                />
-                            </div>
-                            <p className="text-xs text-amber-500">
-                                ⚠ Stdio servers spawn local processes. They only work when the server is running locally.
-                            </p>
-                        </>
-                    )}
-
-                    {editingServer.transport === McpTransportType.CODESANDBOX && (
-                        <>
-                            <div className="flex flex-col gap-1.5">
-                                <Label>Command</Label>
-                                <Input
-                                    value={editingServer.command || ''}
-                                    onChange={(e) =>
-                                        setEditingServer({ ...editingServer, command: e.target.value })
-                                    }
-                                    placeholder="node"
-                                />
-                            </div>
-                            <div className="flex flex-col gap-1.5">
-                                <Label>Arguments (one per line)</Label>
-                                <textarea
-                                    className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                    value={argsText}
-                                    onChange={(e) => setArgsText(e.target.value)}
-                                    placeholder="server.js"
-                                />
-                            </div>
-                            <div className="flex flex-col gap-1.5">
-                                <Label>Environment Variables (one per line, KEY=VALUE)</Label>
-                                <textarea
-                                    className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                    value={envText}
-                                    onChange={(e) => setEnvText(e.target.value)}
-                                    placeholder="API_KEY=your-key"
-                                />
-                            </div>
-                            <p className="text-xs text-blue-500">
-                                ℹ CodeSandbox servers run inside the project's active VM.
-                            </p>
-                        </>
-                    )}
+                    <div className="flex flex-col gap-1.5">
+                        <Label>URL</Label>
+                        <Input
+                            value={editingServer.url || ''}
+                            onChange={(e) =>
+                                setEditingServer({ ...editingServer, url: e.target.value })
+                            }
+                            placeholder="https://your-server.com/mcp"
+                        />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                        <Label>Headers (one per line, Key: Value)</Label>
+                        <textarea
+                            className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            value={headersText}
+                            onChange={(e) => setHeadersText(e.target.value)}
+                            placeholder="Authorization: Bearer your-key"
+                        />
+                    </div>
                 </div>
 
                 <div className="flex justify-end gap-2 pt-4 border-t">
@@ -330,7 +228,7 @@ export const McpServersTab = observer(() => {
                 <div className="border rounded-lg p-8 text-center text-muted-foreground">
                     <p className="text-sm">No MCP servers configured yet.</p>
                     <p className="text-xs mt-1">
-                        Add an MCP server to give your AI access to external tools via HTTP, SSE, or stdio transports.
+                        Add an MCP server to give your AI access to external tools via HTTP or SSE transports.
                     </p>
                 </div>
             ) : (
@@ -353,9 +251,7 @@ export const McpServersTab = observer(() => {
                                     </span>
                                 </div>
                                 <span className="text-xs text-muted-foreground truncate">
-                                    {server.transport === McpTransportType.HTTP || server.transport === McpTransportType.SSE
-                                        ? server.url
-                                        : `${server.command} ${server.args?.join(' ') ?? ''}`}
+                                    {server.url}
                                 </span>
                             </div>
                             <div className="flex items-center gap-2 ml-4 shrink-0">
