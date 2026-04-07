@@ -87,6 +87,7 @@ class VmStdioMCPTransport implements MCPTransport {
 class CodeSandboxTerminalMCPTransport implements MCPTransport {
     private terminal: ProviderTerminal | null = null;
     private onOutputDisposable: (() => void) | null = null;
+    private sentMessages: string[] = [];
 
     constructor(
         private readonly codeProvider: Provider,
@@ -123,6 +124,13 @@ class CodeSandboxTerminalMCPTransport implements MCPTransport {
                 const jsonMatch = trimmed.match(/(\{.*\}|\[.*\])/);
                 if (jsonMatch) {
                     const jsonStr = jsonMatch[0];
+
+                    if (this.sentMessages.includes(jsonStr)) {
+                        // This is a terminal echo of our own message, safely ignore it
+                        this.sentMessages = this.sentMessages.filter(msg => msg !== jsonStr);
+                        continue;
+                    }
+
                     try {
                         const message = JSON.parse(jsonStr) as JSONRPCMessage;
                         // Avoid logging echos if stty -echo failed
@@ -150,6 +158,10 @@ class CodeSandboxTerminalMCPTransport implements MCPTransport {
             throw new Error('CodeSandbox transport not started');
         }
         const data = JSON.stringify(message);
+        this.sentMessages.push(data);
+        if (this.sentMessages.length > 50) {
+            this.sentMessages.shift(); // Keep bounded
+        }
         this.onLog?.('sent', data);
         // Standard PTY input expects a newline/return to submit
         await this.terminal.write(data + '\n');
@@ -195,23 +207,18 @@ export class McpClientManager {
      * Servers that fail to connect are logged and skipped gracefully.
      */
     async getTools(): Promise<ToolSet> {
+        const logPrefix = this.getLogPrefix();
         const enabledConfigs = this.configs.filter((c) => c.enabled);
         if (enabledConfigs.length === 0) {
-            const isLocal = this.codeProvider?.constructor.name === 'NodeFsProvider';
-            const prefix = isLocal ? '[LMCP]' : '[VMCP]';
-            this.onLog?.('info', `${prefix} No enabled MCP servers found.`);
+            this.onLog?.('info', `${logPrefix} No enabled MCP servers found.`);
             return {};
         }
 
-        const isLocal = this.codeProvider?.constructor.name === 'NodeFsProvider';
-        const prefix = isLocal ? '[LMCP]' : '[VMCP]';
-
-        this.onLog?.('info', `${prefix} Fetching tools from ${enabledConfigs.length} enabled servers: ${enabledConfigs.map(c => c.name).join(', ')}`);
+        this.onLog?.('info', `${logPrefix} Fetching tools from ${enabledConfigs.length} enabled servers: ${enabledConfigs.map(c => c.name).join(', ')}`);
 
         const TIMEOUT_MS = 15000; // 15 seconds timeout per server
         const results = await Promise.allSettled(
             enabledConfigs.map(async (config) => {
-                const logPrefix = isLocal ? '[LMCP]' : '[VMCP]';
                 try {
                     this.onLog?.('info', `${logPrefix} Requesting client for "${config.name}"...`);
                     const client = await this.createClient(config);
@@ -239,8 +246,6 @@ export class McpClientManager {
                 return;
             }
             if (result.status === 'fulfilled') {
-                const isLocal = this.codeProvider?.constructor.name === 'NodeFsProvider';
-                const logPrefix = isLocal ? '[LMCP]' : '[VMCP]';
                 const prefix = config.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
                 const tools = result.value;
                 const toolNames = Object.keys(tools);
@@ -265,8 +270,6 @@ export class McpClientManager {
                     };
                 }
             } else {
-                const isLocal = this.codeProvider?.constructor.name === 'NodeFsProvider';
-                const logPrefix = isLocal ? '[LMCP]' : '[VMCP]';
                 this.onLog?.('error', `${logPrefix} Final failure for "${config.name}" (${config.transport}): ${result.reason}`);
             }
         });
@@ -360,7 +363,10 @@ export class McpClientManager {
 
             case McpTransportType.CODESANDBOX: {
                 if (!this.codeProvider) {
-                    throw new Error(`CodeProvider not available for transport CODESANDBOX: "${config.name}". Cannot connect to Sandbox.`);
+                    throw new Error(
+                        `CodeProvider not available for transport CODESANDBOX: "${config.name}". Cannot connect to Sandbox. ` +
+                        `Ensure a valid CodeSandbox session exists for this project, or set DISABLE_LOCAL_MCP=false to allow local fallback.`
+                    );
                 }
 
                 const isLocal = this.codeProvider.constructor.name === 'NodeFsProvider';
