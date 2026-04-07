@@ -1,6 +1,7 @@
 import { createMCPClient, type MCPClient } from '@ai-sdk/mcp';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { type OAuthClientProvider, type OAuthTokens } from '@modelcontextprotocol/sdk/client/auth.js';
+import { type OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js';
+import type { OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js';
 import { McpTransportType, type McpServerConfig } from '@onlook/models';
 import type { ToolSet } from 'ai';
 

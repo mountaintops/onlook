@@ -13,7 +13,9 @@ import { cn } from '@onlook/ui/utils';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { auth, type OAuthClientProvider, type OAuthTokens } from '@modelcontextprotocol/sdk/client/auth.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { auth, type OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js';
+import type { OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js';
 
 const EMPTY_SERVER: Omit<McpServerConfig, 'id'> = {
     name: '',
@@ -304,7 +306,7 @@ export const McpServersTab = observer(() => {
                                             }
                                         }}
                                     >
-                                        <Icons.Lock className="h-4 w-4 mr-2" />
+                                        <Icons.LockClosed className="h-4 w-4 mr-2" />
                                         {editingServer.oauth.tokens ? 'Reconnect Account' : 'Connect Account'}
                                     </Button>
                                     {editingServer.oauth.tokens && (
