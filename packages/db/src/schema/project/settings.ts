@@ -8,7 +8,7 @@ export type McpServerConfigDb = {
     id: string;
     name: string;
     enabled: boolean;
-    transport: 'http' | 'sse';
+    transport: 'streamable_http';
     url?: string;
     headers?: Record<string, string>;
 };

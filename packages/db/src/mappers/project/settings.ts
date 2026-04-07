@@ -7,7 +7,7 @@ export const fromDbProjectSettings = (dbProjectSettings: DbProjectSettings): Pro
         id: s.id,
         name: s.name,
         enabled: s.enabled,
-        transport: s.transport as McpServerConfig['transport'],
+        transport: (['http', 'sse'].includes(s.transport) ? 'streamable_http' : s.transport) as McpServerConfig['transport'],
         url: s.url,
         headers: s.headers,
     }));

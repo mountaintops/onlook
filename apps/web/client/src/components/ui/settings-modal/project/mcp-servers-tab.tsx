@@ -17,7 +17,7 @@ import { v4 as uuidv4 } from 'uuid';
 const EMPTY_SERVER: Omit<McpServerConfig, 'id'> = {
     name: '',
     enabled: true,
-    transport: McpTransportType.HTTP,
+    transport: McpTransportType.STREAMABLE_HTTP,
     url: '',
     headers: {},
 };
@@ -170,7 +170,7 @@ export const McpServersTab = observer(() => {
                                     size="sm"
                                     onClick={() => setEditingServer({ ...editingServer, transport: t })}
                                 >
-                                    {t.toUpperCase()}
+                                    {t === McpTransportType.STREAMABLE_HTTP ? 'STREAMABLE HTTP' : t.toUpperCase()}
                                 </Button>
                             ))}
                         </div>
@@ -228,7 +228,7 @@ export const McpServersTab = observer(() => {
                 <div className="border rounded-lg p-8 text-center text-muted-foreground">
                     <p className="text-sm">No MCP servers configured yet.</p>
                     <p className="text-xs mt-1">
-                        Add an MCP server to give your AI access to external tools via HTTP or SSE transports.
+                        Add an MCP server to give your AI access to external tools via Streamable HTTP.
                     </p>
                 </div>
             ) : (
@@ -247,7 +247,7 @@ export const McpServersTab = observer(() => {
                                         {server.name}
                                     </span>
                                     <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase">
-                                        {server.transport}
+                                        {server.transport === McpTransportType.STREAMABLE_HTTP ? 'STREAMABLE HTTP' : server.transport}
                                     </span>
                                 </div>
                                 <span className="text-xs text-muted-foreground truncate">

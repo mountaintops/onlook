@@ -103,23 +103,8 @@ export class McpClientManager {
 
     private async createClient(config: McpServerConfig): Promise<MCPClient> {
         switch (config.transport) {
-            case McpTransportType.HTTP:
-                this.onLog?.('info', `[MCP] Connecting to HTTP server: "${config.name}" at ${config.url}`);
-                try {
-                    return createMCPClient({
-                        transport: {
-                            type: 'http',
-                            url: config.url!,
-                            headers: config.headers,
-                        },
-                    });
-                } catch (err) {
-                    this.onLog?.('error', `[MCP] HTTP transport initialization failed for "${config.name}": ${err}`);
-                    throw err;
-                }
-
-            case McpTransportType.SSE:
-                this.onLog?.('info', `[MCP] Connecting to SSE server: "${config.name}" at ${config.url}`);
+            case McpTransportType.STREAMABLE_HTTP:
+                this.onLog?.('info', `[MCP] Connecting to Streamable HTTP server: "${config.name}" at ${config.url}`);
                 try {
                     return createMCPClient({
                         transport: {
@@ -129,7 +114,7 @@ export class McpClientManager {
                         },
                     });
                 } catch (err) {
-                    this.onLog?.('error', `[MCP] SSE transport initialization failed for "${config.name}": ${err}`);
+                    this.onLog?.('error', `[MCP] Streamable HTTP transport initialization failed for "${config.name}": ${err}`);
                     throw err;
                 }
 

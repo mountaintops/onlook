@@ -1,6 +1,5 @@
 export enum McpTransportType {
-    HTTP = 'http',
-    SSE = 'sse',
+    STREAMABLE_HTTP = 'streamable_http',
 }
 
 export interface McpServerConfig {
