@@ -146,7 +146,7 @@ export class NodeFsProvider extends Provider {
         input: TerminalBackgroundCommandInput,
     ): Promise<TerminalBackgroundCommandOutput> {
         return {
-            command: new NodeFsCommand(),
+            command: new NodeFsCommand({ command: input.args.command }),
         };
     }
 
@@ -221,96 +221,129 @@ export class NodeFsFileWatcher extends ProviderFileWatcher {
     }
 }
 
+const getSpawn = () => {
+    if (typeof process !== 'undefined' && process.versions && process.versions.node) {
+        // Hide from static bundlers like Turbopack/Webpack that run on client components
+        return eval('require("child_process")').spawn;
+    }
+    throw new Error('Local NodeFS process cannot be run in the browser.');
+};
+
 export class NodeFsTerminal extends ProviderTerminal {
-    get id(): string {
-        return 'unimplemented';
+    private process: any = null;
+    private outputCallbacks: ((data: string) => void)[] = [];
+
+    get id(): string { return 'local-terminal'; }
+    get name(): string { return 'Local NodeFS Terminal'; }
+
+    async open(): Promise<string> {
+        const spawn = getSpawn();
+        this.process = spawn('bash', [], {
+            cwd: process.cwd(),
+            env: process.env,
+            shell: true,
+        });
+
+        this.process.stdout.on('data', (data: any) => {
+            const str = data.toString();
+            this.outputCallbacks.forEach((cb) => cb(str));
+        });
+
+        this.process.stderr.on('data', (data: any) => {
+            const str = data.toString();
+            this.outputCallbacks.forEach((cb) => cb(str));
+        });
+
+        return this.id;
     }
 
-    get name(): string {
-        return 'unimplemented';
+    async write(input: string): Promise<void> {
+        if (!this.process) return;
+        this.process.stdin.write(input);
     }
 
-    open(): Promise<string> {
-        return Promise.resolve('');
+    async run(): Promise<void> {
+        // No-op for Terminal, run is just execution.
     }
 
-    write(): Promise<void> {
-        return Promise.resolve();
-    }
-
-    run(): Promise<void> {
-        return Promise.resolve();
-    }
-
-    kill(): Promise<void> {
-        return Promise.resolve();
+    async kill(): Promise<void> {
+        if (this.process) {
+            this.process.kill();
+            this.process = null;
+        }
     }
 
     onOutput(callback: (data: string) => void): () => void {
-        return () => {};
+        this.outputCallbacks.push(callback);
+        return () => {
+            this.outputCallbacks = this.outputCallbacks.filter((cb) => cb !== callback);
+        };
     }
 }
 
 export class NodeFsTask extends ProviderTask {
-    get id(): string {
-        return 'unimplemented';
-    }
-
-    get name(): string {
-        return 'unimplemented';
-    }
-
-    get command(): string {
-        return 'unimplemented';
-    }
-
-    open(): Promise<string> {
-        return Promise.resolve('');
-    }
-
-    run(): Promise<void> {
-        return Promise.resolve();
-    }
-
-    restart(): Promise<void> {
-        return Promise.resolve();
-    }
-
-    stop(): Promise<void> {
-        return Promise.resolve();
-    }
-
-    onOutput(callback: (data: string) => void): () => void {
-        return () => {};
-    }
+    get id(): string { return 'unimplemented'; }
+    get name(): string { return 'unimplemented'; }
+    get command(): string { return 'unimplemented'; }
+    open(): Promise<string> { return Promise.resolve(''); }
+    run(): Promise<void> { return Promise.resolve(); }
+    restart(): Promise<void> { return Promise.resolve(); }
+    stop(): Promise<void> { return Promise.resolve(); }
+    onOutput(callback: (data: string) => void): () => void { return () => {}; }
 }
 
 export class NodeFsCommand extends ProviderBackgroundCommand {
-    get name(): string {
-        return 'unimplemented';
+    private process: any = null;
+    private outputCallbacks: ((data: string) => void)[] = [];
+
+    constructor(private readonly config: { command: string }) {
+        super();
     }
 
-    get command(): string {
-        return 'unimplemented';
+    get name(): string { return this.config.command; }
+    get command(): string { return this.config.command; }
+
+    async open(): Promise<string> {
+        const spawn = getSpawn();
+        this.process = spawn(this.config.command, {
+            cwd: process.cwd(),
+            env: process.env,
+            shell: true,
+        });
+
+        this.process.stdout.on('data', (data: any) => {
+            this.outputCallbacks.forEach((cb) => cb(data.toString()));
+        });
+
+        this.process.stderr.on('data', (data: any) => {
+            this.outputCallbacks.forEach((cb) => cb(data.toString()));
+        });
+
+        return 'local-command';
     }
 
-    open(): Promise<string> {
-        return Promise.resolve('');
+    async restart(): Promise<void> {
+        await this.kill();
+        await this.open();
     }
 
-    restart(): Promise<void> {
-        return Promise.resolve();
+    async kill(): Promise<void> {
+        if (this.process) {
+            this.process.kill();
+            this.process = null;
+        }
     }
 
-    kill(): Promise<void> {
-        return Promise.resolve();
-    }
-
-    write(_input: string): Promise<void> {
-        return Promise.resolve();
+    async write(input: string): Promise<void> {
+        if (this.process) {
+            this.process.stdin.write(input);
+        }
     }
 
     onOutput(callback: (data: string) => void): () => void {
-        return () => {};
+        this.outputCallbacks.push(callback);
+        return () => {
+            this.outputCallbacks = this.outputCallbacks.filter((cb) => cb !== callback);
+        };
     }
 }

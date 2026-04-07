@@ -33,19 +33,27 @@ class VmStdioMCPTransport implements MCPTransport {
         let buffer = '';
         this.command.onOutput((data) => {
             buffer += data;
-            // Split raw data buffers by newline since MCP JSON-RPC are newline-delimited.
-            // A chunk might contain incomplete messages at the end, so we save the remainder.
-            const lines = buffer.split('\n');
+            // Split raw data buffers by newline (handling both LF and CRLF).
+            const lines = buffer.split(/\r?\n/);
             buffer = lines.pop() || '';
             for (const line of lines) {
                 const trimmed = line.trim();
                 if (trimmed.length === 0) continue;
-                this.onLog?.('received', trimmed);
-                try {
-                    const message = JSON.parse(trimmed) as JSONRPCMessage;
-                    this.onmessage?.(message);
-                } catch (e) {
-                    // Log non-JSON output if it might be an error or useful info
+                
+                // Try to extract JSON even if there's noise around it
+                const jsonMatch = trimmed.match(/(\{.*\}|\[.*\])/);
+                if (jsonMatch) {
+                    const jsonStr = jsonMatch[0];
+                    try {
+                        const message = JSON.parse(jsonStr) as JSONRPCMessage;
+                        if (message.jsonrpc) {
+                            this.onLog?.('received', jsonStr);
+                            this.onmessage?.(message);
+                        }
+                    } catch (e) {
+                        this.onLog?.('info', `[MCP] Server non-JSON output: ${trimmed}`);
+                    }
+                } else {
                     this.onLog?.('info', `[MCP] Server output: ${trimmed}`);
                 }
             }
@@ -104,31 +112,37 @@ class CodeSandboxTerminalMCPTransport implements MCPTransport {
         let buffer = '';
         this.onOutputDisposable = this.terminal.onOutput((data) => {
             buffer += data;
-            const lines = buffer.split('\n');
+            // Support both CRLF (standard PTY) and LF
+            const lines = buffer.split(/\r?\n/);
             buffer = lines.pop() || '';
             for (const line of lines) {
                 const trimmed = line.trim();
-                // Because it is a PTY terminal, we might get back prompts and non-JSON artifacts.
-                // We strictly parse only things that evaluate as JSON-RPC arrays/objects.
                 if (trimmed.length === 0) continue;
-                if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
-                    continue; // Skip terminal artifacts like bash prompts
-                }
                 
-                try {
-                    const message = JSON.parse(trimmed) as JSONRPCMessage;
-                    setTimeout(() => {
-                        this.onLog?.('received', trimmed);
-                        this.onmessage?.(message);
-                    }, 0);
-                } catch (e) {
-                    // Likely a partial artifact or terminal echo, ignore silently to avoid log spam
+                // Extraction strategy: Find the first { and last } to avoid terminal prompts like "bash-5.1#"
+                const jsonMatch = trimmed.match(/(\{.*\}|\[.*\])/);
+                if (jsonMatch) {
+                    const jsonStr = jsonMatch[0];
+                    try {
+                        const message = JSON.parse(jsonStr) as JSONRPCMessage;
+                        // Avoid logging echos if stty -echo failed
+                        if (message.jsonrpc) { 
+                            this.onLog?.('received', jsonStr);
+                            this.onmessage?.(message);
+                        }
+                    } catch (e) {
+                        // Ignore partially corrupted or mismatched terminal artifacts
+                    }
                 }
             }
         });
 
-        // Run the command explicitly silencing terminal echo so it doesn't bounce our requests back
-        await this.terminal.write(`stty -echo && ${fullCommand}\r`);
+        // Handshake: Give the terminal shell a moment to settle before typing
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        // Use 'exec' to replace the shell process with the MCP server
+        // Use 'stty -echo' if possible (in true PTYs), but don't abort if it fails (in local NodeFS streams)
+        await this.terminal.write(`stty -echo 2>/dev/null ; exec ${fullCommand}\n`);
     }
 
     async send(message: JSONRPCMessage): Promise<void> {
@@ -137,7 +151,8 @@ class CodeSandboxTerminalMCPTransport implements MCPTransport {
         }
         const data = JSON.stringify(message);
         this.onLog?.('sent', data);
-        await this.terminal.write(data + '\r');
+        // Standard PTY input expects a newline/return to submit
+        await this.terminal.write(data + '\n');
     }
 
     async close(): Promise<void> {
@@ -182,20 +197,26 @@ export class McpClientManager {
     async getTools(): Promise<ToolSet> {
         const enabledConfigs = this.configs.filter((c) => c.enabled);
         if (enabledConfigs.length === 0) {
-            this.onLog?.('info', '[MCP] No enabled MCP servers found.');
+            const isLocal = this.codeProvider?.constructor.name === 'NodeFsProvider';
+            const prefix = isLocal ? '[LMCP]' : '[VMCP]';
+            this.onLog?.('info', `${prefix} No enabled MCP servers found.`);
             return {};
         }
 
-        this.onLog?.('info', `[MCP] Fetching tools from ${enabledConfigs.length} enabled servers: ${enabledConfigs.map(c => c.name).join(', ')}`);
+        const isLocal = this.codeProvider?.constructor.name === 'NodeFsProvider';
+        const prefix = isLocal ? '[LMCP]' : '[VMCP]';
+
+        this.onLog?.('info', `${prefix} Fetching tools from ${enabledConfigs.length} enabled servers: ${enabledConfigs.map(c => c.name).join(', ')}`);
 
         const TIMEOUT_MS = 15000; // 15 seconds timeout per server
         const results = await Promise.allSettled(
             enabledConfigs.map(async (config) => {
+                const logPrefix = isLocal ? '[LMCP]' : '[VMCP]';
                 try {
-                    this.onLog?.('info', `[MCP] Requesting client for "${config.name}"...`);
+                    this.onLog?.('info', `${logPrefix} Requesting client for "${config.name}"...`);
                     const client = await this.createClient(config);
                     this.clients.push(client);
-                    this.onLog?.('info', `[MCP] Successfully created client for "${config.name}". Fetching tools...`);
+                    this.onLog?.('info', `${logPrefix} Successfully created client for "${config.name}". Fetching tools...`);
 
                     const fetchToolsPromise = client.tools();
                     return await Promise.race([
@@ -205,7 +226,7 @@ export class McpClientManager {
                         ),
                     ]);
                 } catch (error) {
-                    this.onLog?.('error', `[MCP] Error initializing or fetching tools from "${config.name}": ${error instanceof Error ? error.message : String(error)}`);
+                    this.onLog?.('error', `${logPrefix} Error initializing or fetching tools from "${config.name}": ${error instanceof Error ? error.message : String(error)}`);
                     throw error;
                 }
             })
@@ -218,10 +239,12 @@ export class McpClientManager {
                 return;
             }
             if (result.status === 'fulfilled') {
+                const isLocal = this.codeProvider?.constructor.name === 'NodeFsProvider';
+                const logPrefix = isLocal ? '[LMCP]' : '[VMCP]';
                 const prefix = config.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
                 const tools = result.value;
                 const toolNames = Object.keys(tools);
-                this.onLog?.('info', `[MCP] Successfully registered ${toolNames.length} tools from "${config.name}" with prefix "${prefix}_": ${toolNames.join(', ')}`);
+                this.onLog?.('info', `${logPrefix} Successfully registered ${toolNames.length} tools from "${config.name}" with prefix "${prefix}_": ${toolNames.join(', ')}`);
 
                 for (const [name, tool] of Object.entries(tools)) {
                     const toolName = `${prefix}_${name}`;
@@ -229,20 +252,22 @@ export class McpClientManager {
                         ...tool,
                         execute: tool.execute ? async (...args: any[]) => {
                             const [input] = args;
-                            this.onLog?.('info', `[MCP] Calling tool: ${toolName} with args: ${JSON.stringify(input, null, 2)}`);
+                            this.onLog?.('info', `${logPrefix} Calling tool: ${toolName} with args: ${JSON.stringify(input, null, 2)}`);
                             try {
                                 const result = await (tool.execute as any)(...args);
-                                this.onLog?.('info', `[MCP] Tool ${toolName} returned result: ${JSON.stringify(result, null, 2)}`);
+                                this.onLog?.('info', `${logPrefix} Tool ${toolName} returned result: ${JSON.stringify(result, null, 2)}`);
                                 return result;
                             } catch (error) {
-                                this.onLog?.('error', `[MCP] Error calling tool ${toolName}: ${error instanceof Error ? error.message : String(error)}`);
+                                this.onLog?.('error', `${logPrefix} Error calling tool ${toolName}: ${error instanceof Error ? error.message : String(error)}`);
                                 throw error;
                             }
                         } : undefined,
                     };
                 }
             } else {
-                this.onLog?.('error', `[MCP] Final failure for "${config.name}" (${config.transport}): ${result.reason}`);
+                const isLocal = this.codeProvider?.constructor.name === 'NodeFsProvider';
+                const logPrefix = isLocal ? '[LMCP]' : '[VMCP]';
+                this.onLog?.('error', `${logPrefix} Final failure for "${config.name}" (${config.transport}): ${result.reason}`);
             }
         });
 
@@ -272,10 +297,17 @@ export class McpClientManager {
         }
     }
 
+    private getLogPrefix(): string {
+        const isLocal = this.codeProvider?.constructor.name === 'NodeFsProvider';
+        return isLocal ? '[LMCP]' : '[VMCP]';
+    }
+
     private async createClient(config: McpServerConfig): Promise<MCPClient> {
+        const logPrefix = this.getLogPrefix();
+
         switch (config.transport) {
             case McpTransportType.HTTP:
-                this.onLog?.('info', `[MCP] Connecting to HTTP server: "${config.name}" at ${config.url}`);
+                this.onLog?.('info', `${logPrefix} Connecting to HTTP server: "${config.name}" at ${config.url}`);
                 try {
                     return createMCPClient({
                         transport: {
@@ -285,12 +317,12 @@ export class McpClientManager {
                         },
                     });
                 } catch (err) {
-                    this.onLog?.('error', `[MCP] HTTP transport initialization failed for "${config.name}": ${err}`);
+                    this.onLog?.('error', `${logPrefix} HTTP transport initialization failed for "${config.name}": ${err}`);
                     throw err;
                 }
 
             case McpTransportType.SSE:
-                this.onLog?.('info', `[MCP] Connecting to SSE server: "${config.name}" at ${config.url}`);
+                this.onLog?.('info', `${logPrefix} Connecting to SSE server: "${config.name}" at ${config.url}`);
                 try {
                     return createMCPClient({
                         transport: {
@@ -300,7 +332,7 @@ export class McpClientManager {
                         },
                     });
                 } catch (err) {
-                    this.onLog?.('error', `[MCP] SSE transport initialization failed for "${config.name}": ${err}`);
+                    this.onLog?.('error', `${logPrefix} SSE transport initialization failed for "${config.name}": ${err}`);
                     throw err;
                 }
 
@@ -310,7 +342,7 @@ export class McpClientManager {
                 }
 
                 this.onLog?.('info',
-                    `[MCP] Connecting to VM STDIO server: "${config.name}" with command: ${config.command} ${config.args?.join(' ')}`,
+                    `${logPrefix} Connecting to VM STDIO server: "${config.name}" with command: ${config.command} ${config.args?.join(' ')}`,
                 );
                 try {
                     return createMCPClient({
@@ -321,7 +353,7 @@ export class McpClientManager {
                         }, this.onLog),
                     });
                 } catch (err) {
-                    this.onLog?.('error', `[MCP] VM STDIO transport initialization failed for "${config.name}": ${err}`);
+                    this.onLog?.('error', `${logPrefix} VM STDIO transport initialization failed for "${config.name}": ${err}`);
                     throw err;
                 }
             }
@@ -331,8 +363,9 @@ export class McpClientManager {
                     throw new Error(`CodeProvider not available for transport CODESANDBOX: "${config.name}". Cannot connect to Sandbox.`);
                 }
 
+                const isLocal = this.codeProvider.constructor.name === 'NodeFsProvider';
                 this.onLog?.('info',
-                    `[MCP] Connecting to CodeSandbox server: "${config.name}" using interactive Terminal with command: ${config.command} ${config.args?.join(' ')}`,
+                    `${logPrefix} Connecting to ${isLocal ? 'Local NodeFS' : 'Remote CodeSandbox'} server: "${config.name}" using interactive Terminal with command: ${config.command} ${config.args?.join(' ')}`,
                 );
                 try {
                     return createMCPClient({
@@ -343,7 +376,7 @@ export class McpClientManager {
                         }, this.onLog),
                     });
                 } catch (err) {
-                    this.onLog?.('error', `[MCP] CodeSandbox transport initialization failed for "${config.name}": ${err}`);
+                    this.onLog?.('error', `${logPrefix} CodeSandbox transport initialization failed for "${config.name}": ${err}`);
                     throw err;
                 }
             }

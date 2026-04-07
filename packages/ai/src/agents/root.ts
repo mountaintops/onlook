@@ -1,6 +1,6 @@
 import type { ToolCall } from '@ai-sdk/provider-utils';
 import { ChatType, LLMProvider, GOOGLE_MODELS, MISTRAL_MODELS, MODAL_MODELS, type ChatMessage, type McpServerConfig, type ModelConfig, type InitialModelPayload } from '@onlook/models';
-import { NoSuchToolError, generateObject, generateText, smoothStream, stepCountIs, streamText, type ToolSet, type StreamTextResult, type UIMessageChunk } from 'ai';
+import { NoSuchToolError, generateObject, generateText, smoothStream, stepCountIs, streamText, type ToolSet, type StreamTextResult } from 'ai';
 import { convertToStreamMessages, getArchitectModeClassificationPrompt, getAskModeSystemPrompt, getCreatePageSystemPrompt, getSystemPrompt, getToolSetFromType, initModel } from '../index';
 import { McpClientManager } from '../mcp';
 import { type Provider } from '@onlook/code-provider';
@@ -189,13 +189,6 @@ export const createRootAgentStream = async ({
     chatModel?: any;
     codeProvider?: Provider;
 }) => {
-    let logController: ReadableStreamDefaultController<UIMessageChunk> | null = null;
-    const logStream = new ReadableStream<UIMessageChunk>({
-        start(controller) {
-            logController = controller;
-        },
-    });
-
     let finalChatModel = chatModel;
     if (chatType === ChatType.ARCHITECT && !chatModel) {
         finalChatModel = await runArchitectMode(messages);
@@ -210,34 +203,23 @@ export const createRootAgentStream = async ({
 
     if (mcpServers && mcpServers.length > 0) {
         mcpManager = new McpClientManager(mcpServers, codeProvider, (type, message) => {
-            if (logController) {
-                logController.enqueue({
-                    type: 'data-mcp-log',
-                    data: {
-                        type: 'mcp-log',
-                        logType: type,
-                        message: message,
-                        timestamp: new Date().toISOString(),
-                    },
-                } as any);
+            const formattedMessage = `[MCP] ${message}`;
+            if (type === 'error') {
+                console.error(formattedMessage);
+            } else if (type === 'sent' || type === 'received') {
+                console.debug(formattedMessage);
             } else {
-                console.warn('[Chat] Log controller not available, dropping log:', message);
+                console.log(formattedMessage);
             }
         });
         
-        // Signal that the log stream has started
-        (logController as any)?.enqueue({
-            type: 'data-mcp-log',
-            data: {
-                type: 'mcp-log',
-                logType: 'info',
-                message: '[Chat] Log stream initialized. Connecting to MCP servers...',
-                timestamp: new Date().toISOString(),
-            },
-        } as any);
+        console.log(`[Chat] Connecting to ${mcpServers.length} MCP servers...`);
 
         try {
+            console.log('[MCP] Fetching tools from manager...');
             const mcpTools = await mcpManager.getTools();
+            const toolNames = Object.keys(mcpTools);
+            console.log(`[MCP] Discovery complete. Found ${toolNames.length} custom tools.`);
             mergedTools = { ...builtInTools, ...mcpTools };
         } catch (error) {
             console.error('[MCP] Error fetching MCP tools, using built-in tools only:', error);
@@ -264,13 +246,11 @@ export const createRootAgentStream = async ({
                     if (mcpManager) {
                         await mcpManager.closeAll();
                     }
-                    logController?.close();
                 },
                 onError: async () => {
                     if (mcpManager) {
                         await mcpManager.closeAll();
                     }
-                    logController?.close();
                 },
                 experimental_telemetry: {
                     isEnabled: true,
@@ -300,5 +280,5 @@ export const createRootAgentStream = async ({
     };
 
     const streamResult = await runStream(modelConfig);
-    return { streamResult, model: finalChatModel, logStream };
+    return { streamResult, model: finalChatModel };
 };

@@ -139,7 +139,7 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
         let codeProvider: Provider | undefined;
         if (sandboxId) {
             try {
-                codeProvider = createCodeProviderClient(CodeProvider.CodeSandbox, {
+                codeProvider = (await createCodeProviderClient(CodeProvider.CodeSandbox, {
                     providerOptions: {
                         codesandbox: {
                             sandboxId,
@@ -148,12 +148,24 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
                             initClient: true,
                         },
                     },
-                }) as Provider;
-                await codeProvider.initialize({});
+                })) as Provider;
                 console.log(`[Chat] Initialized CodeSandbox provider for project ${projectId} (sandbox: ${sandboxId})`);
             } catch (error) {
                 console.error(`[Chat] Failed to initialize CodeSandbox provider for sandbox ${sandboxId}:`, error);
                 codeProvider = undefined;
+            }
+        }
+
+        if (!codeProvider) {
+            try {
+                codeProvider = (await createCodeProviderClient(CodeProvider.NodeFs, {
+                    providerOptions: {
+                        nodefs: {},
+                    },
+                })) as Provider;
+                console.log(`[Chat] Initialized NodeFs provider for project local execution.`);
+            } catch (error) {
+                console.error(`[Chat] Failed to initialize NodeFs provider:`, error);
             }
         }
 
@@ -172,7 +184,6 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
 
         let streamResult;
         let selectedModel;
-        let logStream;
         try {
             const result = await createRootAgentStream({
                 chatType,
@@ -187,7 +198,6 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
             });
             streamResult = result.streamResult;
             selectedModel = result.model;
-            logStream = result.logStream;
         } catch (err) {
             if (isGLM5) releaseLock(MODAL_GLM5_LOCK_KEY);
             throw err;
@@ -228,9 +238,6 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
             execute: async ({ writer }) => {
                 if (streamResult) {
                     writer.merge(streamResult.toUIMessageStream());
-                }
-                if (logStream) {
-                    writer.merge(logStream as any);
                 }
             }
         });
