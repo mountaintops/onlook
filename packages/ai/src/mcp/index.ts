@@ -108,7 +108,7 @@ export class McpClientManager {
                 try {
                     return createMCPClient({
                         transport: {
-                            type: 'sse',
+                            type: 'http',
                             url: config.url!,
                             headers: config.headers,
                         },
