@@ -133,6 +133,18 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
                 traceId,
                 messages,
                 mcpServers,
+                onUpdateMcpConfig: async (updatedConfig) => {
+                    const latestSettings = await api.settings.get({ projectId });
+                    const currentServers = latestSettings?.mcpServers ?? [];
+                    const newServers = currentServers.map(s => s.id === updatedConfig.id ? updatedConfig : s);
+                    await api.settings.upsert({
+                        projectId,
+                        settings: {
+                            projectId,
+                            mcpServers: newServers as any,
+                        },
+                    });
+                },
                 chatModel,
             });
             streamResult = result.streamResult;

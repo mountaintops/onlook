@@ -1,4 +1,6 @@
-import { createMCPClient, type MCPClient, type JSONRPCMessage } from '@ai-sdk/mcp';
+import { createMCPClient, type MCPClient } from '@ai-sdk/mcp';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { type OAuthClientProvider, type OAuthTokens } from '@modelcontextprotocol/sdk/client/auth.js';
 import { McpTransportType, type McpServerConfig } from '@onlook/models';
 import type { ToolSet } from 'ai';
 
@@ -12,6 +14,7 @@ export class McpClientManager {
     constructor(
         private configs: McpServerConfig[],
         private onLog?: (type: 'info' | 'error' | 'sent' | 'received', message: string) => void,
+        private onUpdateConfig?: (config: McpServerConfig) => void,
     ) { }
 
     /**
@@ -106,12 +109,19 @@ export class McpClientManager {
             case McpTransportType.STREAMABLE_HTTP:
                 this.onLog?.('info', `[MCP] Connecting to Streamable HTTP server: "${config.name}" at ${config.url}`);
                 try {
+                    const authProvider = config.oauth ? new McpOAuthProvider(
+                        config,
+                        this.onUpdateConfig,
+                        (type, msg) => this.onLog?.(type, msg),
+                    ) : undefined;
+
                     return createMCPClient({
-                        transport: {
-                            type: 'http',
-                            url: config.url!,
-                            headers: config.headers,
-                        },
+                        transport: new StreamableHTTPClientTransport(new URL(config.url!), {
+                            requestInit: {
+                                headers: config.headers,
+                            },
+                            authProvider,
+                        }),
                     });
                 } catch (err) {
                     this.onLog?.('error', `[MCP] Streamable HTTP transport initialization failed for "${config.name}": ${err}`);
@@ -121,5 +131,78 @@ export class McpClientManager {
             default:
                 throw new Error(`Unsupported MCP transport: ${config.transport}`);
         }
+    }
+}
+
+/**
+ * Implementation of OAuthClientProvider for MCP servers.
+ * Handles token persistence and authorization redirects.
+ */
+class McpOAuthProvider implements OAuthClientProvider {
+    constructor(
+        private config: McpServerConfig,
+        private onUpdateConfig?: (config: McpServerConfig) => void,
+        private onLog?: (type: 'info' | 'error', message: string) => void,
+    ) { }
+
+    get redirectUrl() {
+        return this.config.oauth?.redirectUri;
+    }
+
+    get clientMetadata() {
+        return {
+            client_id: this.config.oauth?.clientId || '',
+            client_name: 'Onlook',
+            redirect_uris: this.redirectUrl ? [String(this.redirectUrl)] : [],
+        };
+    }
+
+    async clientInformation() {
+        return {
+            client_id: this.config.oauth?.clientId || '',
+        };
+    }
+
+    async tokens() {
+        if (!this.config.oauth?.tokens) return undefined;
+        return {
+            ...this.config.oauth.tokens,
+            token_type: this.config.oauth.tokens.token_type || 'Bearer',
+            expires_in: this.config.oauth.tokens.expires_at ? Math.floor((this.config.oauth.tokens.expires_at - Date.now()) / 1000) : undefined,
+        } as any;
+    }
+
+    async saveTokens(tokens: OAuthTokens) {
+        if (!this.config.oauth) return;
+        this.config.oauth.tokens = tokens;
+        this.onUpdateConfig?.(this.config);
+        this.onLog?.('info', `[MCP] Tokens updated successfully for server: "${this.config.name}"`);
+    }
+
+    async redirectToAuthorization(authUrl: URL) {
+        this.onLog?.('info', `[MCP] Opening authorization URL for "${this.config.name}": ${authUrl}`);
+        if (typeof window !== 'undefined') {
+            window.open(authUrl.toString(), '_blank');
+        }
+    }
+
+    async saveCodeVerifier(codeVerifier: string) {
+        if (!this.config.oauth) return;
+        this.config.oauth.codeVerifier = codeVerifier;
+        this.onUpdateConfig?.(this.config);
+    }
+
+    async codeVerifier() {
+        return this.config.oauth?.codeVerifier || '';
+    }
+
+    async state() {
+        return this.config.oauth?.state || '';
+    }
+
+    async saveState(state: string) {
+        if (!this.config.oauth) return;
+        this.config.oauth.state = state;
+        this.onUpdateConfig?.(this.config);
     }
 }

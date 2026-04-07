@@ -13,6 +13,7 @@ import { cn } from '@onlook/ui/utils';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
+import { auth, type OAuthClientProvider, type OAuthTokens } from '@modelcontextprotocol/sdk/client/auth.js';
 
 const EMPTY_SERVER: Omit<McpServerConfig, 'id'> = {
     name: '',
@@ -20,6 +21,7 @@ const EMPTY_SERVER: Omit<McpServerConfig, 'id'> = {
     transport: McpTransportType.STREAMABLE_HTTP,
     url: '',
     headers: {},
+    oauth: undefined,
 };
 
 export const McpServersTab = observer(() => {
@@ -170,7 +172,7 @@ export const McpServersTab = observer(() => {
                                     size="sm"
                                     onClick={() => setEditingServer({ ...editingServer, transport: t })}
                                 >
-                                    {t === McpTransportType.STREAMABLE_HTTP ? 'STREAMABLE HTTP' : t.toUpperCase()}
+                                    {t === McpTransportType.STREAMABLE_HTTP ? 'STREAMABLE HTTP' : String(t).toUpperCase()}
                                 </Button>
                             ))}
                         </div>
@@ -194,6 +196,125 @@ export const McpServersTab = observer(() => {
                             onChange={(e) => setHeadersText(e.target.value)}
                             placeholder="Authorization: Bearer your-key"
                         />
+                    </div>
+
+                    <div className="flex flex-col gap-4 p-4 border rounded-lg bg-muted/30">
+                        <div className="flex items-center justify-between">
+                            <Label className="text-base">OAuth Configuration</Label>
+                            <Switch
+                                checked={!!editingServer.oauth}
+                                onCheckedChange={(checked) =>
+                                    setEditingServer({
+                                        ...editingServer,
+                                        oauth: checked ? { clientId: '', redirectUri: window.location.origin + '/mcp-callback' } : undefined
+                                    })
+                                }
+                            />
+                        </div>
+
+                        {editingServer.oauth && (
+                            <div className="flex flex-col gap-4 pt-2">
+                                <div className="flex flex-col gap-1.5">
+                                    <Label>Client ID</Label>
+                                    <Input
+                                        value={editingServer.oauth.clientId}
+                                        onChange={(e) => setEditingServer({
+                                            ...editingServer,
+                                            oauth: { ...editingServer.oauth!, clientId: e.target.value }
+                                        })}
+                                        placeholder="your-client-id"
+                                    />
+                                </div>
+                                <div className="flex flex-col gap-1.5">
+                                    <Label>Redirect URI</Label>
+                                    <Input
+                                        value={editingServer.oauth.redirectUri || ''}
+                                        onChange={(e) => setEditingServer({
+                                            ...editingServer,
+                                            oauth: { ...editingServer.oauth!, redirectUri: e.target.value }
+                                        })}
+                                        placeholder="http://localhost:3000/callback"
+                                    />
+                                </div>
+                                <div className="flex flex-col gap-1.5">
+                                    <Label>Scopes (comma separated)</Label>
+                                    <Input
+                                        value={editingServer.oauth.scopes?.join(', ') || ''}
+                                        onChange={(e) => setEditingServer({
+                                            ...editingServer,
+                                            oauth: { ...editingServer.oauth!, scopes: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }
+                                        })}
+                                        placeholder="read, write"
+                                    />
+                                </div>
+
+                                <div className="flex flex-col gap-2">
+                                    <Button
+                                        variant="outline"
+                                        className="w-full"
+                                        onClick={async () => {
+                                            if (!editingServer.url || !editingServer.oauth?.clientId) {
+                                                toast.error('Server URL and Client ID are required for OAuth');
+                                                return;
+                                            }
+                                            try {
+                                                const provider: OAuthClientProvider = {
+                                                    get redirectUrl() { return editingServer.oauth?.redirectUri; },
+                                                    get clientMetadata() {
+                                                        return {
+                                                            client_id: editingServer.oauth?.clientId || '',
+                                                            client_name: 'Onlook',
+                                                            redirect_uris: editingServer.oauth?.redirectUri ? [editingServer.oauth.redirectUri] : [],
+                                                        };
+                                                    },
+                                                    clientInformation: () => ({ client_id: editingServer.oauth?.clientId || '' }),
+                                                    tokens: () => editingServer.oauth?.tokens,
+                                                    saveTokens: (tokens: OAuthTokens) => {
+                                                        setEditingServer({
+                                                            ...editingServer,
+                                                            oauth: { ...editingServer.oauth!, tokens }
+                                                        });
+                                                        toast.success('Tokens saved successfully');
+                                                    },
+                                                    redirectToAuthorization: (url: URL) => {
+                                                        window.open(url.toString(), '_blank');
+                                                    },
+                                                    saveCodeVerifier: (v: string) => {
+                                                        setEditingServer({
+                                                            ...editingServer,
+                                                            oauth: { ...editingServer.oauth!, codeVerifier: v }
+                                                        });
+                                                    },
+                                                    codeVerifier: () => editingServer.oauth?.codeVerifier || '',
+                                                };
+
+                                                toast.info(`Starting OAuth flow for ${editingServer.name}...`);
+                                                const result = await auth(provider, {
+                                                    serverUrl: editingServer.url,
+                                                    clientId: editingServer.oauth.clientId,
+                                                } as any);
+
+                                                if (result === 'AUTHORIZED') {
+                                                    toast.success('Authorized successfully!');
+                                                } else if (result === 'REDIRECT') {
+                                                    toast.info('Please complete authorization in the browser.');
+                                                }
+                                            } catch (err) {
+                                                toast.error(`OAuth error: ${err instanceof Error ? err.message : String(err)}`);
+                                            }
+                                        }}
+                                    >
+                                        <Icons.Lock className="h-4 w-4 mr-2" />
+                                        {editingServer.oauth.tokens ? 'Reconnect Account' : 'Connect Account'}
+                                    </Button>
+                                    {editingServer.oauth.tokens && (
+                                        <span className="text-xs text-green-500 text-center">
+                                            Account Connected
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 

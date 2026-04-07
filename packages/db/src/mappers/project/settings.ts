@@ -10,6 +10,7 @@ export const fromDbProjectSettings = (dbProjectSettings: DbProjectSettings): Pro
         transport: (['http', 'sse'].includes(s.transport) ? 'streamable_http' : s.transport) as McpServerConfig['transport'],
         url: s.url,
         headers: s.headers,
+        oauth: s.oauth,
     }));
 
     return {
@@ -30,6 +31,7 @@ export const toDbProjectSettings = (projectId: string, projectSettings: ProjectS
         transport: s.transport as any,
         url: s.url,
         headers: s.headers,
+        oauth: s.oauth,
     }));
 
     return {

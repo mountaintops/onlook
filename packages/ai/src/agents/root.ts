@@ -176,6 +176,7 @@ export const createRootAgentStream = async ({
     traceId,
     messages,
     mcpServers,
+    onUpdateMcpConfig,
     chatModel,
 }: {
     chatType: ChatType;
@@ -185,6 +186,7 @@ export const createRootAgentStream = async ({
     traceId: string;
     messages: ChatMessage[];
     mcpServers?: McpServerConfig[];
+    onUpdateMcpConfig?: (config: McpServerConfig) => void;
     chatModel?: any;
 }) => {
     let finalChatModel = chatModel;
@@ -200,16 +202,20 @@ export const createRootAgentStream = async ({
     let mergedTools: ToolSet = builtInTools;
 
     if (mcpServers && mcpServers.length > 0) {
-        mcpManager = new McpClientManager(mcpServers, (type, message) => {
-            const formattedMessage = `[MCP] ${message}`;
-            if (type === 'error') {
-                console.error(formattedMessage);
-            } else if (type === 'sent' || type === 'received') {
-                console.debug(formattedMessage);
-            } else {
-                console.log(formattedMessage);
-            }
-        });
+        mcpManager = new McpClientManager(
+            mcpServers,
+            (type, message) => {
+                const formattedMessage = `[MCP] ${message}`;
+                if (type === 'error') {
+                    console.error(formattedMessage);
+                } else if (type === 'sent' || type === 'received') {
+                    console.debug(formattedMessage);
+                } else {
+                    console.log(formattedMessage);
+                }
+            },
+            onUpdateMcpConfig,
+        );
         
         console.log(`[Chat] Connecting to ${mcpServers.length} MCP servers...`);
 

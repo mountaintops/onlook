@@ -11,6 +11,20 @@ export type McpServerConfigDb = {
     transport: 'streamable_http';
     url?: string;
     headers?: Record<string, string>;
+    oauth?: {
+        clientId: string;
+        redirectUri?: string;
+        scopes?: string[];
+        tokens?: {
+            access_token: string;
+            token_type: string;
+            expires_at?: number;
+            refresh_token?: string;
+            scope?: string;
+        };
+        codeVerifier?: string;
+        state?: string;
+    };
 };
 
 export const projectSettings = pgTable('project_settings', {
