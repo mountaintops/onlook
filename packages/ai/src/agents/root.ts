@@ -1,8 +1,8 @@
 import type { ToolCall } from '@ai-sdk/provider-utils';
-import { ChatType, LLMProvider, GOOGLE_MODELS, MISTRAL_MODELS, MODAL_MODELS, type ChatMessage, type McpServerConfig, type ModelConfig, type InitialModelPayload } from '@onlook/models';
+import { ChatType, LLMProvider, GOOGLE_MODELS, MISTRAL_MODELS, MODAL_MODELS, type ChatMessage, type ModelConfig, type InitialModelPayload } from '@onlook/models';
 import { NoSuchToolError, generateObject, generateText, smoothStream, stepCountIs, streamText, type ToolSet, type StreamTextResult } from 'ai';
 import { convertToStreamMessages, getArchitectModeClassificationPrompt, getAskModeSystemPrompt, getCreatePageSystemPrompt, getSystemPrompt, getToolSetFromType, initModel } from '../index';
-import { McpClientManager } from '../mcp';
+
 
 
 const ARCHITECT_FALLBACK_MODELS = [
@@ -106,7 +106,7 @@ const runArchitectMode = async (messages: ChatMessage[]) => {
 
     const contentLower = content.toLowerCase();
     const toolKeywords = [
-        'folder', 'directory', 'mkdir', 'bash', 'terminal', 'command', 'mcp', 'run', 'shell', 'npm',
+        'folder', 'directory', 'mkdir', 'bash', 'terminal', 'command', 'run', 'shell', 'npm',
         'git', 'install', 'update', 'build', 'deploy', 'script', 'system', 'process', 'env',
     ];
 
@@ -175,7 +175,6 @@ export const createRootAgentStream = async ({
     userId,
     traceId,
     messages,
-    mcpServers,
     chatModel,
 }: {
     chatType: ChatType;
@@ -184,7 +183,6 @@ export const createRootAgentStream = async ({
     userId: string;
     traceId: string;
     messages: ChatMessage[];
-    mcpServers?: McpServerConfig[];
     chatModel?: any;
 }) => {
     let finalChatModel = chatModel;
@@ -195,34 +193,7 @@ export const createRootAgentStream = async ({
     const systemPrompt = getSystemPromptFromType(chatType);
     const builtInTools = getToolSetFromType(chatType);
 
-    // Connect to MCP servers and merge their tools with built-in tools
-    let mcpManager: McpClientManager | null = null;
-    let mergedTools: ToolSet = builtInTools;
-
-    if (mcpServers && mcpServers.length > 0) {
-        mcpManager = new McpClientManager(mcpServers, (type, message) => {
-            const formattedMessage = `[MCP] ${message}`;
-            if (type === 'error') {
-                console.error(formattedMessage);
-            } else if (type === 'sent' || type === 'received') {
-                console.debug(formattedMessage);
-            } else {
-                console.log(formattedMessage);
-            }
-        });
-        
-        console.log(`[Chat] Connecting to ${mcpServers.length} MCP servers...`);
-
-        try {
-            console.log('[MCP] Fetching tools from manager...');
-            const mcpTools = await mcpManager.getTools();
-            const toolNames = Object.keys(mcpTools);
-            console.log(`[MCP] Discovery complete. Found ${toolNames.length} custom tools.`);
-            mergedTools = { ...builtInTools, ...mcpTools };
-        } catch (error) {
-            console.error('[MCP] Error fetching MCP tools, using built-in tools only:', error);
-        }
-    }
+    const mergedTools: ToolSet = builtInTools;
 
     const isGemma3 = finalChatModel?.model === GOOGLE_MODELS.GEMMA_3_27B;
     const isGLM5 = finalChatModel?.model === MODAL_MODELS.GLM_5;
@@ -241,14 +212,8 @@ export const createRootAgentStream = async ({
                 experimental_repairToolCall: isGLM5 ? undefined : repairToolCall,
                 experimental_transform: isGLM5 ? undefined : smoothStream(),
                 onFinish: async () => {
-                    if (mcpManager) {
-                        await mcpManager.closeAll();
-                    }
                 },
                 onError: async () => {
-                    if (mcpManager) {
-                        await mcpManager.closeAll();
-                    }
                 },
                 experimental_telemetry: {
                     isEnabled: true,

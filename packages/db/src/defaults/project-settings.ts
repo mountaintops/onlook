@@ -7,6 +7,5 @@ export const createDefaultProjectSettings = (projectId: string): DbProjectSettin
         buildCommand: DefaultSettings.COMMANDS.build,
         runCommand: DefaultSettings.COMMANDS.run,
         installCommand: DefaultSettings.COMMANDS.install,
-        mcpServers: [],
     };
 };

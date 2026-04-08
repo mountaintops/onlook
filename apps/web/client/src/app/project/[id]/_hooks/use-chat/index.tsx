@@ -109,33 +109,6 @@ export function useChat({ conversationId, projectId, initialMessages }: UseChatP
                 if (part.type === 'data') {
                     console.log(`[Chat] Processing data part:`, part.data);
                 }
-
-                if (part.type === 'data' && (part.data as any)?.type === 'mcp-log') {
-                    const dataPart = part.data as any;
-                    const partId = `${message.id}-${JSON.stringify(dataPart)}`;
-                    
-                    if (processedParts.current.has(partId)) {
-                        continue;
-                    }
-
-                    const { logType, message: logMsg } = dataPart;
-                    const formattedMessage = `[MCP] ${logMsg}`;
-                    if (logType === 'error') {
-                        console.error(formattedMessage);
-                    } else if (logType === 'sent' || logType === 'received') {
-                        console.debug(formattedMessage);
-                    } else {
-                        console.log(formattedMessage);
-                    }
-
-                    // Also write to the dedicated MCP terminal tab
-                    const mcpSession = Array.from((editorEngine.activeSandbox.session as any).terminalSessions.values() as any[])
-                        .find((s: any) => s.name === 'mcp');
-                    if (mcpSession?.xterm) {
-                        mcpSession.xterm.write(formattedMessage + '\r\n');
-                    }
-                    processedParts.current.add(partId);
-                }
             }
         }
     }, [messages]);

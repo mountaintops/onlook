@@ -107,7 +107,6 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
 
         const { api } = await createTRPCClient(req);
         const projectSettingsData = await api.settings.get({ projectId });
-        const mcpServers = projectSettingsData?.mcpServers ?? [];
 
         const isGLM5 = chatModel?.provider === LLMProvider.MODAL;
         if (isGLM5) {
@@ -132,7 +131,6 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
                 userId,
                 traceId,
                 messages,
-                mcpServers,
                 chatModel,
             });
             streamResult = result.streamResult;

@@ -141,14 +141,6 @@ export class SessionManager {
         );
         this.terminalSessions.set(task.id, task);
 
-        const mcp = new CLISessionImpl(
-            'mcp',
-            CLISessionType.TERMINAL,
-            provider,
-            this.errorManager,
-        );
-        this.terminalSessions.set(mcp.id, mcp);
-
         const terminal = new CLISessionImpl(
             'terminal',
             CLISessionType.TERMINAL,
@@ -163,7 +155,6 @@ export class SessionManager {
         try {
             await Promise.all([
                 task.initTask(),
-                mcp.initTerminal(),
                 terminal.initTerminal()
             ]);
         } catch (error) {

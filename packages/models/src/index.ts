@@ -11,7 +11,6 @@ export * from './font/';
 export * from './hosting/';
 export * from './ide/';
 export * from './llm/';
-export * from './mcp/';
 export * from './next/';
 export * from './pages/';
 export * from './project/';

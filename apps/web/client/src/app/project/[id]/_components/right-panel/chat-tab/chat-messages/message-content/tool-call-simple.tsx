@@ -17,7 +17,6 @@ const ToolCallSimpleComponent = ({
     const ToolClass = TOOLS_MAP.get(toolName);
     const Icon = ToolClass?.icon ?? Icons.Sparkles;
     const title = getFormattedTitle(toolName, toolPart.input, ToolClass);
-    const isMcp = !ToolClass && toolName.includes('_');
 
     return (
         <Tool className={className}>
@@ -27,7 +26,6 @@ const ToolCallSimpleComponent = ({
                 type={toolPart.type}
                 state={toolPart.state}
                 icon={<Icon className="w-4 h-4 flex-shrink-0" />}
-                isMcp={isMcp}
             />
             <ToolContent>
                 <ToolInput input={toolPart.input} isStreaming={loading} />
@@ -50,16 +48,6 @@ function getFormattedTitle(toolName: string, input: unknown, ToolClass?: typeof 
         } catch (error) {
             console.error('Error getting tool label:', error);
         }
-    }
-
-    // Handle MCP prefixed tools (server_tool)
-    const underscoreIndex = toolName.indexOf('_');
-    if (underscoreIndex !== -1) {
-        const prefix = toolName.substring(0, underscoreIndex);
-        const baseName = toolName.substring(underscoreIndex + 1);
-        const formattedPrefix = formatLabel(prefix);
-        const formattedBaseName = formatLabel(baseName);
-        return `${formattedPrefix}: ${formattedBaseName}`;
     }
 
     return formatLabel(toolName);

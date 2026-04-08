@@ -18,7 +18,6 @@ import { SiteTab } from './site';
 import { PageTab } from './site/page';
 import { SubscriptionTab } from './subscription-tab';
 import { VersionsTab } from './versions';
-import { McpServersTab } from './project/mcp-servers-tab';
 
 function TruncatedLabelWithTooltip({ label }: { label: string }) {
     const [isTruncated, setIsTruncated] = useState(false);
@@ -97,11 +96,6 @@ export const SettingsModalWithProjects = observer(() => {
             label: SettingsTabValue.VERSIONS,
             icon: <Icons.Code className="mr-2 h-4 w-4" />,
             component: <VersionsTab />,
-        },
-        {
-            label: SettingsTabValue.MCP_SERVERS,
-            icon: <Icons.Gear className="mr-2 h-4 w-4" />,
-            component: <McpServersTab />,
         },
     ];
 

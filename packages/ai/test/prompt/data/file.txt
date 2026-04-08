@@ -1,5 +1,4 @@
-I have added these files to the chat so you can go ahead and edit them
-<file-1><path>test.txt</path>
+<context><path>test.txt</path>
 <branch>id: "test"</branch>
 ```txt
 test
@@ -10,9 +9,10 @@ I am looking at this specific part of the file in the browser UI. Line numbers a
 ```
 test
 ```
-</highlight></file-1><file-2><path>test2.txt</path>
+</highlight></context>
+<context><path>test2.txt</path>
 <branch>id: "test"</branch>
 ```txt
 test2
 ```
-</file-2>
+</context>

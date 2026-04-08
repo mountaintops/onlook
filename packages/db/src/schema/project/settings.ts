@@ -3,15 +3,7 @@ import { jsonb, pgTable, text, uuid } from 'drizzle-orm/pg-core';
 import { createInsertSchema, createUpdateSchema } from 'drizzle-zod';
 import { projects } from './project';
 
-/** Shape stored in the database for MCP server configs. */
-export type McpServerConfigDb = {
-    id: string;
-    name: string;
-    enabled: boolean;
-    transport: 'http' | 'sse';
-    url?: string;
-    headers?: Record<string, string>;
-};
+
 
 export const projectSettings = pgTable('project_settings', {
     projectId: uuid('project_id')
@@ -21,7 +13,6 @@ export const projectSettings = pgTable('project_settings', {
     runCommand: text('run_command').notNull().default(''),
     buildCommand: text('build_command').notNull().default(''),
     installCommand: text('install_command').notNull().default(''),
-    mcpServers: jsonb('mcp_servers').$type<McpServerConfigDb[]>().default([]).notNull(),
 }).enableRLS();
 
 export const projectSettingsInsertSchema = createInsertSchema(projectSettings);

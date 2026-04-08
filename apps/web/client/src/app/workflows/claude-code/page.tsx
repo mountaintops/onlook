@@ -82,11 +82,6 @@ export default function ClaudeCodeWorkflowPage() {
                         <li>PR output — changes become real pull requests engineers can review</li>
                         <li>AI constrained — outputs match your design system, no drift</li>
                     </ul>
-                    <h2>Coming Soon: Onlook MCP for Claude Code</h2>
-                    <p>
-                        Use /onlook directly in Claude Code to open your UI in a visual canvas, iterate with your
-                        design system, and push changes back — all without leaving the terminal.
-                    </p>
                 </section>
 
                 {/* Hero Section */}
@@ -220,32 +215,6 @@ export default function ClaudeCodeWorkflowPage() {
                     </div>
                 </section>
 
-                {/* Coming Soon: MCP Integration */}
-                <section className="w-full bg-black py-32">
-                    <div className="mx-auto max-w-6xl px-8">
-                        <div className="border-foreground-primary/10 rounded-2xl border bg-gradient-to-b from-white/5 to-transparent p-12 md:p-16">
-                            <motion.div
-                                className="flex flex-col items-center text-center"
-                                {...getBlurAnimationProps()}
-                            >
-                                <span className="mb-6 rounded-full px-3 py-1 text-[10px] font-medium uppercase tracking-wider" style={{ color: '#f97316', borderColor: 'rgba(249, 115, 22, 0.5)', backgroundColor: 'rgba(249, 115, 22, 0.1)', borderWidth: '1px', borderStyle: 'solid' }}>
-                                    Coming Soon
-                                </span>
-                                <h2 className="mb-6 max-w-2xl text-3xl font-light leading-tight text-balance md:text-5xl">
-                                    Onlook MCP for Claude Code
-                                </h2>
-                                <p className="text-foreground-secondary mb-8 max-w-xl text-lg text-balance">
-                                    Use <code className="bg-foreground-primary/10 rounded px-2 py-0.5 font-mono text-base">/onlook</code> directly in Claude Code to open your UI in a visual canvas, iterate with your design system, and push changes back — all without leaving the terminal.
-                                </p>
-                                <div className="bg-background-secondary/50 rounded-lg border border-foreground-primary/20 p-6 font-mono text-sm">
-                                    <span className="text-foreground-tertiary">$</span>{' '}
-                                    <span className="text-foreground-secondary">claude</span>{' '}
-                                    <span className="text-foreground-primary">/onlook open ./src/components/Hero.tsx</span>
-                                </div>
-                            </motion.div>
-                        </div>
-                    </div>
-                </section>
 
                 {/* FAQ Section */}
                 <FAQSection faqs={claudeCodeFaqs} title="Frequently asked questions" />

@@ -51,7 +51,7 @@ export function getArchitectModeClassificationPrompt(content: string) {
 
 TOOLS — task requires system operations (not UI coding):
 - Creating folders or files, running terminal/bash/npm commands
-- Git operations, MCP tool calls, installing packages, deploying
+- Git operations, installing packages, deploying
 
 SMALL — minor edits to existing UI elements:
 - Edit text, copy, labels, or placeholder content
