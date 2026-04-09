@@ -54,7 +54,9 @@ export class McpOAuthProvider implements OAuthClientProvider {
     get redirectUrl(): string {
         // Defaults to localhost for dev, but relies on a valid app url for prod.
         // It's important to use 127.0.0.1 locally so that the popup isn't rejected by strict OAuth servers.
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://127.0.0.1:3000';
+        const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 
+                        process.env.NEXT_PUBLIC_APP_URL || 
+                        'https://3000-01kh9dythyhbptgh9052kmzwj7.cloudspaces.litng.ai';
         return `${baseUrl}/api/mcp/callback`;
     }
 
