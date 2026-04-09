@@ -34,6 +34,7 @@ export class McpOAuthProvider implements OAuthClientProvider {
      * Called by the SDK to persist newly obtained tokens (e.g. after code exchange or refresh).
      */
     async saveTokens(tokens: OAuthTokens): Promise<void> {
+        this.config.oauthTokens = tokens;
         await this.onSave({ oauthTokens: tokens });
     }
 
@@ -43,10 +44,12 @@ export class McpOAuthProvider implements OAuthClientProvider {
      * so it can reply to the client with a 401 redirect payload.
      */
     redirectToAuthorization(authorizationUrl: URL): void {
+        console.log(`[MCP OAuth] Redirecting to authorization for server ${this.config.id}: ${authorizationUrl.toString()}`);
         throw new OAuthRedirectError(authorizationUrl.toString());
     }
 
     async saveCodeVerifier(codeVerifier: string): Promise<void> {
+        this.config.oauthCodeVerifier = codeVerifier;
         await this.onSave({ oauthCodeVerifier: codeVerifier });
     }
 
@@ -73,12 +76,11 @@ export class McpOAuthProvider implements OAuthClientProvider {
     }
 
     get clientMetadata(): OAuthClientMetadata {
+        // We provide ONLY the current redirect URL to ensure strict parity 
+        // with the authorize request sent later by the SDK.
         return {
             client_name: 'Onlook',
-            redirect_uris: [
-                this.redirectUrl,
-                'http://127.0.0.1:3000/api/mcp/callback'
-            ],
+            redirect_uris: [this.redirectUrl],
             grant_types: ['authorization_code'],
             response_types: ['code'],
             token_endpoint_auth_method: 'none',
@@ -92,7 +94,7 @@ export class McpOAuthProvider implements OAuthClientProvider {
         // DCR SELF-HEALING: If we have stored client info, check if it was registered with our current redirect URI.
         // If not, we return undefined to force a fresh Dynamic Client Registration for the new domain.
         if (info && this.config.oauthRedirectUri !== this.redirectUrl) {
-            console.warn(`[MCP OAuth] Redirect URI mismatch (expected ${this.redirectUrl}, was ${this.config.oauthRedirectUri}). Forcing re-registration.`);
+            console.warn(`[MCP OAuth] Config mismatch for ${this.config.id}: (local: ${this.redirectUrl}, stored: ${this.config.oauthRedirectUri || 'none'}). Forcing re-registration.`);
             return undefined;
         }
 
@@ -100,6 +102,11 @@ export class McpOAuthProvider implements OAuthClientProvider {
     }
 
     async saveClientInformation(clientInformation: OAuthClientInformation): Promise<void> {
+        this.config.oauthClientInfo = clientInformation;
+        this.config.oauthRedirectUri = this.redirectUrl;
+        
+        console.log(`[MCP OAuth] Saved client information for ${this.config.id} with redirect: ${this.redirectUrl}`);
+        
         await this.onSave({ 
             oauthClientInfo: clientInformation,
             oauthRedirectUri: this.redirectUrl,
