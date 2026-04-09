@@ -50,21 +50,6 @@ export function useChat({ conversationId, projectId, initialMessages }: UseChatP
             sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
             transport: new DefaultChatTransport({
                 api: '/api/chat',
-                fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
-                    requestCount.current += 1;
-                    const response = await window.fetch(input, init);
-                    
-                    if (response.status === 401) {
-                        const json = await response.clone().json().catch(() => ({}));
-                        if (json.error === 'mcp_oauth_redirect' && json.url) {
-                            handleOAuthRedirect(json.url);
-                            // Throw an error to stop the current attempt
-                            throw new Error('MCP_OAUTH_REQUIRED');
-                        }
-                    }
-                    
-                    return response;
-                }) as any,
                 body: {
                     conversationId,
                     projectId,
@@ -74,7 +59,6 @@ export function useChat({ conversationId, projectId, initialMessages }: UseChatP
                     get chatType() {
                         return editorEngine.state.chatMode;
                     },
-                    origin: typeof window !== 'undefined' ? window.location.origin : undefined,
                 },
             }),
             onToolCall: async ({ toolCall }) => {
@@ -124,36 +108,6 @@ export function useChat({ conversationId, projectId, initialMessages }: UseChatP
             }
         }
     }, [messages]);
-
-    const handleOAuthRedirect = useCallback((url: string) => {
-        const width = 600;
-        const height = 800;
-        const left = window.screenX + (window.outerWidth - width) / 2;
-        const top = window.screenY + (window.outerHeight - height) / 2;
-        
-        const popup = window.open(
-            url,
-            'mcp_oauth',
-            `width=${width},height=${height},left=${left},top=${top}`
-        );
-
-        if (!popup) {
-            console.error('Failed to open OAuth popup. Check your popup blocker.');
-            return;
-        }
-
-        const handleMessage = (event: MessageEvent) => {
-            if (event.data?.type === 'MCP_OAUTH_SUCCESS') {
-                window.removeEventListener('message', handleMessage);
-                popup.close();
-                // Automatically re-trigger the chat attempt
-                console.log('MCP OAuth success, re-starting chat...');
-                regenerate();
-            }
-        };
-
-        window.addEventListener('message', handleMessage);
-    }, [regenerate]);
 
     // Store messages in a ref to avoid re-rendering sendMessage/editMessage
     const messagesRef = useRef(messages);

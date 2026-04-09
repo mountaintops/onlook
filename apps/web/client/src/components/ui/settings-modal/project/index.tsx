@@ -287,7 +287,6 @@ export const ProjectTab = observer(() => {
                                             <SelectContent>
                                                 <SelectItem value="none">No auth</SelectItem>
                                                 <SelectItem value="bearer">Bearer token</SelectItem>
-                                                <SelectItem value="oauth2.1">OAuth 2.1</SelectItem>
                                             </SelectContent>
                                         </Select>
 

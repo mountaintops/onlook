@@ -1,4 +1,4 @@
-export type McpAuthType = 'none' | 'bearer' | 'oauth2.1';
+export type McpAuthType = 'none' | 'bearer';
 
 export interface McpServerConfig {
     /** Client-generated UUID used as React list key */
@@ -11,11 +11,4 @@ export interface McpServerConfig {
     authType: McpAuthType;
     /** Present only when authType === 'bearer' */
     bearerToken?: string;
-    
-    // OAuth 2.1 Persistence Fields
-    oauthTokens?: any; // OAuthTokens
-    oauthClientInfo?: any; // OAuthClientInformation
-    oauthCodeVerifier?: string;
-    oauthRedirectUri?: string;
-    oauthServerUrl?: string;
 }
