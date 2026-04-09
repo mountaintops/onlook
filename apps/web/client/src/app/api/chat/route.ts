@@ -135,10 +135,10 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
                 chatModel,
                 mcpServers,
                 updateMcpServer: async (serverId, patch) => {
-                    const currentData = await projectSettingsManager.getSettings(projectId);
+                    const currentData = await api.settings.get({ projectId });
                     const servers = currentData?.mcpServers ?? [];
                     const updated = servers.map(s => s.id === serverId ? { ...s, ...patch } : s);
-                    await projectSettingsManager.updateSettings(projectId, { mcpServers: updated });
+                    await api.settings.upsert({ projectId, settings: { mcpServers: updated } });
                 }
             });
             streamResult = result.streamResult;
