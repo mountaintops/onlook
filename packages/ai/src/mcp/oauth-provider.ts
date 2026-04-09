@@ -76,6 +76,10 @@ export class McpOAuthProvider implements OAuthClientProvider {
         return {
             client_name: 'Onlook AI Agent',
             redirect_uris: [this.redirectUrl],
+            grant_types: ['authorization_code'],
+            response_types: ['code'],
+            client_uri: this.redirectUrl.split('/api/mcp/callback')[0],
+            token_endpoint_auth_method: 'none',
         };
     }
 
