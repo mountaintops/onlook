@@ -1,7 +1,9 @@
 import type { ToolCall } from '@ai-sdk/provider-utils';
 import { ChatType, LLMProvider, GOOGLE_MODELS, MISTRAL_MODELS, MODAL_MODELS, type ChatMessage, type ModelConfig, type InitialModelPayload } from '@onlook/models';
+import type { McpServerConfig } from '@onlook/models';
 import { NoSuchToolError, generateObject, generateText, smoothStream, stepCountIs, streamText, type ToolSet, type StreamTextResult } from 'ai';
 import { convertToStreamMessages, getArchitectModeClassificationPrompt, getAskModeSystemPrompt, getCreatePageSystemPrompt, getSystemPrompt, getToolSetFromType, initModel } from '../index';
+import { McpClientManager } from '../mcp';
 
 
 
@@ -176,6 +178,7 @@ export const createRootAgentStream = async ({
     traceId,
     messages,
     chatModel,
+    mcpServers,
 }: {
     chatType: ChatType;
     conversationId: string;
@@ -184,6 +187,7 @@ export const createRootAgentStream = async ({
     traceId: string;
     messages: ChatMessage[];
     chatModel?: any;
+    mcpServers?: McpServerConfig[];
 }) => {
     let finalChatModel = chatModel;
     if (chatType === ChatType.ARCHITECT && !chatModel) {
@@ -193,7 +197,12 @@ export const createRootAgentStream = async ({
     const systemPrompt = getSystemPromptFromType(chatType);
     const builtInTools = getToolSetFromType(chatType);
 
-    const mergedTools: ToolSet = builtInTools;
+    // Load MCP tools — done once before the first stream attempt.
+    // Built-in tools win on name collision (MCP tools are spread first).
+    const mcpManager = new McpClientManager();
+    const mcpToolSet = await mcpManager.loadTools(mcpServers ?? []);
+
+    const mergedTools: ToolSet = { ...mcpToolSet, ...builtInTools };
 
     const isGemma3 = finalChatModel?.model === GOOGLE_MODELS.GEMMA_3_27B;
     const isGLM5 = finalChatModel?.model === MODAL_MODELS.GLM_5;
@@ -212,8 +221,10 @@ export const createRootAgentStream = async ({
                 experimental_repairToolCall: isGLM5 ? undefined : repairToolCall,
                 experimental_transform: isGLM5 ? undefined : smoothStream(),
                 onFinish: async () => {
+                    await mcpManager.closeAll();
                 },
                 onError: async () => {
+                    await mcpManager.closeAll();
                 },
                 experimental_telemetry: {
                     isEnabled: true,

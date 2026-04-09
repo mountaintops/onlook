@@ -8,6 +8,7 @@ export const fromDbProjectSettings = (dbProjectSettings: DbProjectSettings): Pro
             run: dbProjectSettings.runCommand,
             install: dbProjectSettings.installCommand,
         },
+        mcpServers: (dbProjectSettings.mcpServers ?? undefined) as ProjectSettings['mcpServers'],
     };
 };
 
@@ -17,5 +18,6 @@ export const toDbProjectSettings = (projectId: string, projectSettings: ProjectS
         buildCommand: projectSettings.commands.build ?? '',
         runCommand: projectSettings.commands.run ?? '',
         installCommand: projectSettings.commands.install ?? '',
+        mcpServers: projectSettings.mcpServers ?? null,
     };
 };

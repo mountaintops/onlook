@@ -1,6 +1,7 @@
 import { relations } from 'drizzle-orm';
 import { jsonb, pgTable, text, uuid } from 'drizzle-orm/pg-core';
 import { createInsertSchema, createUpdateSchema } from 'drizzle-zod';
+import type { McpServerConfig } from '@onlook/models';
 import { projects } from './project';
 
 
@@ -13,6 +14,7 @@ export const projectSettings = pgTable('project_settings', {
     runCommand: text('run_command').notNull().default(''),
     buildCommand: text('build_command').notNull().default(''),
     installCommand: text('install_command').notNull().default(''),
+    mcpServers: jsonb('mcp_servers').$type<McpServerConfig[]>(),
 }).enableRLS();
 
 export const projectSettingsInsertSchema = createInsertSchema(projectSettings);

@@ -124,6 +124,7 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
         let streamResult;
         let selectedModel;
         try {
+            const mcpServers = projectSettingsData?.mcpServers ?? [];
             const result = await createRootAgentStream({
                 chatType,
                 conversationId,
@@ -132,6 +133,7 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
                 traceId,
                 messages,
                 chatModel,
+                mcpServers,
             });
             streamResult = result.streamResult;
             selectedModel = result.model;
