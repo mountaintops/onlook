@@ -76,11 +76,14 @@ export class McpOAuthProvider implements OAuthClientProvider {
     }
 
     get clientMetadata(): OAuthClientMetadata {
-        // We provide ONLY the current redirect URL to ensure strict parity 
-        // with the authorize request sent later by the SDK.
+        // We provide multiple variations to ensure compatibility with servers 
+        // that might normalize the URI (e.g., adding/removing trailing slashes).
         return {
-            client_name: 'Onlook',
-            redirect_uris: [this.redirectUrl],
+            client_name: 'Onlook Studio',
+            redirect_uris: [
+                this.redirectUrl,
+                `${this.redirectUrl}/`,
+            ],
             grant_types: ['authorization_code'],
             response_types: ['code'],
             token_endpoint_auth_method: 'none',
@@ -91,9 +94,9 @@ export class McpOAuthProvider implements OAuthClientProvider {
     clientInformation(): OAuthClientInformation | undefined {
         const info = this.config.oauthClientInfo as OAuthClientInformation | undefined;
         
-        // DCR SELF-HEALING: If we have stored client info, check if it was registered with our current redirect URI.
-        // If not, we return undefined to force a fresh Dynamic Client Registration for the new domain.
-        if (info && this.config.oauthRedirectUri !== this.redirectUrl) {
+        // FORCE RE-REGISTRATION for the new client name 'Onlook Studio'
+        // We detect if the stored info is using the old name (indirectly via a null check or mismatch)
+        if (info && (!this.config.oauthRedirectUri || this.config.oauthRedirectUri !== this.redirectUrl)) {
             console.warn(`[MCP OAuth] Config mismatch for ${this.config.id}: (local: ${this.redirectUrl}, stored: ${this.config.oauthRedirectUri || 'none'}). Forcing re-registration.`);
             return undefined;
         }
