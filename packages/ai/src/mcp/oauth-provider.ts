@@ -96,8 +96,27 @@ export class McpOAuthProvider implements OAuthClientProvider {
 
         const info = this.config.oauthClientInfo as OAuthClientInformation | undefined;
         
+        // TARGETED RESET: Specifically block the client_id that was rejected by Vercel for this domain.
+        // We do this to ensure even if domain matches, this specific ID is purged.
+        const BLOCKED_ID = 'cl_WbdtcToDrMR4ZHvXLGAmbfoYCsQjMeS8';
+
         if (info) {
-            // Self-healing: Trigger re-registration if the redirect URI doesn't match our current domain
+            // 1. Block known bad IDs
+            if (info.client_id === BLOCKED_ID) {
+                console.warn(`[MCP OAuth] Blacklisted client detected (${BLOCKED_ID}). Forcing fresh registration.`);
+                this.registrationAttempted = true;
+                return undefined;
+            }
+
+            // 2. URL BINDING: If the server URL changed, the client ID is likely invalid for the new server.
+            const storedUrl = this.config.oauthServerUrl;
+            if (storedUrl && storedUrl !== this.config.url) {
+                console.warn(`[MCP OAuth] Server URL changed for ${this.config.id}: (current: ${this.config.url}, stored: ${storedUrl}). Forcing re-registration.`);
+                this.registrationAttempted = true;
+                return undefined;
+            }
+
+            // 3. REDIRECT PARITY: Trigger re-registration if the redirect URI doesn't match our current domain
             const storedRedirect = this.config.oauthRedirectUri;
             if (!storedRedirect || storedRedirect !== this.redirectUrl) {
                 console.warn(`[MCP OAuth] Redirect mismatch for ${this.config.id}: (current: ${this.redirectUrl}, stored: ${storedRedirect || 'none'}). Forcing re-registration.`);
@@ -112,13 +131,15 @@ export class McpOAuthProvider implements OAuthClientProvider {
     async saveClientInformation(clientInformation: OAuthClientInformation): Promise<void> {
         this.config.oauthClientInfo = clientInformation;
         this.config.oauthRedirectUri = this.redirectUrl;
+        this.config.oauthServerUrl = this.config.url; // Bind to current server URL
         this.registrationAttempted = true;
         
-        console.log(`[MCP OAuth] Successfully registered client ${clientInformation.client_id} for ${this.config.id} at ${this.redirectUrl}`);
+        console.log(`[MCP OAuth] Successfully registered client ${clientInformation.client_id} for ${this.config.id} (URL: ${this.config.url}) at ${this.redirectUrl}`);
         
         await this.onSave({ 
             oauthClientInfo: clientInformation,
             oauthRedirectUri: this.redirectUrl,
+            oauthServerUrl: this.config.url,
         });
     }
 

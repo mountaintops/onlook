@@ -17,4 +17,5 @@ export interface McpServerConfig {
     oauthClientInfo?: any; // OAuthClientInformation
     oauthCodeVerifier?: string;
     oauthRedirectUri?: string;
+    oauthServerUrl?: string;
 }
