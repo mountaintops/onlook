@@ -179,6 +179,7 @@ export const createRootAgentStream = async ({
     messages,
     chatModel,
     mcpServers,
+    origin,
     updateMcpServer,
 }: {
     chatType: ChatType;
@@ -189,6 +190,7 @@ export const createRootAgentStream = async ({
     messages: ChatMessage[];
     chatModel?: any;
     mcpServers?: McpServerConfig[];
+    origin?: string;
     updateMcpServer?: (serverId: string, patch: Partial<McpServerConfig>) => Promise<void>;
 }) => {
     let finalChatModel = chatModel;
@@ -205,7 +207,8 @@ export const createRootAgentStream = async ({
     const mcpToolSet = await mcpManager.loadTools(
         projectId,
         mcpServers ?? [],
-        updateMcpServer ?? (async () => {})
+        updateMcpServer ?? (async () => {}),
+        origin
     );
 
     const mergedTools: ToolSet = { ...mcpToolSet, ...builtInTools };

@@ -73,7 +73,8 @@ export function useChat({ conversationId, projectId, initialMessages }: UseChatP
                     },
                     get chatType() {
                         return editorEngine.state.chatMode;
-                    }
+                    },
+                    origin: typeof window !== 'undefined' ? window.location.origin : undefined,
                 },
             }),
             onToolCall: async ({ toolCall }) => {

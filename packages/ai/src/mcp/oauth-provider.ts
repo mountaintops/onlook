@@ -9,10 +9,18 @@ export class McpOAuthProvider implements OAuthClientProvider {
     private readonly onSave: OnSaveCallback;
     private readonly projectId: string;
 
-    constructor(projectId: string, config: McpServerConfig, onSave: OnSaveCallback) {
+    private readonly preferredOrigin?: string;
+
+    constructor(
+        projectId: string, 
+        config: McpServerConfig, 
+        onSave: OnSaveCallback,
+        preferredOrigin?: string
+    ) {
         this.projectId = projectId;
         this.config = config;
         this.onSave = onSave;
+        this.preferredOrigin = preferredOrigin;
     }
 
     /**
@@ -52,11 +60,15 @@ export class McpOAuthProvider implements OAuthClientProvider {
      * We use a resolved relative origin if NEXT_PUBLIC_APP_URL is not set.
      */
     get redirectUrl(): string {
-        // Defaults to localhost for dev, but relies on a valid app url for prod.
-        // It's important to use 127.0.0.1 locally so that the popup isn't rejected by strict OAuth servers.
-        const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 
+        // Priority: Passed-in origin > env vars > hardcoded fallback.
+        let baseUrl = this.preferredOrigin || 
+                        process.env.NEXT_PUBLIC_SITE_URL || 
                         process.env.NEXT_PUBLIC_APP_URL || 
                         'https://3000-01kh9dythyhbptgh9052kmzwj7.cloudspaces.litng.ai';
+        
+        // Sanitize: strip trailing slashes to prevent double slashes in path
+        baseUrl = baseUrl.replace(/\/+$/, '');
+        
         return `${baseUrl}/api/mcp/callback`;
     }
 
@@ -68,11 +80,23 @@ export class McpOAuthProvider implements OAuthClientProvider {
     }
 
     clientInformation(): OAuthClientInformation | undefined {
-        return this.config.oauthClientInfo as OAuthClientInformation | undefined;
+        const info = this.config.oauthClientInfo as OAuthClientInformation | undefined;
+        
+        // DCR SELF-HEALING: If we have stored client info, check if it was registered with our current redirect URI.
+        // If not, we return undefined to force a fresh Dynamic Client Registration for the new domain.
+        if (info && this.config.oauthRedirectUri !== this.redirectUrl) {
+            console.warn(`[MCP OAuth] Redirect URI mismatch (expected ${this.redirectUrl}, was ${this.config.oauthRedirectUri}). Forcing re-registration.`);
+            return undefined;
+        }
+
+        return info;
     }
 
     async saveClientInformation(clientInformation: OAuthClientInformation): Promise<void> {
-        await this.onSave({ oauthClientInfo: clientInformation });
+        await this.onSave({ 
+            oauthClientInfo: clientInformation,
+            oauthRedirectUri: this.redirectUrl,
+        });
     }
 
     /**

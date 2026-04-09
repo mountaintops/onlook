@@ -84,12 +84,13 @@ export async function POST(req: NextRequest) {
 }
 
 export const streamResponse = async (req: NextRequest, userId: string, body: any) => {
-    const { messages, chatType, conversationId, projectId, chatModel } = body as {
+    const { messages, chatType, conversationId, projectId, chatModel, origin } = body as {
         messages: ChatMessage[],
         chatType: ChatType,
         conversationId: string,
         projectId: string,
         chatModel?: any,
+        origin?: string,
     };
 
     let usageRecord: {
@@ -134,6 +135,7 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
                 messages,
                 chatModel,
                 mcpServers,
+                origin,
                 updateMcpServer: async (serverId, patch) => {
                     const currentData = await api.settings.get({ projectId });
                     const servers = currentData?.mcpServers ?? [];

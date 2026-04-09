@@ -26,7 +26,8 @@ export class McpClientManager {
     async loadTools(
         projectId: string,
         servers: McpServerConfig[],
-        onSaveConfig: (serverId: string, patch: Partial<McpServerConfig>) => Promise<void>
+        onSaveConfig: (serverId: string, patch: Partial<McpServerConfig>) => Promise<void>,
+        origin?: string
     ): Promise<ToolSet> {
         if (!servers.length) return {};
 
@@ -42,7 +43,8 @@ export class McpClientManager {
                     authProvider = new McpOAuthProvider(
                         projectId,
                         srv,
-                        (patch) => onSaveConfig(srv.id, patch)
+                        (patch) => onSaveConfig(srv.id, patch),
+                        origin
                     );
                 }
 
