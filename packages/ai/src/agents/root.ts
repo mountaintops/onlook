@@ -179,6 +179,7 @@ export const createRootAgentStream = async ({
     messages,
     chatModel,
     mcpServers,
+    updateMcpServer,
 }: {
     chatType: ChatType;
     conversationId: string;
@@ -188,6 +189,7 @@ export const createRootAgentStream = async ({
     messages: ChatMessage[];
     chatModel?: any;
     mcpServers?: McpServerConfig[];
+    updateMcpServer?: (serverId: string, patch: Partial<McpServerConfig>) => Promise<void>;
 }) => {
     let finalChatModel = chatModel;
     if (chatType === ChatType.ARCHITECT && !chatModel) {
@@ -200,7 +202,11 @@ export const createRootAgentStream = async ({
     // Load MCP tools — done once before the first stream attempt.
     // Built-in tools win on name collision (MCP tools are spread first).
     const mcpManager = new McpClientManager();
-    const mcpToolSet = await mcpManager.loadTools(mcpServers ?? []);
+    const mcpToolSet = await mcpManager.loadTools(
+        projectId,
+        mcpServers ?? [],
+        updateMcpServer ?? (async () => {})
+    );
 
     const mergedTools: ToolSet = { ...mcpToolSet, ...builtInTools };
 

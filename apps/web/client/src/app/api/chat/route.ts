@@ -134,11 +134,25 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
                 messages,
                 chatModel,
                 mcpServers,
+                updateMcpServer: async (serverId, patch) => {
+                    const currentData = await projectSettingsManager.getSettings(projectId);
+                    const servers = currentData?.mcpServers ?? [];
+                    const updated = servers.map(s => s.id === serverId ? { ...s, ...patch } : s);
+                    await projectSettingsManager.updateSettings(projectId, { mcpServers: updated });
+                }
             });
             streamResult = result.streamResult;
             selectedModel = result.model;
-        } catch (err) {
+        } catch (err: any) {
             if (isGLM5) releaseLock(MODAL_GLM5_LOCK_KEY);
+            
+            if (err.name === 'OAuthRedirectError') {
+                return Response.json(
+                    { error: 'mcp_oauth_redirect', url: err.url },
+                    { status: 401 }
+                );
+            }
+            
             throw err;
         }
 
