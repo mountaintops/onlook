@@ -57,10 +57,12 @@ export class McpOAuthProvider implements OAuthClientProvider {
         return this.config.oauthCodeVerifier || '';
     }
 
+    private registrationAttempted = false;
+
     /**
      * The callback URI configured for your application.
-     * Often localhost needs 127.0.0.1 for native RFC 8252 compliance.
-     * We use a resolved relative origin if NEXT_PUBLIC_APP_URL is not set.
+     * We revert to the version without a trailing slash as standard 
+     * practice for OIDC parity.
      */
     get redirectUrl(): string {
         // Priority: Passed-in origin > env vars > hardcoded fallback.
@@ -69,36 +71,39 @@ export class McpOAuthProvider implements OAuthClientProvider {
                         process.env.NEXT_PUBLIC_APP_URL || 
                         'https://3000-01kh9dythyhbptgh9052kmzwj7.cloudspaces.litng.ai';
         
-        // Sanitize: strip trailing slashes to prevent double slashes in path
+        // Sanitize: strip trailing slashes
         baseUrl = baseUrl.replace(/\/+$/, '');
         
         return `${baseUrl}/api/mcp/callback`;
     }
 
     get clientMetadata(): OAuthClientMetadata {
-        // We provide multiple variations to ensure compatibility with servers 
-        // that might normalize the URI (e.g., adding/removing trailing slashes).
         return {
-            client_name: 'Onlook Studio',
-            redirect_uris: [
-                this.redirectUrl,
-                `${this.redirectUrl}/`,
-            ],
+            client_name: 'Onlook Agent',
+            redirect_uris: [this.redirectUrl],
             grant_types: ['authorization_code'],
             response_types: ['code'],
             token_endpoint_auth_method: 'none',
-            contacts: ['support@onlook.dev'],
         };
     }
 
     clientInformation(): OAuthClientInformation | undefined {
+        // Prevent infinite registration loops in a single execution context
+        if (this.registrationAttempted) {
+            console.warn(`[MCP OAuth] Registration already attempted for ${this.config.id} in this request. Preventing loop.`);
+            return this.config.oauthClientInfo as OAuthClientInformation | undefined;
+        }
+
         const info = this.config.oauthClientInfo as OAuthClientInformation | undefined;
         
-        // FORCE RE-REGISTRATION for the new client name 'Onlook Studio'
-        // We detect if the stored info is using the old name (indirectly via a null check or mismatch)
-        if (info && (!this.config.oauthRedirectUri || this.config.oauthRedirectUri !== this.redirectUrl)) {
-            console.warn(`[MCP OAuth] Config mismatch for ${this.config.id}: (local: ${this.redirectUrl}, stored: ${this.config.oauthRedirectUri || 'none'}). Forcing re-registration.`);
-            return undefined;
+        if (info) {
+            // Self-healing: Trigger re-registration if the redirect URI doesn't match our current domain
+            const storedRedirect = this.config.oauthRedirectUri;
+            if (!storedRedirect || storedRedirect !== this.redirectUrl) {
+                console.warn(`[MCP OAuth] Redirect mismatch for ${this.config.id}: (current: ${this.redirectUrl}, stored: ${storedRedirect || 'none'}). Forcing re-registration.`);
+                this.registrationAttempted = true;
+                return undefined;
+            }
         }
 
         return info;
@@ -107,8 +112,9 @@ export class McpOAuthProvider implements OAuthClientProvider {
     async saveClientInformation(clientInformation: OAuthClientInformation): Promise<void> {
         this.config.oauthClientInfo = clientInformation;
         this.config.oauthRedirectUri = this.redirectUrl;
+        this.registrationAttempted = true;
         
-        console.log(`[MCP OAuth] Saved client information for ${this.config.id} with redirect: ${this.redirectUrl}`);
+        console.log(`[MCP OAuth] Successfully registered client ${clientInformation.client_id} for ${this.config.id} at ${this.redirectUrl}`);
         
         await this.onSave({ 
             oauthClientInfo: clientInformation,
