@@ -335,6 +335,7 @@ export const FrameComponent = observer(
                                 // Prefer the signed URL if available from the session, as it bypasses the security gateway
                                 const sandbox = editorEngine.branches.getSandboxById(frame.branchId);
                                 if (sandbox?.session.signedPreviewUrl) {
+                                    console.log('[Frame] Using signed preview URL to bypass security gateway');
                                     try {
                                         const originalUrl = new URL(frame.url);
                                         const signedUrl = new URL(sandbox.session.signedPreviewUrl);
@@ -343,10 +344,12 @@ export const FrameComponent = observer(
                                         signedUrl.hash = originalUrl.hash;
                                         return signedUrl.toString();
                                     } catch (e) {
+                                        console.warn('[Frame] Error constructing signed URL:', e);
                                         return sandbox.session.signedPreviewUrl;
                                     }
                                 }
 
+                                // Fallback to regular URL with parameters
                                 try {
                                     const url = new URL(frame.url);
                                     url.searchParams.set('v', '1');
@@ -355,22 +358,18 @@ export const FrameComponent = observer(
                                     url.searchParams.set('from-embed', '1');
                                     url.searchParams.set('standalone', '1');
                                     url.searchParams.set('run', '1');
+                                    console.log('[Frame] Using regular URL with preview parameters');
                                     return url.toString();
                                 } catch (e) {
-                                    let newUrl = frame.url;
-                                    const params = ['v=1', 'wait=1', 'preview=1', 'from-embed=1', 'standalone=1', 'run=1'];
-                                    for (const param of params) {
-                                        if (!newUrl.includes(param)) {
-                                            newUrl += (newUrl.includes('?') ? '&' : '?') + param;
-                                        }
-                                    }
-                                    return newUrl;
+                                    console.warn('[Frame] Error constructing URL:', e);
+                                    return frame.url;
                                 }
                             }
                             return frame.url;
                         }, [frame.url, editorEngine.branches.getSandboxById(frame.branchId)?.session.signedPreviewUrl])}
                         sandbox="allow-modals allow-forms allow-same-origin allow-scripts allow-popups allow-downloads"
                         allow="geolocation; microphone; camera; midi; encrypted-media"
+                        referrerPolicy="no-referrer-when-downgrade"
                         style={{ width: frame.dimension.width, height: frame.dimension.height, backdropFilter: 'blur(0px)' }}
                         onLoad={handleOnLoad}
                         {...props}

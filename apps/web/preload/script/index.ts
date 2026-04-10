@@ -6,6 +6,16 @@ import { preloadMethods } from './api';
 export let penpalParent: PromisifiedPenpalParentMethods | null = null;
 let isConnecting = false;
 
+// Set csb_is_trusted cookie for CodeSandbox iframes
+if (typeof window !== 'undefined' && window.location.hostname.includes('csb.app')) {
+    try {
+        document.cookie = 'csb_is_trusted=true; path=/; SameSite=None; Secure';
+        console.log('[Onlook Preload] Set csb_is_trusted cookie for CodeSandbox');
+    } catch (error) {
+        console.warn('[Onlook Preload] Failed to set csb_is_trusted cookie:', error);
+    }
+}
+
 /**
  * Find the correct parent window for Onlook connection.
  * Handles both direct iframes (Next.js) and nested iframes (Storybook).
