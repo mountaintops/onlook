@@ -77,9 +77,9 @@ export class CanvasManager {
                 projectId: this.editorEngine.projectId,
                 canvasId: this.id,
                 canvas: {
-                    scale: this.scale.toString(),
-                    x: this.position.x.toString(),
-                    y: this.position.y.toString(),
+                    scale: this.scale,
+                    x: this.position.x,
+                    y: this.position.y,
                 },
             });
             if (!success) {

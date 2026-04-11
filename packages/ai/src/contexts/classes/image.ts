@@ -20,7 +20,12 @@ export class ImageContext extends BaseContext {
      * Convert image contexts to file UI parts for AI SDK
      */
     static toFileUIParts(images: ImageMessageContext[]) {
-        return images.map((i) => ({
+        // Filter out data: URLs as they are not supported by AI SDK ModelMessage schema
+        const validImages = images.filter((i) => !i.content.startsWith('data:'));
+        if (images.length !== validImages.length) {
+            console.warn(`[ImageContext] Filtered out ${images.length - validImages.length} image(s) with data: URLs (not supported by AI SDK). Upload images to storage and use HTTP URLs instead.`);
+        }
+        return validImages.map((i) => ({
             type: 'file' as const,
             mediaType: i.mimeType,
             url: i.content,

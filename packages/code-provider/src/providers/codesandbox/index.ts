@@ -554,7 +554,21 @@ export class CodesandboxTerminal extends ProviderTerminal {
     }
 
     kill(): Promise<void> {
-        return this._terminal.kill();
+        try {
+            return Promise.race([
+                this._terminal.kill(),
+                new Promise<void>((_, reject) =>
+                    setTimeout(() => reject(new Error('Terminal kill timed out')), 5000)
+                ),
+            ]).catch((error) => {
+                console.warn('[CodeSandbox] Terminal kill timed out or failed:', error);
+                // Don't throw - allow cleanup to continue
+            });
+        } catch (error) {
+            console.warn('[CodeSandbox] Error during terminal kill:', error);
+            // Don't throw - allow cleanup to continue
+        }
+        return Promise.resolve();
     }
 
     onOutput(callback: (data: string) => void): () => void {

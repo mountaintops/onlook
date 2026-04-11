@@ -114,8 +114,7 @@ function processNode(node: HTMLElement): LayerNode {
     const textContent = Array.from(node.childNodes)
         .map((node) => (node.nodeType === Node.TEXT_NODE ? node.textContent : ''))
         .join(' ')
-        .trim()
-        .slice(0, 500);
+        .trim();
     const style = window.getComputedStyle(node);
     const component = node.getAttribute(EditorAttributes.DATA_ONLOOK_COMPONENT_NAME) as
         | string
