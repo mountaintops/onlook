@@ -4,6 +4,7 @@ import { createClient as createTRPCClient } from '@/trpc/request-server';
 import { createRootAgentStream } from '@onlook/ai/src/server';
 import { toDbMessage } from '@onlook/db';
 import { ChatType, LLMProvider, type ChatMessage } from '@onlook/models';
+import { getProjectMcpServers } from '@onlook/utility/src/mcp.server';
 import { type NextRequest } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { checkMessageLimit, decrementUsage, errorHandler, getSupabaseUser, incrementUsage } from './helpers';
@@ -12,11 +13,20 @@ import { MODAL_GLM5_LOCK_KEY, tryAcquireLock, releaseLock } from './locks';
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json().catch(err => {
-            console.error('Failed to parse JSON body in /api/chat:', err);
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            const errorStack = err instanceof Error ? err.stack : undefined;
+            console.error('[Chat Route] Failed to parse JSON body:', {
+                error: errorMessage,
+                stack: errorStack,
+                timestamp: new Date().toISOString(),
+            });
             return null;
         });
 
         if (!body) {
+            console.error('[Chat Route] Invalid or missing JSON body', {
+                timestamp: new Date().toISOString(),
+            });
             return new Response(JSON.stringify({
                 error: 'Invalid or missing JSON body',
                 code: 400,
@@ -31,6 +41,10 @@ export async function POST(req: NextRequest) {
         };
 
         if (!projectId) {
+            console.error('[Chat Route] Missing projectId in request body', {
+                body,
+                timestamp: new Date().toISOString(),
+            });
             return new Response(JSON.stringify({
                 error: 'Missing projectId in request body',
                 code: 400,
@@ -42,6 +56,9 @@ export async function POST(req: NextRequest) {
 
         const user = await getSupabaseUser(req);
         if (!user) {
+            console.error('[Chat Route] Unauthorized - no user found', {
+                timestamp: new Date().toISOString(),
+            });
             return new Response(JSON.stringify({
                 error: 'Unauthorized, no user found. Please login again.',
                 code: 401
@@ -60,6 +77,10 @@ export async function POST(req: NextRequest) {
                     usage: usageCheckResult.usage,
                 },
             });
+            console.error('[Chat Route] Message limit exceeded', {
+                usage: usageCheckResult.usage,
+                timestamp: new Date().toISOString(),
+            });
             return new Response(JSON.stringify({
                 error: 'Message limit exceeded. Please upgrade to a paid plan.',
                 code: 402,
@@ -72,7 +93,13 @@ export async function POST(req: NextRequest) {
 
         return streamResponse(req, user.id, body);
     } catch (error: unknown) {
-        console.error('Error in chat route POST handler:', error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorStack = error instanceof Error ? error.stack : undefined;
+        console.error('[Chat Route] Error in POST handler:', {
+            error: errorMessage,
+            stack: errorStack,
+            timestamp: new Date().toISOString(),
+        });
         return new Response(JSON.stringify({
             error: error instanceof Error ? error.message : String(error),
             code: 500,
@@ -105,12 +132,18 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
             usageRecord = await incrementUsage(req, traceId);
         }
 
-        const { api } = await createTRPCClient(req);
-        const projectSettingsData = await api.settings.get({ projectId });
+        const api = createTRPCClient(req);
+        const { data: projectSettingsData } = await api.settings.get({ projectId });
+        const { data: userData } = await api.user.settings.get();
 
         const isGLM5 = chatModel?.provider === LLMProvider.MODAL;
         if (isGLM5) {
             if (!tryAcquireLock(MODAL_GLM5_LOCK_KEY)) {
+                console.warn('[Chat Route] GLM-5 is already processing another request', {
+                    userId,
+                    projectId,
+                    timestamp: new Date().toISOString(),
+                });
                 return new Response(JSON.stringify({
                     error: 'GLM-5 is already processing another request. Please wait and try again.',
                     code: 429,
@@ -124,7 +157,15 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
         let streamResult;
         let selectedModel;
         try {
-            const mcpServers = projectSettingsData?.mcpServers ?? [];
+            // Combine MCP servers from three sources:
+            // 1. Permanent (site-wide, from JSON config)
+            // 2. Global (per user, from user settings)
+            // 3. Project-specific (per project, from project settings)
+            const mcpServers = getProjectMcpServers(
+                projectSettingsData?.mcpServers ?? [],
+                userData?.mcpServers ?? [],
+            );
+
             const result = await createRootAgentStream({
                 chatType,
                 conversationId,
@@ -184,7 +225,16 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
 
         return createUIMessageStreamResponse({ stream });
     } catch (error) {
-        console.error('Error in streamResponse setup', error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorStack = error instanceof Error ? error.stack : undefined;
+        console.error('[Chat Route] Error in streamResponse setup:', {
+            error: errorMessage,
+            stack: errorStack,
+            userId,
+            projectId,
+            conversationId,
+            timestamp: new Date().toISOString(),
+        });
         if (usageRecord) {
             await decrementUsage(req, usageRecord);
         }

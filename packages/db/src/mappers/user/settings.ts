@@ -1,5 +1,6 @@
 import { DefaultSettings } from '@onlook/constants';
 import type { UserSettings } from '@onlook/models';
+import type { McpServerConfig } from '@onlook/models';
 import type { UserSettings as DbUserSettings } from '../../schema';
 
 export const fromDbUserSettings = (settings: DbUserSettings): UserSettings => {
@@ -16,6 +17,7 @@ export const fromDbUserSettings = (settings: DbUserSettings): UserSettings => {
         editor: {
             shouldWarnDelete: settings.shouldWarnDelete ?? DefaultSettings.EDITOR_SETTINGS.shouldWarnDelete,
         },
+        mcpServers: (settings.mcpServers ?? undefined) as McpServerConfig[] | undefined,
     };
 };
 
@@ -28,5 +30,6 @@ export const toDbUserSettings = (userId: string, settings: UserSettings): DbUser
         showSuggestions: settings.chat.showSuggestions,
         showMiniChat: settings.chat.showMiniChat,
         shouldWarnDelete: settings.editor.shouldWarnDelete,
+        mcpServers: settings.mcpServers as any,
     };
 };

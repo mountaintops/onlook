@@ -14,6 +14,7 @@ import {
     usageRouter,
     userCanvasRouter,
     userRouter,
+    userSettingsRouter,
     utilsRouter,
     gitRouter,
 } from './routers';

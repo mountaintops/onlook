@@ -160,7 +160,12 @@ export const FrameComponent = observer(
 
                             // Delay initial theme application to avoid hydration mismatch
                             setTimeout(() => {
-                                remote.setTheme((frame.theme as unknown as SystemTheme) || SystemTheme.SYSTEM);
+                                try {
+                                    remote.setTheme((frame.theme as unknown as SystemTheme) || SystemTheme.SYSTEM);
+                                } catch (error) {
+                                    // Ignore PenpalError if connection was destroyed
+                                    console.warn('[FrameView] Failed to set theme due to connection state:', error);
+                                }
                             }, 500);
 
                             // Notify parent of successful connection
