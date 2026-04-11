@@ -9,11 +9,13 @@ export const fetchWithRetry = (async (
 ): Promise<Response> => {
     let attempt = 0;
     const maxRetries = 3;
+    const lastError: Error[] = [];
     
     while (attempt < maxRetries) {
         try {
             return await fetch(input, init);
         } catch (error: any) {
+            lastError.push(error);
             const isConnectionError = 
                 error?.code === 'ECONNRESET' ||
                 error?.message?.includes('socket disconnected') ||
@@ -31,5 +33,9 @@ export const fetchWithRetry = (async (
         }
     }
     
-    throw new Error('Max retries reached');
+    const lastErr = lastError[lastError.length - 1];
+    throw new Error(
+        `Failed after ${maxRetries} attempts. Last error: ${lastErr?.message || 'Internal error encountered'}. ` +
+        `Error details: ${lastErr?.code || lastErr?.cause?.code || 'unknown'}`
+    );
 }) as typeof fetch;

@@ -21,5 +21,29 @@ export const links = [
             headers.set('x-trpc-source', 'vanilla-client');
             return headers;
         },
+        // Add error handler to provide more descriptive error messages
+        onError: (opts) => {
+            const { error } = opts;
+            console.error('[TRPC Error]', {
+                path: opts.op.path,
+                type: opts.op.type,
+                error: error,
+                errorMessage: error?.message || 'Unknown error',
+                errorShape: error?.shape,
+                data: error?.data,
+                cause: error?.cause,
+            });
+            
+            // Enhance error message with more details
+            if (error) {
+                const originalMessage = error.message || 'Unknown error';
+                const shapeMessage = error.shape?.message;
+                const enhancedMessage = shapeMessage 
+                    ? `${shapeMessage} (Original: ${originalMessage})`
+                    : originalMessage;
+                
+                error.message = enhancedMessage;
+            }
+        },
     }),
 ];

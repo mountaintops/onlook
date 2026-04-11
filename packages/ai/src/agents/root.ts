@@ -245,7 +245,7 @@ export const createRootAgentStream = async ({
                     },
                 },
             });
-        } catch (error) {
+        } catch (error: any) {
             console.error(`Stream attempt ${attempt} failed:`, error);
             if (chatType === ChatType.ARCHITECT && attempt < ARCHITECT_FALLBACK_MODELS.length) {
                 const nextModel = ARCHITECT_FALLBACK_MODELS[attempt];
@@ -255,7 +255,14 @@ export const createRootAgentStream = async ({
                     return runStream(nextConfig, attempt + 1);
                 }
             }
-            throw error;
+            // Provide more descriptive error message
+            const errorMessage = error?.message || String(error);
+            const errorDetails = error?.cause ? ` Cause: ${error.cause}` : '';
+            throw new Error(
+                `Failed to generate response after ${attempt + 1} attempt(s). ` +
+                `Last error: ${errorMessage}.${errorDetails} ` +
+                `Model: ${config.model || 'unknown'}`
+            );
         }
     };
 

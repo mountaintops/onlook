@@ -55,20 +55,51 @@ export const SandboxControls = observer(() => {
     }
 
 
+    const getStatusText = () => {
+        switch (status) {
+            case 'connecting':
+                return 'Connecting...';
+            case 'reconnecting':
+                return 'Reconnecting...';
+            case 'connected':
+                return 'Connected';
+            case 'disconnected':
+                return 'Disconnected';
+            default:
+                return '';
+        }
+    };
+
+    const getStatusColor = () => {
+        switch (status) {
+            case 'connecting':
+            case 'reconnecting':
+                return 'text-foreground-secondary';
+            case 'connected':
+                return 'text-green-500';
+            case 'disconnected':
+                return 'text-foreground-secondary/50';
+            default:
+                return '';
+        }
+    };
+
     if (isConnecting) {
          return (
-             <div className="flex items-center gap-1">
+             <div className="flex items-center gap-2">
                  <Button variant="ghost" size="icon" className="h-8" disabled>
                      <Icons.Spinner className="h-4 w-4 animate-spin" />
                  </Button>
+                 <span className={`text-xs ${getStatusColor()}`}>{getStatusText()}</span>
              </div>
          );
     }
 
     return (
-        <div className="flex items-center gap-1 border-r border-border pr-2 mr-2">
+        <div className="flex items-center gap-2 border-r border-border pr-2 mr-2">
            {!isConnected ? (
-              <Tooltip>
+              <>
+                <Tooltip>
                     <TooltipTrigger asChild>
                         <Button
                             variant="ghost"
@@ -84,6 +115,8 @@ export const SandboxControls = observer(() => {
                         Resume Sandbox
                     </TooltipContent>
                 </Tooltip>
+                <span className={`text-xs ${getStatusColor()}`}>{getStatusText()}</span>
+              </>
            ) : (
              <>
                  <Tooltip>
@@ -118,6 +151,7 @@ export const SandboxControls = observer(() => {
                         Stop Sandbox
                     </TooltipContent>
                 </Tooltip>
+                <span className={`text-xs ${getStatusColor()}`}>{getStatusText()}</span>
              </>
            )}
         </div>

@@ -8,6 +8,7 @@ import { CLISessionImpl, CLISessionType, type CLISession, type TerminalSession }
 export class SessionManager {
     provider: Provider | null = null;
     isConnecting = false;
+    isReconnecting = false;
     terminalSessions = new Map<string, CLISession>();
     activeTerminalSessionId = 'cli';
     signedPreviewUrl: string | null = null;
@@ -25,7 +26,8 @@ export class SessionManager {
         }
 
         if (!this.isConnecting) {
-            throw new Error('No provider found and not connecting');
+            console.warn('[SessionManager] No provider found and not connecting, this may indicate a connection issue');
+            throw new Error('No provider found and not connecting. The sandbox may need to be reconnected.');
         }
 
         // Wait for provider to be set
@@ -51,12 +53,21 @@ export class SessionManager {
     async start(sandboxId: string, userId?: string): Promise<void> {
         const MAX_RETRIES = 3;
         const RETRY_DELAY_MS = 2000;
+        const CONNECTION_TIMEOUT_MS = 60000; // 60 second timeout for total connection attempt
 
-        if (this.isConnecting || this.provider) {
+        if (this.isConnecting || this.isReconnecting || this.provider) {
             return;
         }
 
         this.isConnecting = true;
+
+        // Set a timeout to reset isConnecting if connection takes too long
+        const connectionTimeout = setTimeout(() => {
+            if (this.isConnecting) {
+                console.error('[SessionManager] Connection timeout, resetting isConnecting flag');
+                this.isConnecting = false;
+            }
+        }, CONNECTION_TIMEOUT_MS);
 
         const attemptConnection = async () => {
             const provider = await createCodeProviderClient(CodeProvider.CodeSandbox, {
@@ -86,6 +97,7 @@ export class SessionManager {
         for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
             try {
                 await attemptConnection();
+                clearTimeout(connectionTimeout);
                 this.isConnecting = false;
                 return;
             } catch (error) {
@@ -101,6 +113,7 @@ export class SessionManager {
             }
         }
 
+        clearTimeout(connectionTimeout);
         this.isConnecting = false;
         throw lastError;
     }
@@ -179,32 +192,66 @@ export class SessionManager {
         await api.sandbox.hibernate.mutate({ sandboxId });
     }
 
-    async reconnect(sandboxId: string, userId?: string) {
+    async reconnect(sandboxId: string, userId?: string): Promise<boolean> {
+        // Prevent concurrent reconnect attempts
+        if (this.isConnecting || this.isReconnecting) {
+            console.log('[SessionManager] Already connecting or reconnecting, skipping reconnect');
+            return false;
+        }
+
+        this.isReconnecting = true;
         try {
             if (!this.provider) {
-                if (!this.isConnecting) {
-                    console.error('No provider found in reconnect');
+                console.log('[SessionManager] No provider found in reconnect, attempting to start new connection');
+                await this.start(sandboxId, userId);
+                
+                // Wait a bit for the provider to be set
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                if (this.provider) {
+                    console.log('[SessionManager] Successfully reconnected to sandbox');
+                    return true;
+                } else {
+                    console.error('[SessionManager] Failed to establish provider after start');
+                    return false;
                 }
-                return;
             }
 
             // Check if the session is still connected
             const isConnected = await this.ping();
             if (isConnected) {
-                return;
+                console.log('[SessionManager] Provider is already connected');
+                return true;
             }
 
+            console.log('[SessionManager] Provider exists but not connected, attempting soft reconnect');
             // Attempt soft reconnect
             await this.provider?.reconnect();
 
             const isConnected2 = await this.ping();
             if (isConnected2) {
-                return;
+                console.log('[SessionManager] Successfully reconnected via soft reconnect');
+                return true;
             }
+
+            console.log('[SessionManager] Soft reconnect failed, attempting full restart');
             await this.restartProvider(sandboxId, userId);
+            
+            // Wait for restart to complete
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            if (this.provider) {
+                console.log('[SessionManager] Successfully reconnected via full restart');
+                return true;
+            }
+            
+            return false;
         } catch (error) {
-            console.error('Failed to reconnect to sandbox', error);
+            console.error('[SessionManager] Failed to reconnect to sandbox:', error);
             this.isConnecting = false;
+            return false;
+        } finally {
+            this.isReconnecting = false;
         }
     }
 
@@ -297,6 +344,7 @@ export class SessionManager {
         }
         this.provider = null;
         this.isConnecting = false;
+        this.isReconnecting = false;
         this.terminalSessions.clear();
     }
 }

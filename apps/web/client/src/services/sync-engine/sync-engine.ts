@@ -49,6 +49,23 @@ export class CodeProviderSync {
         // Compute excludes once
         this.excludes = [...DEFAULT_EXCLUDES, ...(this.config.exclude ?? [])];
         this.excludePatterns = this.excludes.map((dir) => `${dir}/**`);
+
+        // Register write callback to trigger context updates when files are written directly
+        this.writeCallbackUnregister = this.fs.onWrite((path, content) => {
+            // Skip if not running or paused
+            if (!this.isRunning || this.isPaused) {
+                return;
+            }
+
+            // Check if file should be synced
+            if (!this.shouldSync(path)) {
+                return;
+            }
+
+            // Track recent file and trigger context update
+            this.trackRecentFile(path);
+            this.triggerContextUpdate();
+        });
     }
 
     /**
@@ -175,6 +192,11 @@ export class CodeProviderSync {
         if (this.localWatcher) {
             this.localWatcher();
             this.localWatcher = null;
+        }
+
+        if (this.writeCallbackUnregister) {
+            this.writeCallbackUnregister();
+            this.writeCallbackUnregister = null;
         }
 
         // Clear file hashes

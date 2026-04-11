@@ -11,9 +11,19 @@ export class ScreenshotWebTool extends ClientTool {
     This tool allows you to perform an interaction before capturing the image and then tell the visual auditor exactly what to look for.
 
     KEY ARGUMENTS:
-    1. 'action' (INTERACTION): Use Stagehand/Playwright instructions to interact with the page before the screenshot (e.g., "Click the signup button", "Hover over the nav menu").
-    2. 'focus' (ANALYSIS): Tell the Gemini Visual Auditor exactly what to verify in the resulting image. This prevents general audits and focuses on your specific change.
-    3. 'delayMs': Optional delay before capture. Default is 1600ms.
+    1. 'url' (REQUIRED): The URL to screenshot. Use localhost URLs for local development; they will be automatically resolved to the sandbox preview URL.
+    2. 'action' (INTERACTION): Use Stagehand/Playwright instructions to interact with the page before the screenshot. Use this when you need to change page state (e.g., "Click the signup button", "Hover over the nav menu", "Fill in the email field").
+    3. 'focus' (ANALYSIS): Tell the Gemini Visual Auditor exactly what to verify in the resulting image. This prevents general audits and focuses on your specific change. ALWAYS provide specific verification criteria (e.g., "Is the button now showing a darker shade of blue?", "Does the error message appear under the email input?").
+    4. 'delayMs' (TIMING): Optional delay before capture in milliseconds. Default is 1600ms. Increase for slow-loading pages or animations.
+    5. 'scrollToId' (NAVIGATION): The ID of the element to scroll to before taking the screenshot. Use this to capture specific sections of long pages.
+    6. 'visualAudit' (VERIFICATION): Whether to perform a Gemini-powered visual audit. Default is true. Set to false if you only need the image without analysis.
+
+    WHEN TO USE THIS TOOL:
+    - After making UI changes to verify the result
+    - To check responsive design on different screen sizes
+    - To verify hover states, click states, or other interactive elements
+    - To debug layout issues or visual regressions
+    - To capture the current state before making further changes
 
     EXAMPLES OF SYNERGY:
     - Verifying a Hover State: 
@@ -24,8 +34,21 @@ export class ScreenshotWebTool extends ClientTool {
     - Verifying Error States:
       action: "Click the Submit button without filling the form"
       focus: "Check if a red validation error message appears under the email input."
+    - Verifying Navigation:
+      action: "Click the About link in the navigation"
+      focus: "Did the page navigate to /about? Is the About page header visible?"
+    - Checking Responsive Layout:
+      focus: "Verify the layout is responsive. Are elements properly stacked on mobile? Is there no horizontal overflow?"
 
-    ALWAYS fill 'action' if you need to change the page state, and ALWAYS fill 'focus' to give the visual auditor a specific goal.`;
+    BEST PRACTICES:
+    - ALWAYS provide a specific 'focus' argument to guide the visual auditor
+    - Use 'action' when you need to interact with the page before capturing
+    - Increase 'delayMs' if the page has slow animations or loading states
+    - Take screenshots at key milestones during complex multi-step changes
+    - Re-screenshot after fixing issues identified in the visual audit
+    - Use 'scrollToId' to capture specific sections of long pages
+
+    The visual audit will return a STATUS (STABLE or BROKEN). If BROKEN, you MUST fix the identified issues and re-verify with another screenshot. DO NOT end the turn without fixing broken UI.`;
 
     static readonly parameters = z.object({
         url: z.string().url().describe('The URL to screenshot (e.g., http://localhost:3000/about)'),
@@ -112,9 +135,17 @@ export class ScreenshotWebTool extends ClientTool {
 
             const auditFindings = visualAuditReport || "No visual audit was performed.";
             
-            // Heuristic detection: if the audit contains alarming keywords, set auditPassed to false.
-            const errorKeywords = ['broken', 'overlapping', 'not centered', 'missing', 'error', '404', 'failed', 'issue', 'misaligned'];
-            const auditPassed = !errorKeywords.some(keyword => auditFindings.toLowerCase().includes(keyword));
+            // Parse the STATUS line from the audit report for accurate pass/fail determination
+            // The prompt instructs the AI to include: "- STATUS: STABLE" or "- STATUS: BROKEN [reason]"
+            let auditPassed = true;
+            const statusMatch = auditFindings.match(/- STATUS:\s*(STABLE|BROKEN)/i);
+            if (statusMatch) {
+                auditPassed = statusMatch[1].toUpperCase() === 'STABLE';
+            } else {
+                // Fallback to heuristic detection if STATUS line is not found
+                const errorKeywords = ['broken', 'overlapping', 'not centered', 'missing', 'error', '404', 'failed', 'misaligned'];
+                auditPassed = !errorKeywords.some(keyword => auditFindings.toLowerCase().includes(keyword));
+            }
             
             let finalMessage = `${uploaderResult.message}\n\n### Visual Audit Report\n${auditFindings}`;
             if (!auditPassed) {

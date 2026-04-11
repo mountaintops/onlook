@@ -162,7 +162,7 @@ export class CLISessionImpl implements CLISession {
             macOptionIsMeta: true,
             altClickMovesCursor: false,
             windowsMode: false,
-            scrollback: 1000,
+            scrollback: 100000,
             screenReaderMode: false,
             fastScrollModifier: 'alt',
             fastScrollSensitivity: 5,

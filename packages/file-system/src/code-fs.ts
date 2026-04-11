@@ -28,11 +28,16 @@ export interface CodeEditorOptions {
     routerType?: RouterType;
 }
 
+export interface WriteCallback {
+    (path: string, content: string | Uint8Array): void;
+}
+
 export class CodeFileSystem extends FileSystem {
     private projectId: string;
     private branchId: string;
     private options: Required<CodeEditorOptions>;
     private indexPath = `${ONLOOK_CACHE_DIRECTORY}/index.json`;
+    private writeCallbacks: WriteCallback[] = [];
 
     constructor(projectId: string, branchId: string, options: CodeEditorOptions = {}) {
         super(`/${projectId}/${branchId}`);
@@ -43,12 +48,30 @@ export class CodeFileSystem extends FileSystem {
         };
     }
 
+    onWrite(callback: WriteCallback): () => void {
+        this.writeCallbacks.push(callback);
+        return () => {
+            const index = this.writeCallbacks.indexOf(callback);
+            if (index > -1) {
+                this.writeCallbacks.splice(index, 1);
+            }
+        };
+    }
+
     async writeFile(path: string, content: string | Uint8Array): Promise<void> {
         if (this.isJsxFile(path) && typeof content === 'string') {
             const processedContent = await this.processJsxFile(path, content);
             await super.writeFile(path, processedContent);
         } else {
             await super.writeFile(path, content);
+        }
+        // Notify listeners that a file was written
+        for (const callback of this.writeCallbacks) {
+            try {
+                callback(path, content);
+            } catch (error) {
+                console.error('[CodeFileSystem] Error in write callback:', error);
+            }
         }
     }
 
