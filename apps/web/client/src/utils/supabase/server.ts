@@ -4,6 +4,11 @@ import { cookies } from 'next/headers';
 import { fetchWithRetry } from './fetch';
 
 export async function createClient() {
+    // Validate Supabase URL - data URIs are not supported
+    if (env.NEXT_PUBLIC_SUPABASE_URL.startsWith('data:')) {
+        throw new Error('NEXT_PUBLIC_SUPABASE_URL cannot be a data URI. Please provide an HTTP/HTTPS URL.');
+    }
+
     const cookieStore = await cookies();
 
     // Create a server's supabase client with newly configured cookie,

@@ -1,0 +1,10 @@
+permanentMcpServers: []
+
+# Example MCP server configuration:
+# permanentMcpServers:
+#   - id: "my-custom-server"
+#     name: "My Custom MCP Server"
+#     url: "https://my-server.com/mcp"
+#     transportType: "http"  # or "sse"
+#     authType: "none"  # or "bearer"
+#     # bearerToken: "your-token-here"  # required if authType is "bearer"

@@ -7,10 +7,16 @@ export const fetchWithRetry = (async (
     input: RequestInfo | URL,
     init?: RequestInit,
 ): Promise<Response> => {
+    // Validate URL - data URIs are not supported
+    const urlStr = input instanceof URL ? input.toString() : String(input);
+    if (urlStr.startsWith('data:')) {
+        throw new Error('Data URIs are not supported for fetch requests. Please provide an HTTP/HTTPS URL.');
+    }
+
     let attempt = 0;
     const maxRetries = 3;
     const lastError: Error[] = [];
-    
+
     while (attempt < maxRetries) {
         try {
             return await fetch(input, init);

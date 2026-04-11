@@ -71,6 +71,13 @@ export class FramesManager {
     registerView(frame: Frame, view: IFrameView) {
         const isSelected = this.isSelected(frame.id);
         this._frameIdToData.set(frame.id, { frame, view, selected: isSelected });
+
+        // Validate URL - data URIs are not supported
+        if (view.src.startsWith('data:')) {
+            console.error('[Frames] Data URIs are not supported for frame URLs. URL:', view.src);
+            return;
+        }
+
         const framePathname = new URL(view.src).pathname;
         this._navigation.registerFrame(frame.id, framePathname);
     }
@@ -188,6 +195,13 @@ export class FramesManager {
 
         try {
             const currentUrl = frameData.view.src;
+
+            // Validate URL - data URIs are not supported
+            if (currentUrl.startsWith('data:')) {
+                console.error('[Frames] Data URIs are not supported for frame navigation. URL:', currentUrl);
+                return;
+            }
+
             const baseUrl = currentUrl ? new URL(currentUrl).origin : null;
 
             if (!baseUrl) {

@@ -14,6 +14,10 @@ function getApiBase(): string {
     if (!url) {
         throw new Error('SCREENSHIT_API_URL is not configured');
     }
+    // Validate URL - data URIs are not supported
+    if (url.startsWith('data:')) {
+        throw new Error('SCREENSHIT_API_URL cannot be a data URI. Please provide an HTTP/HTTPS URL.');
+    }
     return url.replace(/\/$/, '');
 }
 
@@ -247,6 +251,11 @@ export async function screenshitScreenshot(
     action?: string,
     focus?: string,
 ): Promise<{ base64: string; visualAuditReport?: string | null }> {
+    // Validate URL - data URIs are not supported
+    if (url.startsWith('data:')) {
+        throw new Error('Data URIs are not supported for screenshot URLs. Please provide an HTTP/HTTPS URL.');
+    }
+
     const apiBase = getApiBase();
     console.log(`[screenshit] Capturing screenshot for URL: ${url} (visualAudit: ${visualAudit})`);
     const apiUrl = `${apiBase}/screenshot`;

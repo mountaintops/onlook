@@ -1,8 +1,9 @@
 import { DefaultSettings } from '@onlook/constants';
 import type { UserSettings as DbUserSettings } from '@onlook/db';
+import { type UserSettings } from '@onlook/models';
 import { v4 as uuid } from 'uuid';
 
-export const createDefaultUserSettings = (userId: string): DbUserSettings => {
+export const createDefaultUserSettings = (userId: string): UserSettings => {
     return {
         id: uuid(),
         userId,
@@ -11,5 +12,6 @@ export const createDefaultUserSettings = (userId: string): DbUserSettings => {
         showSuggestions: DefaultSettings.CHAT_SETTINGS.showSuggestions,
         showMiniChat: DefaultSettings.CHAT_SETTINGS.showMiniChat,
         shouldWarnDelete: DefaultSettings.EDITOR_SETTINGS.shouldWarnDelete,
+        mcpServers: [],
     };
 };

@@ -112,6 +112,11 @@ export const projectRouter = createTRPCRouter({
                     throw new Error('Invalid screenshot URL');
                 }
 
+                // Validate URL - data URIs are not supported for fetch
+                if (screenshotUrl.startsWith('data:')) {
+                    throw new Error('Data URIs are not supported for screenshot URLs. Please provide an HTTP/HTTPS URL.');
+                }
+
                 const response = await fetch(screenshotUrl, {
                     signal: AbortSignal.timeout(10000),
                 });
@@ -241,10 +246,13 @@ export const projectRouter = createTRPCRouter({
             const canvas: Canvas = project.canvas ?? createDefaultCanvas(project.id);
             const userCanvas: UserCanvas = project.canvas?.userCanvases[0] ?? createDefaultUserCanvas(ctx.user.id, canvas.id);
 
+            // Filter out frames with data: URLs
+            const frames = (project.canvas?.frames.map(fromDbFrame) ?? []).filter(frame => !frame.url.startsWith('data:'));
+
             return {
                 project: fromDbProject(project),
                 userCanvas: fromDbCanvas(userCanvas),
-                frames: project.canvas?.frames.map(fromDbFrame) ?? [],
+                frames,
             };
         }),
     create: protectedProcedure

@@ -132,9 +132,9 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
             usageRecord = await incrementUsage(req, traceId);
         }
 
-        const api = createTRPCClient(req);
-        const { data: projectSettingsData } = await api.settings.get({ projectId });
-        const { data: userData } = await api.user.settings.get();
+        const { api } = await createTRPCClient(req);
+        const projectSettingsData = await api.settings.get({ projectId });
+        const userData = await api.user.settings.get();
 
         const isGLM5 = chatModel?.provider === LLMProvider.MODAL;
         if (isGLM5) {
@@ -178,7 +178,7 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
                 updateMcpServer: async (serverId, patch) => {
                     const currentData = await api.settings.get({ projectId });
                     const servers = currentData?.mcpServers ?? [];
-                    const updated = servers.map(s => s.id === serverId ? { ...s, ...patch } : s);
+                    const updated = servers.map((s: any) => s.id === serverId ? { ...s, ...patch } : s);
                     await api.settings.upsert({ projectId, settings: { mcpServers: updated } });
                 }
             });

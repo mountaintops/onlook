@@ -44,6 +44,11 @@ export const toDbProject = (project: Project): DbProject => {
 export function fromDbPreviewImg(dbProject: DbProject): PreviewImg | null {
     let previewImg: PreviewImg | null = null;
     if (dbProject.previewImgUrl) {
+        // Validate URL - data URIs are not supported
+        if (dbProject.previewImgUrl.startsWith('data:')) {
+            console.error('[Project] Data URIs are not supported for preview images. URL:', dbProject.previewImgUrl);
+            return null;
+        }
         previewImg = {
             type: 'url',
             url: dbProject.previewImgUrl,

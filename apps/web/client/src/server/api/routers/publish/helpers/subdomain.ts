@@ -7,6 +7,10 @@ function getApiBase(): string {
     if (!url) {
         throw new Error('SCREENSHIT_API_URL is not configured');
     }
+    // Validate URL - data URIs are not supported
+    if (url.startsWith('data:')) {
+        throw new Error('SCREENSHIT_API_URL cannot be a data URI. Please provide an HTTP/HTTPS URL.');
+    }
     return url.replace(/\/$/, '');
 }
 

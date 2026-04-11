@@ -336,10 +336,22 @@ export const FrameComponent = observer(
                             !isActiveBranch && isInDragSelection && 'outline-teal-500',
                         )}
                         src={useMemo(() => {
+                            // Validate URL - data URIs are not supported for iframe src
+                            if (frame.url.startsWith('data:')) {
+                                console.error('[Frame] Data URIs are not supported for iframe src. URL:', frame.url);
+                                return 'about:blank';
+                            }
+
                             if (frame.url.includes('csb.app')) {
                                 // Prefer the signed URL if available from the session, as it bypasses the security gateway
                                 const sandbox = editorEngine.branches.getSandboxById(frame.branchId);
                                 if (sandbox?.session.signedPreviewUrl) {
+                                    // Validate signed preview URL
+                                    if (sandbox.session.signedPreviewUrl.startsWith('data:')) {
+                                        console.error('[Frame] Data URIs are not supported for signed preview URL');
+                                        return 'about:blank';
+                                    }
+
                                     console.log('[Frame] Using signed preview URL to bypass security gateway');
                                     try {
                                         const originalUrl = new URL(frame.url);

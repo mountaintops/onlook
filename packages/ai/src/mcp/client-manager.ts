@@ -16,6 +16,14 @@ export class McpClientManager {
 
         const results = await Promise.allSettled(
             servers.map(async (srv) => {
+                // Validate URL - data URIs are not supported for MCP connections
+                if (srv.url.startsWith('data:')) {
+                    console.warn(
+                        `[MCP] Server "${srv.name}" has a data: URL which is not supported. Skipping.`,
+                    );
+                    return null;
+                }
+
                 const headers: Record<string, string> = {};
                 if (srv.authType === 'bearer' && srv.bearerToken) {
                     headers['Authorization'] = `Bearer ${srv.bearerToken}`;
@@ -23,7 +31,7 @@ export class McpClientManager {
 
                 const client = await createMCPClient({
                     transport: {
-                        type: 'http',
+                        type: srv.transportType ?? 'http',
                         url: srv.url,
                         headers,
                     },

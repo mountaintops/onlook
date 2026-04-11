@@ -58,6 +58,15 @@ export async function POST(request: Request) {
         if (validatedData.utm_term) url.searchParams.append('utm_term', validatedData.utm_term);
         if (validatedData.utm_content) url.searchParams.append('utm_content', validatedData.utm_content);
 
+        // Validate URL - data URIs are not supported
+        if (url.toString().startsWith('data:')) {
+            console.error('Invalid N8N_LANDING_FORM_URL: data URIs are not supported');
+            return new Response(JSON.stringify({ error: 'Server configuration error' }), {
+                status: 500,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
         // Build auth headers: use custom header if provided
         const authHeaders: Record<string, string> = {};
         if (headerName && headerValue) {

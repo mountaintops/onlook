@@ -36,6 +36,7 @@ export const McpServersSection = observer(() => {
                 id: uuidv4(),
                 name: '',
                 url: '',
+                transportType: 'http',
                 authType: 'none',
             },
         ]);
@@ -119,8 +120,23 @@ export const McpServersSection = observer(() => {
                             </Button>
                         </div>
 
-                        {/* Row 2: Auth Type + Token (if bearer) */}
+                        {/* Row 2: Transport Type + Auth Type + Token (if bearer) */}
                         <div className="flex gap-2 items-center">
+                            <Select
+                                value={server.transportType ?? 'http'}
+                                onValueChange={(value: 'http' | 'sse') =>
+                                    updateMcpServer(server.id, { transportType: value })
+                                }
+                                disabled={isSaving}
+                            >
+                                <SelectTrigger className="w-28">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="http">HTTP</SelectItem>
+                                    <SelectItem value="sse">SSE</SelectItem>
+                                </SelectContent>
+                            </Select>
                             <Select
                                 value={server.authType}
                                 onValueChange={(value: 'none' | 'bearer') =>

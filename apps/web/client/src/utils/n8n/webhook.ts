@@ -15,6 +15,12 @@ export async function callUserWebhook(user: {
         return;
     }
 
+    // Validate URL - data URIs are not supported
+    if (WEBHOOK_URL.startsWith('data:')) {
+        console.error('N8N_WEBHOOK_URL cannot be a data URI. Please provide an HTTP/HTTPS URL.');
+        return;
+    }
+
     try {
         await fetch(WEBHOOK_URL, {
             method: 'POST',

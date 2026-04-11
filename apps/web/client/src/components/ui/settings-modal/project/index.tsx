@@ -135,6 +135,7 @@ export const ProjectTab = observer(() => {
             id: uuidv4(),
             name: '',
             url: '',
+            transportType: 'http',
             authType: 'none',
         };
         setFormData((prev) => ({ ...prev, mcpServers: [...prev.mcpServers, newServer] }));
@@ -266,8 +267,29 @@ export const ProjectTab = observer(() => {
                                         </Button>
                                     </div>
 
-                                    {/* Row 2: Auth type + optional token */}
+                                    {/* Row 2: Transport type + Auth type + optional token */}
                                     <div className="flex gap-2 items-center">
+                                        <Select
+                                            value={server.transportType ?? 'http'}
+                                            onValueChange={(v) =>
+                                                updateMcpServer(server.id, {
+                                                    transportType: v as McpServerConfig['transportType'],
+                                                })
+                                            }
+                                            disabled={isSaving}
+                                        >
+                                            <SelectTrigger
+                                                id={`mcp-transport-${server.id}`}
+                                                className="w-28 shrink-0"
+                                            >
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="http">HTTP</SelectItem>
+                                                <SelectItem value="sse">SSE</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+
                                         <Select
                                             value={server.authType}
                                             onValueChange={(v) =>

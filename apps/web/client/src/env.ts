@@ -9,13 +9,17 @@ export const env = createEnv({
     server: {
         NODE_ENV: z.enum(['development', 'test', 'production']),
         CSB_API_KEY: z.string(),
-        SUPABASE_DATABASE_URL: z.url(),
+        SUPABASE_DATABASE_URL: z.url().refine((val) => !val.startsWith('data:'), {
+            message: 'SUPABASE_DATABASE_URL cannot be a data URI. Please provide an HTTP/HTTPS URL.',
+        }),
         SUPABASE_SERVICE_ROLE_KEY: z.string(),
         RESEND_API_KEY: z.string().optional(),
         FREESTYLE_API_KEY: z.string().optional(),
 
         // Screenshit Express deploy API
-        SCREENSHIT_API_URL: z.string().url().optional(),
+        SCREENSHIT_API_URL: z.string().url().optional().refine((val) => !val || !val.startsWith('data:'), {
+            message: 'SCREENSHIT_API_URL cannot be a data URI. Please provide an HTTP/HTTPS URL.',
+        }),
         SCREENSHIT_API_KEY: z.string().optional(),
 
         // Stripe
@@ -45,7 +49,9 @@ export const env = createEnv({
         // n8n
         N8N_WEBHOOK_URL: z.string().optional(),
         N8N_API_KEY: z.string().optional(),
-        N8N_LANDING_FORM_URL: z.string().url().optional(),
+        N8N_LANDING_FORM_URL: z.string().url().optional().refine((val) => !val || !val.startsWith('data:'), {
+            message: 'N8N_LANDING_FORM_URL cannot be a data URI. Please provide an HTTP/HTTPS URL.',
+        }),
         N8N_LANDING_FORM_HEADER_NAME: z.string().optional(),
         N8N_LANDING_FORM_HEADER_VALUE: z.string().optional(),
 
@@ -58,7 +64,9 @@ export const env = createEnv({
         // Langfuse
         LANGFUSE_SECRET_KEY: z.string().optional(),
         LANGFUSE_PUBLIC_KEY: z.string().optional(),
-        LANGFUSE_BASEURL: z.string().url().optional(),
+        LANGFUSE_BASEURL: z.string().url().optional().refine((val) => !val || !val.startsWith('data:'), {
+            message: 'LANGFUSE_BASEURL cannot be a data URI. Please provide an HTTP/HTTPS URL.',
+        }),
 
         // GitHub
         GITHUB_APP_ID: z.string().optional(),
@@ -76,8 +84,12 @@ export const env = createEnv({
      * `NEXT_PUBLIC_`.
      */
     client: {
-        NEXT_PUBLIC_SITE_URL: z.url().default('http://localhost:3000'),
-        NEXT_PUBLIC_SUPABASE_URL: z.string(),
+        NEXT_PUBLIC_SITE_URL: z.url().default('http://localhost:3000').refine((val) => !val.startsWith('data:'), {
+            message: 'NEXT_PUBLIC_SITE_URL cannot be a data URI. Please provide an HTTP/HTTPS URL.',
+        }),
+        NEXT_PUBLIC_SUPABASE_URL: z.string().refine((val) => !val.startsWith('data:'), {
+            message: 'NEXT_PUBLIC_SUPABASE_URL cannot be a data URI. Please provide an HTTP/HTTPS URL.',
+        }),
         NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string(),
         NEXT_PUBLIC_POSTHOG_KEY: z.string().optional(),
         NEXT_PUBLIC_POSTHOG_HOST: z.string().optional(),
