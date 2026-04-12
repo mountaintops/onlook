@@ -55,7 +55,7 @@ export class SessionManager {
         const RETRY_DELAY_MS = 2000;
         const CONNECTION_TIMEOUT_MS = 60000; // 60 second timeout for total connection attempt
 
-        if (this.isConnecting || this.isReconnecting || this.provider) {
+        if (this.isConnecting || this.provider) {
             return;
         }
 
