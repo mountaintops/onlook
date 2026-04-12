@@ -30,6 +30,8 @@ export class McpClientManager {
                     headers['Authorization'] = `Bearer ${srv.bearerToken}`;
                 }
 
+                console.log(`[MCP] Connecting to ${srv.name} at ${srv.url} with auth: ${srv.authType} (headers: ${Object.keys(headers).join(', ')})`);
+
                 const client = await createMCPClient({
                     transport: {
                         type: srv.transportType ?? 'http',
