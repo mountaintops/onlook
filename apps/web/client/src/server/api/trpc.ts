@@ -10,6 +10,7 @@
 import { createAdminClient } from '@/utils/supabase/admin';
 import { createClient } from '@/utils/supabase/server';
 import { db } from '@onlook/db/src/client';
+import { SEED_USER } from '@onlook/db/src/seed/constants';
 import type { User } from '@supabase/supabase-js';
 import { initTRPC, TRPCError } from '@trpc/server';
 import superjson from 'superjson';
@@ -39,17 +40,20 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
         console.warn('[TRPC] Supabase auth error:', error.message);
     }
 
-    // Mock "demo user" if not authenticated
-    const finalUser = user ?? {
-        id: 'demo-user',
-        email: 'demo@onlook.com',
-        app_metadata: {},
-        user_metadata: {
-            full_name: 'Demo User',
-        },
-        aud: 'authenticated',
-        created_at: new Date().toISOString(),
-    } as User;
+    // Authenticate with seed user if not authenticated
+    let finalUser = user;
+    if (!user) {
+        const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
+            email: SEED_USER.EMAIL,
+            password: SEED_USER.PASSWORD,
+        });
+
+        if (signInError) {
+            console.error('[TRPC] Failed to sign in with seed user:', signInError.message);
+        } else {
+            finalUser = authData.user;
+        }
+    }
 
     return {
         db,
