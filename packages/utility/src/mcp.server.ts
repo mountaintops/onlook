@@ -89,72 +89,14 @@ export function loadPermanentMcpServers(): McpServerConfig[] {
 }
 
 /**
- * Automatically discover local MCP servers in development
- * Probes standard ports and checks for local configuration
- */
-async function discoverLocalMcpServers(): Promise<McpServerConfig[]> {
-    const discovered: McpServerConfig[] = [];
-    
-    // Only attempt discovery in local development environments
-    if (process.env.NODE_ENV === 'production' && !process.env.ENABLE_MCP_DISCOVERY) {
-        return [];
-    }
-
-    const discoveryTargets = [
-        {
-            id: 'discovered-local-8787',
-            name: 'Local SightSignals MCP',
-            url: 'http://localhost:8787/sse',
-            transportType: 'sse' as const,
-        }
-    ];
-
-    const probes = discoveryTargets.map(async (target) => {
-        try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 500); // 500ms timeout
-
-            const response = await fetch(target.url, { 
-                method: 'GET', // SSE endpoints often respond to GET for initialization/discovery check
-                signal: controller.signal 
-            });
-            
-            clearTimeout(timeoutId);
-
-            if (response.ok || response.status === 202) {
-                console.log(`[MCP Discovery] Automatically discovered local server at ${target.url}`);
-                return {
-                    ...target,
-                    authType: 'none' as const,
-                };
-            }
-        } catch (e) {
-            // Silent failure for discovery pings
-        }
-        return null;
-    });
-
-    const results = await Promise.all(probes);
-    for (const server of results) {
-        if (server) discovered.push(server);
-    }
-
-    return discovered;
-}
-
-/**
  * Get all MCP servers for a project
  * Combines permanent, global (user), and project-specific servers
  * This is a server-only function
  */
-export async function getProjectMcpServers(
+export function getProjectMcpServers(
     projectServers: McpServerConfig[] = [],
     globalServers: McpServerConfig[] = [],
-): Promise<McpServerConfig[]> {
+): McpServerConfig[] {
     const permanentServers = loadPermanentMcpServers();
-    const discoveredServers = await discoverLocalMcpServers();
-    
-    // Discovered servers are treated like permanent servers but can be overridden by user/project settings
-    const baseServers = combineMcpServers(permanentServers, discoveredServers, []);
-    return combineMcpServers(baseServers, globalServers, projectServers);
+    return combineMcpServers(permanentServers, globalServers, projectServers);
 }

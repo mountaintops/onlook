@@ -59,6 +59,9 @@ export function useChat({ conversationId, projectId, initialMessages }: UseChatP
                     get chatType() {
                         return editorEngine.state.chatMode;
                     },
+                    get previewUrl() {
+                        return editorEngine.activeSandbox?.session.signedPreviewUrl;
+                    },
                 },
             }),
             onToolCall: async ({ toolCall }) => {
@@ -137,6 +140,7 @@ export function useChat({ conversationId, projectId, initialMessages }: UseChatP
                     context: messageContext,
                     projectId,
                     chatModel: editorEngine.state.chatModel,
+                    previewUrl: editorEngine.activeSandbox?.session.signedPreviewUrl,
                 },
             });
             void editorEngine.chat.conversation.generateTitle(content);
@@ -223,6 +227,7 @@ export function useChat({ conversationId, projectId, initialMessages }: UseChatP
                     conversationId,
                     projectId,
                     chatModel: editorEngine.state.chatModel,
+                    previewUrl: editorEngine.activeSandbox?.session.signedPreviewUrl,
                 },
             });
 

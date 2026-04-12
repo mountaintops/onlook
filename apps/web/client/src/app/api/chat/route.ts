@@ -111,12 +111,13 @@ export async function POST(req: NextRequest) {
 }
 
 export const streamResponse = async (req: NextRequest, userId: string, body: any) => {
-    const { messages, chatType, conversationId, projectId, chatModel } = body as {
+    const { messages, chatType, conversationId, projectId, chatModel, previewUrl } = body as {
         messages: ChatMessage[],
         chatType: ChatType,
         conversationId: string,
         projectId: string,
         chatModel?: any,
+        previewUrl?: string,
     };
 
     let usageRecord: {
@@ -161,7 +162,7 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
             // 1. Permanent (site-wide, from JSON config)
             // 2. Global (per user, from user settings)
             // 3. Project-specific (per project, from project settings)
-            const mcpServers = await getProjectMcpServers(
+            const mcpServers = getProjectMcpServers(
                 projectSettingsData?.mcpServers ?? [],
                 userData?.mcpServers ?? [],
             );
@@ -175,6 +176,7 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
                 messages,
                 chatModel,
                 mcpServers,
+                previewUrl,
                 updateMcpServer: async (serverId, patch) => {
                     const currentData = await api.settings.get({ projectId });
                     const servers = currentData?.mcpServers ?? [];
