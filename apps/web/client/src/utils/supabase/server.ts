@@ -33,6 +33,9 @@ export async function createClient() {
                     }
                 },
             },
+            global: {
+                fetch: fetchWithRetry,
+            },
         },
     );
 }

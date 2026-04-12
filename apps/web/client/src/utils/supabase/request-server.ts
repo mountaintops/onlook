@@ -15,6 +15,9 @@ export async function createClient(request: NextRequest) {
                     return request.cookies.getAll();
                 },
             },
+            global: {
+                fetch: fetchWithRetry,
+            },
         },
     );
 }

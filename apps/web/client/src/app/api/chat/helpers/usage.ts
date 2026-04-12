@@ -38,8 +38,12 @@ export const checkMessageLimit = async (req: NextRequest): Promise<{
 
 export const getSupabaseUser = async (request: NextRequest) => {
     const supabase = await createSupabaseClient(request);
-    const { data: { user } } = await supabase.auth.getUser();
-    return user;
+    const { data, error } = await supabase.auth.getUser();
+    if (error) {
+        console.error('Error fetching Supabase user in chat helper', error);
+        return null;
+    }
+    return data?.user ?? null;
 }
 
 export const incrementUsage = async (req: NextRequest, traceId?: string): Promise<{

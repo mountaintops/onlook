@@ -12,10 +12,8 @@ import { createQueryClient } from './query-client';
 
 export const createTRPCContext = async (req: NextRequest, opts: { headers: Headers }) => {
     const supabase = await createSupabaseClient(req);
-    const {
-        data: { user },
-        error,
-    } = await supabase.auth.getUser();
+    const { data, error } = await supabase.auth.getUser();
+    const user = data?.user ?? null;
 
     if (error) {
         throw new TRPCError({ code: 'UNAUTHORIZED', message: error.message });
