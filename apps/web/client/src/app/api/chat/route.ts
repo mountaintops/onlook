@@ -161,7 +161,7 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
             // 1. Permanent (site-wide, from JSON config)
             // 2. Global (per user, from user settings)
             // 3. Project-specific (per project, from project settings)
-            const mcpServers = getProjectMcpServers(
+            const mcpServers = await getProjectMcpServers(
                 projectSettingsData?.mcpServers ?? [],
                 userData?.mcpServers ?? [],
             );
