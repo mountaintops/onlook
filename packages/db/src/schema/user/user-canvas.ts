@@ -1,6 +1,7 @@
 import { relations } from 'drizzle-orm';
 import { numeric, pgTable, primaryKey, uuid } from 'drizzle-orm/pg-core';
 import { createInsertSchema, createUpdateSchema } from 'drizzle-zod';
+import { z } from 'zod';
 import { canvases } from '../../schema';
 import { users } from './user';
 
@@ -20,8 +21,16 @@ export const userCanvases = pgTable(
     (table) => [primaryKey({ columns: [table.userId, table.canvasId] })],
 ).enableRLS();
 
-export const userCanvasInsertSchema = createInsertSchema(userCanvases);
-export const userCanvasUpdateSchema = createUpdateSchema(userCanvases);
+export const userCanvasInsertSchema = createInsertSchema(userCanvases, {
+    scale: z.coerce.string(),
+    x: z.coerce.string(),
+    y: z.coerce.string(),
+});
+export const userCanvasUpdateSchema = createUpdateSchema(userCanvases, {
+    scale: z.coerce.string(),
+    x: z.coerce.string(),
+    y: z.coerce.string(),
+});
 
 export type UserCanvas = typeof userCanvases.$inferSelect;
 export type NewUserCanvas = typeof userCanvases.$inferInsert;

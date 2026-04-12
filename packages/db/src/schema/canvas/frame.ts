@@ -26,9 +26,18 @@ export const frames = pgTable("frames", {
     theme: text("theme"),
 }).enableRLS();
 
-export const frameInsertSchema = createInsertSchema(frames);
+export const frameInsertSchema = createInsertSchema(frames, {
+    x: z.coerce.string(),
+    y: z.coerce.string(),
+    width: z.coerce.string(),
+    height: z.coerce.string(),
+});
 export const frameUpdateSchema = createUpdateSchema(frames, {
     id: z.uuid(),
+    x: z.coerce.string(),
+    y: z.coerce.string(),
+    width: z.coerce.string(),
+    height: z.coerce.string(),
 });
 
 export type Frame = typeof frames.$inferSelect;
