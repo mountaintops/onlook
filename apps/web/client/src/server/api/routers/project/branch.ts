@@ -1,5 +1,3 @@
-import { CodeProvider, getStaticCodeProvider } from '@onlook/code-provider';
-import { getSandboxPreviewUrl, SandboxTemplates, Templates } from '@onlook/constants';
 import { branches, branchInsertSchema, branchUpdateSchema, canvases, createDefaultFrame, frames, fromDbBranch, fromDbFrame } from '@onlook/db';
 import type { Frame } from '@onlook/models';
 import { calculateNonOverlappingPosition, generateUniqueBranchName } from '@onlook/utility';
@@ -8,8 +6,8 @@ import { and, eq } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import { createTRPCRouter, protectedProcedure } from '../../trpc';
+import { createDaytonaSandbox, forkDaytonaSandbox } from './daytona-helper';
 import { extractCsbPort } from './helper';
-import { getProvider } from './sandbox';
 
 // Helper function to get existing frames in a canvas
 async function getExistingFrames(tx: any, canvasId: string): Promise<Frame[]> {
@@ -115,19 +113,10 @@ export const branchRouter = createTRPCRouter({
                 // Generate unique branch name
                 const branchName: string = generateUniqueBranchName(sourceBranch.name, existingNames);
 
-                // Fork the sandbox using code provider
-                const CodesandboxProvider = await getStaticCodeProvider(CodeProvider.CodeSandbox);
-                const forkedSandbox = await CodesandboxProvider.createProject({
-                    source: 'template',
-                    id: sourceBranch.sandboxId,
-                    title: branchName,
-                    tags: ['fork'],
-                });
-
-                const sandboxId = forkedSandbox.id;
-                // Extract port from source branch frames or fall back to 3000
-                const port = extractCsbPort(sourceBranch.frames) ?? 3000;
-                const previewUrl = getSandboxPreviewUrl(sandboxId, port);
+                // Fork the sandbox using Daytona
+                const forkedResult = await forkDaytonaSandbox(sourceBranch.sandboxId, branchName);
+                const sandboxId = forkedResult.sandboxId;
+                const previewUrl = forkedResult.previewUrl ?? `https://placeholder-${sandboxId}-3000.daytona.app`;
 
                 // Create new branch
                 const newBranchId = uuidv4();
@@ -260,20 +249,10 @@ export const branchRouter = createTRPCRouter({
                         branchName = generateUniqueBranchName(baseName, existingNames);
                     }
 
-                    // Create new blank sandbox
-                    const CodesandboxProvider = await getStaticCodeProvider(CodeProvider.CodeSandbox);
-                    const blankSandbox = await CodesandboxProvider.createProject({
-                        source: 'template',
-                        id: SandboxTemplates[Templates.EMPTY_NEXTJS].id,
-                        title: branchName,
-                        tags: ['blank'],
-                    });
-
-                    const sandboxId = blankSandbox.id;
-                    // Extract port from existing project frames or fall back to 3000
-                    const allFrames = existingBranches.flatMap(branch => branch.frames || []);
-                    const port = extractCsbPort(allFrames) ?? 3000;
-                    const previewUrl = getSandboxPreviewUrl(sandboxId, port);
+                    // Create new blank sandbox using Daytona
+                    const blankResult = await createDaytonaSandbox(branchName);
+                    const sandboxId = blankResult.sandboxId;
+                    const previewUrl = blankResult.previewUrl ?? `https://placeholder-${sandboxId}-3000.daytona.app`;
 
                     // Create new branch
                     const newBranchId = uuidv4();

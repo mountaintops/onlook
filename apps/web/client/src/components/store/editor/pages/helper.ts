@@ -76,8 +76,8 @@ export const doesRouteExist = (nodes: PageNode[], route: string): boolean => {
 };
 
 const IGNORED_DIRECTORIES = ['api', 'components', 'lib', 'utils', 'node_modules'];
-const APP_ROUTER_PATHS = ['src/app', 'app'];
-const PAGES_ROUTER_PATHS = ['src/pages', 'pages'];
+const APP_ROUTER_PATHS = ['src/app', 'app', '/tmp/nextapp/src/app', '/tmp/nextapp/app'];
+const PAGES_ROUTER_PATHS = ['src/pages', 'pages', '/tmp/nextapp/src/pages', '/tmp/nextapp/pages'];
 const ALLOWED_EXTENSIONS = ['.tsx', '.ts', '.jsx', '.js'];
 const ROOT_PAGE_NAME = 'Home';
 const ROOT_PATH_IDENTIFIERS = ['', '/', '.'];
@@ -451,15 +451,22 @@ export const detectRouterConfig = async (
 
     // 2. Fallback: Search for the directories if not found at root (monorepo support)
     try {
-        const result = await provider.runCommand({ args: { command: 'find . -maxdepth 4 -name "page.tsx" -o -name "layout.tsx" -o -name "index.tsx" | grep -v "node_modules"' } });
-        if (result.output) {
-            const paths = result.output.split('\n').filter(Boolean);
-            
+        // First try searching from current directory
+        let result = await provider.runCommand({ args: { command: 'find . -maxdepth 4 -name "page.tsx" -o -name "layout.tsx" -o -name "index.tsx" | grep -v "node_modules"' } });
+        let paths = result.output ? result.output.split('\n').filter(Boolean) : [];
+
+        // If nothing found, try searching from /tmp/nextapp (Daytona workdir)
+        if (paths.length === 0) {
+            result = await provider.runCommand({ args: { command: 'find /tmp/nextapp -maxdepth 4 -name "page.tsx" -o -name "layout.tsx" -o -name "index.tsx" | grep -v "node_modules"' } });
+            paths = result.output ? result.output.split('\n').filter(Boolean) : [];
+        }
+
+        if (paths.length > 0) {
             // Look for App Router structures
             for (const p of paths) {
                 if (p.endsWith('layout.tsx') || p.endsWith('page.tsx')) {
                     const dir = getDirName(p);
-                    if (dir.endsWith('/app') || dir === 'app' || dir.endsWith('/src/app') || dir === 'src/app') {
+                    if (dir.endsWith('/app') || dir === 'app' || dir.endsWith('/src/app') || dir === 'src/app' || dir.endsWith('/tmp/nextapp/app') || dir === '/tmp/nextapp/app' || dir.endsWith('/tmp/nextapp/src/app') || dir === '/tmp/nextapp/src/app') {
                         if (await isAppRouterDir(provider, dir)) {
                             return { type: RouterType.APP, basePath: dir };
                         }
@@ -471,7 +478,7 @@ export const detectRouterConfig = async (
             for (const p of paths) {
                 if (p.endsWith('index.tsx')) {
                     const dir = getDirName(p);
-                    if (dir.endsWith('/pages') || dir === 'pages' || dir.endsWith('/src/pages') || dir === 'src/pages') {
+                    if (dir.endsWith('/pages') || dir === 'pages' || dir.endsWith('/src/pages') || dir === 'src/pages' || dir.endsWith('/tmp/nextapp/pages') || dir === '/tmp/nextapp/pages' || dir.endsWith('/tmp/nextapp/src/pages') || dir === '/tmp/nextapp/src/pages') {
                         if (await isPagesRouterDir(provider, dir)) {
                             return { type: RouterType.PAGES, basePath: dir };
                         }

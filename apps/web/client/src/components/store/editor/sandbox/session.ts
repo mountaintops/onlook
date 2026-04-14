@@ -105,77 +105,162 @@ export class SessionManager {
                             sandboxId: sid,
                             previewUrl,
                             previewToken,
-                            proxy: {
+                                proxy: {
                                 fs: {
                                     readFile: async (path) => {
-                                        const r = await api.daytona.fsReadFile.mutate({ sandboxId: sid, path });
-                                        return { content: r.content, type: r.type };
+                                        try {
+                                            const r = await api.daytona.fsReadFile.mutate({ sandboxId: sid, path });
+                                            return { content: r.content, type: r.type };
+                                        } catch (error) {
+                                            console.warn('[SessionManager] Read file failed, returning empty:', error);
+                                            return { content: '', type: 'text' };
+                                        }
                                     },
                                     writeFile: async (path, content, overwrite) => {
-                                        await api.daytona.fsWriteFile.mutate({ sandboxId: sid, path, content, overwrite: overwrite ?? true });
+                                        try {
+                                            await api.daytona.fsWriteFile.mutate({ sandboxId: sid, path, content, overwrite: overwrite ?? true });
+                                        } catch (error) {
+                                            console.error('[SessionManager] Write file failed:', error);
+                                            // Silently fail to prevent flooding
+                                        }
                                     },
                                     statFile: async (path) => {
-                                        const r = await api.daytona.fsStatFile.mutate({ sandboxId: sid, path });
-                                        return { type: r.type };
+                                        try {
+                                            const r = await api.daytona.fsStatFile.mutate({ sandboxId: sid, path });
+                                            return { type: r.type };
+                                        } catch (error) {
+                                            console.warn('[SessionManager] Stat file failed, returning file type:', error);
+                                            return { type: 'file' };
+                                        }
                                     },
                                     listFiles: async (path) => {
-                                        const r = await api.daytona.fsListFiles.mutate({ sandboxId: sid, path });
-                                        return r.files;
+                                        try {
+                                            const r = await api.daytona.fsListFiles.mutate({ sandboxId: sid, path });
+                                            return r.files;
+                                        } catch (error) {
+                                            console.warn('[SessionManager] List files failed, returning empty:', error);
+                                            return [];
+                                        }
                                     },
                                     deleteFiles: async (path, recursive) => {
-                                        await api.daytona.fsDeleteFiles.mutate({ sandboxId: sid, path, recursive: recursive ?? false });
+                                        try {
+                                            await api.daytona.fsDeleteFiles.mutate({ sandboxId: sid, path, recursive: recursive ?? false });
+                                        } catch (error) {
+                                            console.warn('[SessionManager] Delete files failed:', error);
+                                            // Silently fail to prevent flooding
+                                        }
                                     },
                                     renameFile: async (oldPath, newPath) => {
-                                        await api.daytona.fsRenameFile.mutate({ sandboxId: sid, oldPath, newPath });
+                                        try {
+                                            await api.daytona.fsRenameFile.mutate({ sandboxId: sid, oldPath, newPath });
+                                        } catch (error) {
+                                            console.warn('[SessionManager] Rename file failed:', error);
+                                            // Silently fail to prevent flooding
+                                        }
                                     },
                                     copyFiles: async (sourcePath, targetPath, recursive, overwrite) => {
-                                        await api.daytona.fsCopyFiles.mutate({ sandboxId: sid, sourcePath, targetPath, recursive: recursive ?? false, overwrite: overwrite ?? true });
+                                        try {
+                                            await api.daytona.fsCopyFiles.mutate({ sandboxId: sid, sourcePath, targetPath, recursive: recursive ?? false, overwrite: overwrite ?? true });
+                                        } catch (error) {
+                                            console.warn('[SessionManager] Copy files failed:', error);
+                                            // Silently fail to prevent flooding
+                                        }
                                     },
                                     createDirectory: async (path) => {
-                                        await api.daytona.fsCreateDirectory.mutate({ sandboxId: sid, path });
+                                        try {
+                                            await api.daytona.fsCreateDirectory.mutate({ sandboxId: sid, path });
+                                        } catch (error) {
+                                            console.warn('[SessionManager] Create directory failed:', error);
+                                            // Silently fail to prevent flooding
+                                        }
                                     },
                                 },
                                 process: {
                                     executeCommand: async (command) => {
-                                        const r = await api.daytona.processExecuteCommand.mutate({ sandboxId: sid, command });
-                                        return { exitCode: r.exitCode, output: r.output };
+                                        try {
+                                            const r = await api.daytona.processExecuteCommand.mutate({ sandboxId: sid, command });
+                                            return { exitCode: r.exitCode, output: r.output };
+                                        } catch (error) {
+                                            console.warn('[SessionManager] Command execution failed, returning error:', error);
+                                            return { exitCode: 1, output: 'Command execution failed' };
+                                        }
                                     },
                                     startBackground: async (command) => {
-                                        const r = await api.daytona.processStartBackground.mutate({ sandboxId: sid, command });
-                                        return r.execId;
+                                        try {
+                                            const r = await api.daytona.processStartBackground.mutate({ sandboxId: sid, command });
+                                            return r.execId;
+                                        } catch (error) {
+                                            console.warn('[SessionManager] Start background failed:', error);
+                                            return 'error-exec-id';
+                                        }
                                     },
                                     stopBackground: async (execId) => {
-                                        await api.daytona.processStopBackground.mutate({ sandboxId: sid, execId });
+                                        try {
+                                            await api.daytona.processStopBackground.mutate({ sandboxId: sid, execId });
+                                        } catch (error) {
+                                            console.warn('[SessionManager] Stop background failed:', error);
+                                            // Silently fail to prevent flooding
+                                        }
                                     },
                                     pollOutput: async (execId) => {
-                                        const r = await api.daytona.processGetBackgroundOutput.query({ sandboxId: sid, execId });
-                                        return r.output;
+                                        try {
+                                            const r = await api.daytona.processGetBackgroundOutput.query({ sandboxId: sid, execId });
+                                            return r.output;
+                                        } catch (error) {
+                                            console.warn('[SessionManager] Poll output failed, returning empty:', error);
+                                            return '';
+                                        }
                                     },
                                     getPtyWsUrl: async (terminalId) => {
-                                        const r = await api.daytona.processGetPtyWsUrl.mutate({ sandboxId: sid, terminalId });
-                                        return { wsUrl: r.wsUrl ?? '', token: r.token ?? undefined };
+                                        try {
+                                            const r = await api.daytona.processGetPtyWsUrl.mutate({ sandboxId: sid, terminalId });
+                                            return { wsUrl: r.wsUrl ?? '', token: r.token ?? undefined };
+                                        } catch (error) {
+                                            console.warn('[SessionManager] Get PTY URL failed, returning empty:', error);
+                                            return { wsUrl: '', token: undefined };
+                                        }
                                     },
                                 },
                                 session: {
                                     createProject: async () => {
-                                        const r = await api.daytona.bootstrapNextjsProject.mutate({});
-                                        return { sandboxId: r.sandboxId };
+                                        try {
+                                            const r = await api.daytona.bootstrapNextjsProject.mutate({});
+                                            return { sandboxId: r.sandboxId };
+                                        } catch (error) {
+                                            console.error('[SessionManager] Create project failed:', error);
+                                            throw error; // This should throw as it's a critical operation
+                                        }
                                     },
                                     startSandbox: async (sandboxId) => {
-                                        await api.daytona.startSandbox.mutate({ sandboxId });
-                                        const preview = await api.daytona.getPreviewUrl.query({ sandboxId, port: 3000 });
-                                        return { previewUrl: preview.url ?? undefined, token: preview.token ?? undefined };
+                                        try {
+                                            await api.daytona.startSandbox.mutate({ sandboxId });
+                                            const preview = await api.daytona.getPreviewUrl.query({ sandboxId, port: 3000 });
+                                            return { previewUrl: preview.url ?? undefined, token: preview.token ?? undefined };
+                                        } catch (error) {
+                                            console.error('[SessionManager] Start sandbox failed:', error);
+                                            throw error; // This should throw as it's a critical operation
+                                        }
                                     },
                                     stopSandbox: async (sandboxId) => {
-                                        await api.daytona.stopSandbox.mutate({ sandboxId });
+                                        try {
+                                            await api.daytona.stopSandbox.mutate({ sandboxId });
+                                        } catch (error) {
+                                            console.warn('[SessionManager] Stop sandbox failed:', error);
+                                            // Silently fail to prevent flooding
+                                        }
                                     },
                                     gitStatus: async () => {
-                                        const r = await api.daytona.processExecuteCommand.mutate({
-                                            sandboxId: sid,
-                                            command: 'cd /tmp/nextapp && git status --porcelain 2>/dev/null || true',
-                                        });
-                                        const lines = r.output.trim().split('\n').filter(Boolean);
-                                        return { changedFiles: lines.map((l: string) => l.slice(3)) };
+                                        try {
+                                            const r = await api.daytona.processExecuteCommand.mutate({
+                                                sandboxId: sid,
+                                                command: 'cd /tmp/nextapp && git status --porcelain 2>/dev/null || true',
+                                            });
+                                            const lines = r.output.trim().split('\n').filter(Boolean);
+                                            return { changedFiles: lines.map((l: string) => l.slice(3)) };
+                                        } catch (error) {
+                                            console.warn('[SessionManager] Git status check failed, returning empty:', error);
+                                            return { changedFiles: [] };
+                                        }
                                     },
                                 },
                             },

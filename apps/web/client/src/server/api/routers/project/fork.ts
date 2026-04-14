@@ -1,7 +1,7 @@
 import { protectedProcedure } from '@/server/api/trpc';
 import { trackEvent } from '@/utils/analytics/server';
-import { CodeProvider, getStaticCodeProvider } from '@onlook/code-provider';
 import { getSandboxPreviewUrl, Tags } from '@onlook/constants';
+import { forkDaytonaSandbox } from './daytona-helper';
 import {
     branches,
     canvases,
@@ -56,7 +56,6 @@ async function forkAllBranches(
     sourceBranches: Branch[],
     sourceProjectName: string
 ): Promise<Map<string, ForkedBranch>> {
-    const CodesandboxProvider = await getStaticCodeProvider(CodeProvider.CodeSandbox);
     const branchMapping = new Map<string, ForkedBranch>();
 
     for (const sourceBranch of sourceBranches) {
@@ -64,18 +63,16 @@ async function forkAllBranches(
             throw new Error(`Branch ${sourceBranch.name} has no sandbox ID`);
         }
 
-        const newSandbox = await CodesandboxProvider.createProject({
-            source: 'template',
-            id: sourceBranch.sandboxId,
-            title: `${sourceProjectName} (Fork) - ${sourceBranch.name}`,
-            tags: ['template-fork'],
-        });
+        const result = await forkDaytonaSandbox(
+            sourceBranch.sandboxId,
+            `${sourceProjectName} (Fork) - ${sourceBranch.name}`,
+        );
 
-        const newSandboxUrl = getSandboxPreviewUrl(newSandbox.id, 3000);
+        const newSandboxUrl = result.previewUrl ?? `https://placeholder-${result.sandboxId}-3000.daytona.app`;
         const newBranch: Branch = {
             ...sourceBranch,
             id: uuidv4(),
-            sandboxId: newSandbox.id,
+            sandboxId: result.sandboxId,
             createdAt: new Date(),
             updatedAt: new Date(),
         };

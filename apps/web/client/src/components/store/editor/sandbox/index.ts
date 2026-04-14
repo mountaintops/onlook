@@ -98,19 +98,23 @@ export class SandboxManager {
             this.preloadScriptState = PreloadScriptState.LOADING
 
             if (!this.session.provider) {
-                throw new Error('No provider available for preload script injection');
+                console.warn('[SandboxManager] No provider available for preload script injection');
+                this.preloadScriptState = PreloadScriptState.NOT_INJECTED
+                return;
             }
 
             const routerConfig = await this.getRouterConfig();
             if (!routerConfig) {
-                throw new Error('No router config found for preload script injection');
+                console.warn('[SandboxManager] No router config found for preload script injection');
+                this.preloadScriptState = PreloadScriptState.NOT_INJECTED
+                return;
             }
 
             await copyPreloadScriptToPublic(this.session.provider, routerConfig);
             this.preloadScriptState = PreloadScriptState.INJECTED
         } catch (error) {
             console.error('[SandboxManager] Failed to ensure preload script exists:', error);
-            // Mark as injected to prevent blocking frames indefinitely
+            // Mark as not injected to prevent blocking frames indefinitely
             // Frames will handle the missing preload script gracefully
             this.preloadScriptState = PreloadScriptState.NOT_INJECTED
         }
