@@ -298,6 +298,45 @@ export default function DaytonaTestPage() {
         }
     }, [bootstrapMutation.isPending, bootstrapStep]);
 
+    // Automatic teardown when leaving the dashboard
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'hidden' && selectedSandboxId) {
+                // Send a beacon to archive the sandbox in the background
+                try {
+                    const blob = new Blob([JSON.stringify({ sandboxId: selectedSandboxId })], {
+                        type: 'application/json',
+                    });
+                    navigator.sendBeacon('/api/daytona/teardown', blob);
+                } catch (e) {
+                    console.error('Failed to send teardown beacon', e);
+                }
+            }
+        };
+
+        const handleUnload = () => {
+            if (selectedSandboxId) {
+                try {
+                    const blob = new Blob([JSON.stringify({ sandboxId: selectedSandboxId })], {
+                        type: 'application/json',
+                    });
+                    navigator.sendBeacon('/api/daytona/teardown', blob);
+                } catch (e) {
+                    // Ignore unload errors
+                }
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('beforeunload', handleUnload);
+
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('beforeunload', handleUnload);
+        };
+    }, [selectedSandboxId]);
+
+
     function getStepStatus(stepKey: BootstrapStep): 'done' | 'active' | 'pending' | 'error' {
         if (bootstrapStep === 'error') {
             const errorAt = ['creating-sandbox', 'uploading-files', 'installing-deps', 'starting-server'];
