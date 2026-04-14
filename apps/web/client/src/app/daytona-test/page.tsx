@@ -29,6 +29,8 @@ interface SandboxItem {
     memory?: number | null;
     disk?: number | null;
     labels?: Record<string, string>;
+    autoStopInterval?: number | null;
+    autoArchiveInterval?: number | null;
 }
 
 interface LogEntry {
@@ -57,6 +59,7 @@ const BOOTSTRAP_STEPS: { key: BootstrapStep; label: string; desc: string }[] = [
 export default function DaytonaTestPage() {
     const [language, setLanguage] = useState<Language>('typescript');
     const [autoStop, setAutoStop] = useState(10);
+    const [autoArchive, setAutoArchive] = useState(20);
     const [selectedSandboxId, setSelectedSandboxId] = useState('');
     const [command, setCommand] = useState('echo "Hello from Daytona!"');
     const [code, setCode] = useState(
@@ -186,6 +189,14 @@ export default function DaytonaTestPage() {
         onError: (err) => addLog('error', `❌ Recover failed: ${err.message}`),
     });
 
+    const setAutoArchiveInterval = api.daytona.setAutoArchiveInterval.useMutation({
+        onSuccess: (data) => {
+            addLog('success', `⏰ Sandbox ${data.sandboxId.slice(0, 12)} auto-archive set to ${data.interval} min.`);
+            void listQuery.refetch();
+        },
+        onError: (err) => addLog('error', `❌ Failed to set auto-archive: ${err.message}`),
+    });
+
     // ── Snapshot state ────────────────────────────────────────────────────
     const [snapshotName, setSnapshotName] = useState('');
     const [snapshotImage, setSnapshotImage] = useState('node:20-slim');
@@ -251,7 +262,7 @@ export default function DaytonaTestPage() {
         setPreviewToken(null);
         setBootstrapStep('creating-sandbox');
         addLog('info', '🚀 Bootstrapping Next.js project in Daytona…');
-        bootstrapMutation.mutate({ sandboxId: existingSandboxId });
+        bootstrapMutation.mutate({ sandboxId: existingSandboxId, autoStopInterval: autoStop, autoArchiveInterval: autoArchive });
     }
 
     // When bootstrap mutation is running step 2 (uploading), update visual step
@@ -362,6 +373,22 @@ export default function DaytonaTestPage() {
                                             className={styles.input}
                                             disabled={isBootstrapping}
                                         />
+                                    </div>
+
+                                    <div className={styles.formGrid}>
+                                        <div className={styles.field}>
+                                            <label className={styles.label}>Auto-stop: <strong className={styles.accentText}>{autoStop} min</strong></label>
+                                            <input type="range" min={1} max={120} value={autoStop} onChange={(e) => {
+                                                const val = Number(e.target.value);
+                                                setAutoStop(val);
+                                                if (autoArchive <= val) setAutoArchive(val + 10);
+                                            }} className={styles.range} />
+                                        </div>
+                                        <div className={styles.field}>
+                                            <label className={styles.label}>Auto-archive: <strong className={styles.accentText}>{autoArchive} min</strong></label>
+                                            <input type="range" min={0} max={240} value={autoArchive} onChange={(e) => setAutoArchive(Number(e.target.value))} className={styles.range} />
+                                            <span style={{ fontSize: '0.65rem', color: '#475569' }}>Set to 0 for platform default (7d)</span>
+                                        </div>
                                     </div>
 
                                     <button
@@ -496,11 +523,20 @@ export default function DaytonaTestPage() {
                                 </div>
                                 <div className={styles.field}>
                                     <label className={styles.label}>Auto-stop: <strong className={styles.accentText}>{autoStop} min</strong></label>
-                                    <input id="auto-stop-range" type="range" min={1} max={120} value={autoStop} onChange={(e) => setAutoStop(Number(e.target.value))} className={styles.range} />
+                                    <input id="auto-stop-range" type="range" min={1} max={120} value={autoStop} onChange={(e) => {
+                                        const val = Number(e.target.value);
+                                        setAutoStop(val);
+                                        if (autoArchive <= val) setAutoArchive(val + 10);
+                                    }} className={styles.range} />
+                                </div>
+                                <div className={styles.field}>
+                                    <label className={styles.label}>Auto-archive: <strong className={styles.accentText}>{autoArchive} min</strong></label>
+                                    <input id="auto-archive-range" type="range" min={0} max={240} value={autoArchive} onChange={(e) => setAutoArchive(Number(e.target.value))} className={styles.range} />
+                                    <span style={{ fontSize: '0.65rem', color: '#475569' }}>Set to 0 for platform default (7d)</span>
                                 </div>
                             </div>
 
-                            <button id="btn-create-sandbox" className={styles.btnPrimary} disabled={createSandbox.isPending} onClick={() => createSandbox.mutate({ language, autoStopInterval: autoStop })}>
+                            <button id="btn-create-sandbox" className={styles.btnPrimary} disabled={createSandbox.isPending} onClick={() => createSandbox.mutate({ language, autoStopInterval: autoStop, autoArchiveInterval: autoArchive })}>
                                 {createSandbox.isPending ? <><span className={styles.spinner} /> Provisioning…</> : '+ Create Sandbox'}
                             </button>
                         </div>
@@ -544,6 +580,8 @@ export default function DaytonaTestPage() {
                                                 {sb.memory != null && <span className={styles.sbChip}>{sb.memory} GB RAM</span>}
                                                 {sb.disk != null && <span className={styles.sbChip}>{sb.disk} GB Disk</span>}
                                                 {sb.snapshot && <span className={styles.sbChip}>{sb.snapshot}</span>}
+                                                <span className={styles.sbChip}>Stop: {sb.autoStopInterval ?? '?'}m</span>
+                                                <span className={styles.sbChip}>Archive: {sb.autoArchiveInterval ?? '?'}m</span>
                                             </div>
                                             <div className={styles.sbActions}>
                                                 <button id={`btn-select-${sb.id}`} className={styles.btnXs} onClick={(e) => { e.stopPropagation(); setSelectedSandboxId(sb.id); setActiveTab('exec'); }}>Select</button>
@@ -577,6 +615,18 @@ export default function DaytonaTestPage() {
                                                         📦 Archive
                                                     </button>
                                                 )}
+                                                <button
+                                                    id={`btn-set-archive-${sb.id}`}
+                                                    className={styles.btnXs}
+                                                    disabled={setAutoArchiveInterval.isPending}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        const val = prompt('Enter auto-archive interval in minutes (0 for default):', String(sb.autoArchiveInterval ?? 20));
+                                                        if (val !== null) setAutoArchiveInterval.mutate({ sandboxId: sb.id, interval: parseInt(val) || 0 });
+                                                    }}
+                                                >
+                                                    ⏰ Interval
+                                                </button>
                                                 <button id={`btn-delete-${sb.id}`} className={`${styles.btnXs} ${styles.btnDanger}`} onClick={(e) => { e.stopPropagation(); if (confirm(`Delete ${sb.id.slice(0, 12)}…?`)) deleteSandbox.mutate({ sandboxId: sb.id }); }}>Delete</button>
                                             </div>
                                         </div>

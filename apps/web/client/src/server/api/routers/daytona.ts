@@ -26,6 +26,7 @@ export const daytonaRouter = createTRPCRouter({
             z.object({
                 language: z.enum(['typescript', 'javascript', 'python']).default('typescript'),
                 autoStopInterval: z.number().min(0).max(240).default(10),
+                autoArchiveInterval: z.number().min(0).max(10080).optional(), // min 0, max 7 days
                 envVars: z.record(z.string(), z.string()).optional(),
             }),
         )
@@ -36,7 +37,7 @@ export const daytonaRouter = createTRPCRouter({
                 const params = {
                     language: input.language,
                     autoStopInterval: input.autoStopInterval,
-                    autoArchiveInterval: input.autoStopInterval + 10,
+                    autoArchiveInterval: input.autoArchiveInterval ?? (input.autoStopInterval + 10),
                     autoDeleteInterval: 0,
                     ephemeral: true, // Auto-delete on stop
                     public: true,
@@ -96,6 +97,8 @@ export const daytonaRouter = createTRPCRouter({
                 memory: (s as any).memory ?? null,
                 disk: (s as any).disk ?? null,
                 labels: (s as any).labels ?? {},
+                autoStopInterval: (s as any).autoStopInterval ?? null,
+                autoArchiveInterval: (s as any).autoArchiveInterval ?? null,
             }));
         } catch (error) {
             throw new TRPCError({
@@ -124,6 +127,8 @@ export const daytonaRouter = createTRPCRouter({
                     cpu: (sandbox as any).cpu ?? null,
                     memory: (sandbox as any).memory ?? null,
                     disk: (sandbox as any).disk ?? null,
+                    autoStopInterval: (sandbox as any).autoStopInterval ?? null,
+                    autoArchiveInterval: (sandbox as any).autoArchiveInterval ?? null,
                 };
             } catch (error) {
                 throw new TRPCError({
@@ -473,6 +478,8 @@ export const daytonaRouter = createTRPCRouter({
             z.object({
                 sandboxId: z.string().optional(), // reuse existing sandbox or create new one
                 workdir: z.string().default('/tmp/nextapp'),
+                autoStopInterval: z.number().default(10),
+                autoArchiveInterval: z.number().optional(),
             }),
         )
         .mutation(async ({ input }) => {
@@ -486,8 +493,8 @@ export const daytonaRouter = createTRPCRouter({
             } else {
                 const params = {
                     language: 'typescript',
-                    autoStopInterval: 10, // Reduced from 30 to 10 to save quota
-                    autoArchiveInterval: 20,
+                    autoStopInterval: input.autoStopInterval,
+                    autoArchiveInterval: input.autoArchiveInterval ?? (input.autoStopInterval + 10),
                     autoDeleteInterval: 0,
                     ephemeral: true, // Auto-delete on stop/timeout
                     public: true,
@@ -590,6 +597,33 @@ export const daytonaRouter = createTRPCRouter({
                 previewUrl: previewInfo?.url ?? null,
                 token: previewInfo?.token ?? null,
             };
+        }),
+
+    /**
+     * Set the auto-archive interval for a sandbox.
+     * After being stopped for `interval` minutes, the sandbox will automatically archive.
+     * Set to 0 for the platform maximum (effectively disabling auto-archive).
+     */
+    setAutoArchiveInterval: publicProcedure
+        .input(
+            z.object({
+                sandboxId: z.string(),
+                interval: z.number().int().min(0).max(10080), // max 7 days
+            }),
+        )
+        .mutation(async ({ input }) => {
+            const client = getDaytonaClient();
+            try {
+                const sandbox = await client.get(input.sandboxId);
+                await sandbox.setAutoArchiveInterval(input.interval);
+                return { success: true, sandboxId: input.sandboxId, interval: input.interval };
+            } catch (error) {
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Failed to set auto-archive interval: ${error instanceof Error ? error.message : String(error)}`,
+                    cause: error,
+                });
+            }
         }),
 });
 
