@@ -67,6 +67,7 @@ export default function DaytonaTestPage() {
     );
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [activeTab, setActiveTab] = useState<ActiveTab>('bootstrap');
+    const [archivedFilter, setArchivedFilter] = useState<'all' | 'active' | 'archived'>('all');
 
     // Bootstrap state
     const [bootstrapStep, setBootstrapStep] = useState<BootstrapStep>('idle');
@@ -263,7 +264,20 @@ export default function DaytonaTestPage() {
     });
 
     const listQuery = api.daytona.listSandboxes.useQuery(undefined, { refetchInterval: 15_000 });
-    const sandboxes: SandboxItem[] = listQuery.data ?? [];
+    const sandboxes: SandboxItem[] = (listQuery.data ?? []).sort((a, b) => {
+        const dateA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+        const dateB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+        return dateB - dateA; // Newest first
+    });
+
+    const archivedSandboxes = sandboxes.filter(s => s.state === 'archived');
+    const activeSandboxes = sandboxes.filter(s => s.state !== 'archived');
+
+    const filteredSandboxes = archivedFilter === 'active'
+        ? activeSandboxes
+        : archivedFilter === 'archived'
+            ? archivedSandboxes
+            : sandboxes;
 
     function startBootstrap(existingSandboxId?: string) {
         setPreviewUrl(null);
@@ -554,8 +568,23 @@ export default function DaytonaTestPage() {
                     {activeTab === 'list' && (
                         <div className={styles.panel}>
                             <div className={styles.panelHeader}>
-                                <h2 className={styles.panelTitle}>Active Sandboxes</h2>
-                                <div style={{ display: 'flex', gap: '8px' }}>
+                                <h2 className={styles.panelTitle}>Sandboxes</h2>
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                    <div className={styles.segmented} style={{ marginRight: '12px' }}>
+                                        {[
+                                            { key: 'all', label: 'All' },
+                                            { key: 'active', label: 'Active' },
+                                            { key: 'archived', label: 'Archived' },
+                                        ].map((f) => (
+                                            <button
+                                                key={f.key}
+                                                className={`${styles.segment} ${archivedFilter === f.key ? styles.segmentActive : ''}`}
+                                                onClick={() => setArchivedFilter(f.key as any)}
+                                            >
+                                                {f.label}
+                                            </button>
+                                        ))}
+                                    </div>
                                     <button
                                         id="btn-cleanup-all"
                                         className={`${styles.btnSecondary} ${styles.btnDanger}`}
@@ -573,11 +602,43 @@ export default function DaytonaTestPage() {
                                     </button>
                                 </div>
                             </div>
-                            {sandboxes.length === 0 ? (
-                                <div className={styles.emptyState}><span className={styles.emptyIcon}>⬡</span><p>No sandboxes found.</p></div>
+
+                            {/* Recently Archived Highlight */}
+                            {archivedFilter === 'all' && archivedSandboxes.length > 0 && (
+                                <div className={styles.archivedHighlight}>
+                                    <div className={styles.subTitle} style={{ color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <span>📦</span> Recently Archived
+                                    </div>
+                                    <div className={styles.sandboxList} style={{ marginBottom: '24px' }}>
+                                        {archivedSandboxes.slice(0, 3).map((sb) => (
+                                            <div key={sb.id} className={`${styles.sandboxCard} ${styles.archivedCard}`} onClick={() => setSelectedSandboxId(sb.id)}>
+                                                <div className={styles.sbTop}>
+                                                    <div className={styles.sbId}><span className={styles.sbIdLabel}>RESUME</span><code className={styles.sbIdValue}>{sb.id.slice(0, 12)}…</code></div>
+                                                    <button
+                                                        className={`${styles.btnXs} ${styles.btnSuccess}`}
+                                                        style={{ padding: '6px 14px' }}
+                                                        onClick={(e) => { e.stopPropagation(); startSandbox.mutate({ sandboxId: sb.id }); }}
+                                                    >
+                                                        🔄 Restore & Run
+                                                    </button>
+                                                </div>
+                                                <div className={styles.sbMeta}>
+                                                    <span className={styles.sbChip}>Last active: {sb.updatedAt ? new Date(sb.updatedAt).toLocaleString() : 'unknown'}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {filteredSandboxes.length === 0 ? (
+                                <div className={styles.emptyState}>
+                                    <span className={styles.emptyIcon}>{archivedFilter === 'archived' ? '📦' : '⬡'}</span>
+                                    <p>{archivedFilter === 'archived' ? 'No archived sandboxes found.' : 'No sandboxes found.'}</p>
+                                </div>
                             ) : (
                                 <div className={styles.sandboxList}>
-                                    {sandboxes.map((sb) => (
+                                    {filteredSandboxes.map((sb) => (
                                         <div key={sb.id} id={`sandbox-${sb.id}`} className={`${styles.sandboxCard} ${selectedSandboxId === sb.id ? styles.sandboxCardSelected : ''}`} onClick={() => setSelectedSandboxId(sb.id)}>
                                             <div className={styles.sbTop}>
                                                 <div className={styles.sbId}><span className={styles.sbIdLabel}>ID</span><code className={styles.sbIdValue}>{sb.id.slice(0, 20)}…</code></div>
