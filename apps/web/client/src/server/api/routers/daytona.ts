@@ -625,6 +625,33 @@ export const daytonaRouter = createTRPCRouter({
                 });
             }
         }),
+
+    /**
+     * Set the auto-stop interval for a sandbox.
+     * After `interval` minutes of inactivity, the sandbox will automatically stop.
+     * Set to 0 for the platform maximum (effectively disabling auto-stop).
+     */
+    setAutoStopInterval: publicProcedure
+        .input(
+            z.object({
+                sandboxId: z.string(),
+                interval: z.number().int().min(0).max(10080), // max 7 days
+            }),
+        )
+        .mutation(async ({ input }) => {
+            const client = getDaytonaClient();
+            try {
+                const sandbox = await client.get(input.sandboxId);
+                await sandbox.setAutoStopInterval(input.interval);
+                return { success: true, sandboxId: input.sandboxId, interval: input.interval };
+            } catch (error) {
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Failed to set auto-stop interval: ${error instanceof Error ? error.message : String(error)}`,
+                    cause: error,
+                });
+            }
+        }),
 });
 
 // ── Next.js starter file templates ───────────────────────────────────────────

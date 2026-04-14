@@ -197,6 +197,14 @@ export default function DaytonaTestPage() {
         onError: (err) => addLog('error', `❌ Failed to set auto-archive: ${err.message}`),
     });
 
+    const setAutoStopInterval = api.daytona.setAutoStopInterval.useMutation({
+        onSuccess: (data) => {
+            addLog('success', `⏰ Sandbox ${data.sandboxId.slice(0, 12)} auto-stop set to ${data.interval} min.`);
+            void listQuery.refetch();
+        },
+        onError: (err) => addLog('error', `❌ Failed to set auto-stop: ${err.message}`),
+    });
+
     // ── Snapshot state ────────────────────────────────────────────────────
     const [snapshotName, setSnapshotName] = useState('');
     const [snapshotImage, setSnapshotImage] = useState('node:20-slim');
@@ -615,6 +623,28 @@ export default function DaytonaTestPage() {
                                                         📦 Archive
                                                     </button>
                                                 )}
+                                                {(sb.state === 'started' || sb.state === 'running') && (
+                                                    <button
+                                                        id={`btn-stop-${sb.id}`}
+                                                        className={styles.btnXs}
+                                                        disabled={stopSandbox.isPending}
+                                                        onClick={(e) => { e.stopPropagation(); stopSandbox.mutate({ sandboxId: sb.id }); }}
+                                                    >
+                                                        ⏹ Stop
+                                                    </button>
+                                                )}
+                                                <button
+                                                    id={`btn-set-stop-${sb.id}`}
+                                                    className={styles.btnXs}
+                                                    disabled={setAutoStopInterval.isPending}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        const val = prompt('Enter auto-stop interval in minutes (0 for default):', String(sb.autoStopInterval ?? 10));
+                                                        if (val !== null) setAutoStopInterval.mutate({ sandboxId: sb.id, interval: parseInt(val) || 0 });
+                                                    }}
+                                                >
+                                                    ⏹ Auto-stop
+                                                </button>
                                                 <button
                                                     id={`btn-set-archive-${sb.id}`}
                                                     className={styles.btnXs}
@@ -625,7 +655,7 @@ export default function DaytonaTestPage() {
                                                         if (val !== null) setAutoArchiveInterval.mutate({ sandboxId: sb.id, interval: parseInt(val) || 0 });
                                                     }}
                                                 >
-                                                    ⏰ Interval
+                                                    📦 Auto-arch
                                                 </button>
                                                 <button id={`btn-delete-${sb.id}`} className={`${styles.btnXs} ${styles.btnDanger}`} onClick={(e) => { e.stopPropagation(); if (confirm(`Delete ${sb.id.slice(0, 12)}…?`)) deleteSandbox.mutate({ sandboxId: sb.id }); }}>Delete</button>
                                             </div>
