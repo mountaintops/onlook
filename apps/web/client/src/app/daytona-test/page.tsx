@@ -176,7 +176,8 @@ export default function DaytonaTestPage() {
 
     const startSandbox = api.daytona.startSandbox.useMutation({
         onSuccess: (data) => {
-            addLog('success', `▶️ Sandbox ${data.sandboxId.slice(0, 12)} started (${data.state}).`);
+            addLog('success', `▶️ Sandbox ${data.sandboxId.slice(0, 12)} started. Booting dev server...`);
+            startServerMutation.mutate({ sandboxId: data.sandboxId });
             void listQuery.refetch();
         },
         onError: (err) => addLog('error', `❌ Start failed: ${err.message}`),

@@ -678,12 +678,12 @@ export const daytonaRouter = createTRPCRouter({
                 15,
             );
 
-            // Poll until the dev server is responding (up to ~60s)
+            // Poll until the dev server is responding (up to ~120s)
             const readyResult = await sandbox.process.executeCommand(
-                `for i in $(seq 1 30); do curl -sf http://localhost:${port} > /dev/null 2>&1 && echo ready && exit 0; sleep 2; done; echo timeout`,
+                `for i in $(seq 1 60); do curl -sf http://localhost:${port} > /dev/null 2>&1 && echo ready && exit 0; sleep 2; done; echo timeout`,
                 undefined,
                 undefined,
-                75,
+                135,
             );
 
             const isReady = (readyResult.result ?? '').trim() === 'ready';
