@@ -27,19 +27,33 @@ async function waitForSandboxState(
     maxWaitSeconds = 60,
 ): Promise<void> {
     const start = Date.now();
+    let lastState = 'unknown';
+
     while (Date.now() - start < maxWaitSeconds * 1000) {
-        const sandbox = await client.get(sandboxId);
-        const currentState = (sandbox as any).state;
-        if (currentState === targetState) {
-            return;
+        try {
+            const sandbox = await client.get(sandboxId);
+            lastState = (sandbox as any).state ?? lastState;
+
+            if (lastState === targetState) {
+                return;
+            }
+            if (lastState === 'error') {
+                throw new Error(`Sandbox ${sandboxId} entered error state while waiting for ${targetState}`);
+            }
+        } catch (error: any) {
+            // If the sandbox is not found (404), it was likely ephemeral and deleted on stop.
+            const errStr = serializeError(error).toLowerCase();
+            if (error?.status === 404 || error?.response?.status === 404 || errStr.includes('not found') || errStr.includes('404')) {
+                throw new Error(`Sandbox was deleted. (This is expected for ephemeral sandboxes upon stopping. Ephemeral sandboxes cannot be archived.)`);
+            }
+            // Otherwise, re-throw
+            throw error;
         }
-        if (currentState === 'error') {
-            throw new Error(`Sandbox ${sandboxId} entered error state while waiting for ${targetState}`);
-        }
+
         await new Promise((resolve) => setTimeout(resolve, 2000));
     }
-    console.warn(`[Daytona] Timeout waiting for sandbox ${sandboxId} to reach state ${targetState} (current: ${(await client.get(sandboxId) as any).state})`);
-    throw new Error(`Timeout waiting for sandbox ${sandboxId} to reach state ${targetState} (current: ${(await client.get(sandboxId) as any).state})`);
+    console.warn(`[Daytona] Timeout waiting for sandbox ${sandboxId} to reach state ${targetState} (current: ${lastState})`);
+    throw new Error(`Timeout waiting for sandbox ${sandboxId} to reach state ${targetState} (current: ${lastState})`);
 }
 
 /**
@@ -62,13 +76,32 @@ function serializeError(error: unknown): string {
             if (response.data && typeof response.data === 'object') {
                 const data = response.data as Record<string, unknown>;
                 if (typeof data.message === 'string') return data.message;
+                if (typeof data.error === 'string') return data.error;
             }
+            if (typeof response.status === 'number' && typeof response.statusText === 'string') {
+                return `HTTP Error ${response.status}: ${response.statusText}`;
+            }
+        }
+        
+        // 2.5 Handle Daytona SDK specific errors or nested error objects
+        if (errObj.body && typeof errObj.body === 'object') {
+            const body = errObj.body as Record<string, unknown>;
+            if (typeof body.message === 'string') return body.message;
         }
         
         // 3. Try to stringify if it has useful content
         try {
-            const json = JSON.stringify(error);
+            // handle Error objects since JSON.stringify(new Error('')) returns '{}'
+            const plainObj = Object.getOwnPropertyNames(error).reduce((a, b) => {
+                a[b] = (error as any)[b];
+                return a;
+            }, {} as any);
+            const json = JSON.stringify(plainObj);
             if (json !== '{}') return json;
+            
+            // if plainObj stringification didn't help, try original error
+            const origJson = JSON.stringify(error);
+            if (origJson !== '{}') return origJson;
         } catch {
             // Ignore stringify failures
         }
