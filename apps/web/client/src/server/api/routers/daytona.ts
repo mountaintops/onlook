@@ -232,6 +232,211 @@ export const daytonaRouter = createTRPCRouter({
     }),
 
     /**
+     * Archive a Daytona sandbox (sandbox must be stopped first).
+     * Moves the entire filesystem state to cost-effective object storage.
+     */
+    archiveSandbox: publicProcedure
+        .input(z.object({ sandboxId: z.string() }))
+        .mutation(async ({ input }) => {
+            const client = getDaytonaClient();
+            try {
+                const sandbox = await client.get(input.sandboxId);
+                // Sandbox must be stopped before archiving
+                const state = (sandbox as any).state ?? '';
+                if (state === 'started' || state === 'starting') {
+                    await sandbox.stop();
+                }
+                await sandbox.archive();
+                return { success: true, sandboxId: input.sandboxId };
+            } catch (error) {
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Failed to archive sandbox: ${error instanceof Error ? error.message : String(error)}`,
+                    cause: error,
+                });
+            }
+        }),
+
+    /**
+     * Start (or unarchive/restore) a Daytona sandbox.
+     * Works for both stopped and archived sandboxes.
+     */
+    startSandbox: publicProcedure
+        .input(z.object({ sandboxId: z.string(), timeout: z.number().default(120) }))
+        .mutation(async ({ input }) => {
+            const client = getDaytonaClient();
+            try {
+                const sandbox = await client.get(input.sandboxId);
+                await sandbox.start(input.timeout);
+                return { success: true, sandboxId: input.sandboxId, state: (sandbox as any).state };
+            } catch (error) {
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Failed to start sandbox: ${error instanceof Error ? error.message : String(error)}`,
+                    cause: error,
+                });
+            }
+        }),
+
+    /**
+     * Recover a Daytona sandbox from a recoverable error state.
+     */
+    recoverSandbox: publicProcedure
+        .input(z.object({ sandboxId: z.string() }))
+        .mutation(async ({ input }) => {
+            const client = getDaytonaClient();
+            try {
+                const sandbox = await client.get(input.sandboxId);
+                await sandbox.recover(120);
+                return { success: true, sandboxId: input.sandboxId };
+            } catch (error) {
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Failed to recover sandbox: ${error instanceof Error ? error.message : String(error)}`,
+                    cause: error,
+                });
+            }
+        }),
+
+    /**
+     * List all snapshots in the account (paginated).
+     */
+    listSnapshots: publicProcedure.query(async () => {
+        const client = getDaytonaClient();
+        try {
+            const result = await client.snapshot.list(1, 50);
+            return result.items.map((s: any) => ({
+                id: s.id,
+                name: s.name,
+                state: String(s.state ?? 'unknown'),
+                imageName: s.imageName ?? null,
+                createdAt: s.createdAt ?? null,
+                errorReason: s.errorReason ?? null,
+                cpu: s.cpu ?? null,
+                memory: s.memory ?? null,
+                disk: s.disk ?? null,
+            }));
+        } catch (error) {
+            throw new TRPCError({
+                code: 'INTERNAL_SERVER_ERROR',
+                message: `Failed to list snapshots: ${error instanceof Error ? error.message : String(error)}`,
+                cause: error,
+            });
+        }
+    }),
+
+    /**
+     * Create a new snapshot from a Docker image name (e.g. "node:20-slim").
+     */
+    createSnapshot: publicProcedure
+        .input(
+            z.object({
+                name: z.string().min(1),
+                image: z.string().min(1),
+            }),
+        )
+        .mutation(async ({ input }) => {
+            const client = getDaytonaClient();
+            try {
+                const snapshot = await client.snapshot.create({
+                    name: input.name,
+                    image: input.image,
+                });
+                return {
+                    id: (snapshot as any).id,
+                    name: (snapshot as any).name,
+                    state: String((snapshot as any).state ?? 'unknown'),
+                };
+            } catch (error) {
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Failed to create snapshot: ${error instanceof Error ? error.message : String(error)}`,
+                    cause: error,
+                });
+            }
+        }),
+
+    /**
+     * Delete a snapshot by name.
+     */
+    deleteSnapshot: publicProcedure
+        .input(z.object({ snapshotName: z.string() }))
+        .mutation(async ({ input }) => {
+            const client = getDaytonaClient();
+            try {
+                const snapshot = await client.snapshot.get(input.snapshotName);
+                await client.snapshot.delete(snapshot);
+                return { success: true, snapshotName: input.snapshotName };
+            } catch (error) {
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Failed to delete snapshot: ${error instanceof Error ? error.message : String(error)}`,
+                    cause: error,
+                });
+            }
+        }),
+
+    /**
+     * Activate a snapshot (make it active/ready).
+     */
+    activateSnapshot: publicProcedure
+        .input(z.object({ snapshotName: z.string() }))
+        .mutation(async ({ input }) => {
+            const client = getDaytonaClient();
+            try {
+                const snapshot = await client.snapshot.get(input.snapshotName);
+                const activated = await client.snapshot.activate(snapshot);
+                return { success: true, name: (activated as any).name, state: (activated as any).state };
+            } catch (error) {
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Failed to activate snapshot: ${error instanceof Error ? error.message : String(error)}`,
+                    cause: error,
+                });
+            }
+        }),
+
+    /**
+     * Create a sandbox from an existing named snapshot.
+     */
+    createFromSnapshot: publicProcedure
+        .input(
+            z.object({
+                snapshotName: z.string().min(1),
+                language: z.enum(['typescript', 'javascript', 'python']).default('typescript'),
+                autoStopInterval: z.number().min(0).default(10),
+            }),
+        )
+        .mutation(async ({ input }) => {
+            const client = getDaytonaClient();
+            try {
+                const sandbox = await client.create(
+                    {
+                        snapshot: input.snapshotName,
+                        language: input.language,
+                        autoStopInterval: input.autoStopInterval,
+                        autoArchiveInterval: input.autoStopInterval + 10,
+                        autoDeleteInterval: 0,
+                        ephemeral: true,
+                        public: true,
+                    },
+                    { timeout: 120 },
+                );
+                return {
+                    id: sandbox.id,
+                    state: String((sandbox as any).state ?? 'started'),
+                    createdAt: (sandbox as any).createdAt ?? new Date().toISOString(),
+                };
+            } catch (error) {
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Failed to create sandbox from snapshot: ${error instanceof Error ? error.message : String(error)}`,
+                    cause: error,
+                });
+            }
+        }),
+
+    /**
      * Get the public preview URL for a given port of a sandbox.
      */
     getPreviewUrl: publicProcedure

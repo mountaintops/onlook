@@ -507,6 +507,40 @@
 
 .btnDanger:hover { background: rgba(239, 68, 68, 0.2) !important; }
 
+.btnSuccess {
+    background: rgba(34, 197, 94, 0.1) !important;
+    border-color: rgba(34, 197, 94, 0.25) !important;
+    color: #4ade80 !important;
+}
+
+.btnSuccess:hover { background: rgba(34, 197, 94, 0.2) !important; }
+
+.btnWarning {
+    background: rgba(245, 158, 11, 0.1) !important;
+    border-color: rgba(245, 158, 11, 0.25) !important;
+    color: #fbbf24 !important;
+}
+
+.btnWarning:hover { background: rgba(245, 158, 11, 0.2) !important; }
+
+/* ── Sub-section (within a panel) ────────────────────────────────────── */
+.subSection {
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding-top: 20px;
+    margin-top: 20px;
+}
+
+.subSection:first-child { border-top: none; padding-top: 0; margin-top: 0; }
+
+.subTitle {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #94a3b8;
+    margin: 0 0 16px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
 /* ── Spinner ─────────────────────────────────────────────────────────── */
 .spinner {
     width: 14px;

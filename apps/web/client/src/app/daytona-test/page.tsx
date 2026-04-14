@@ -5,7 +5,19 @@ import { useState, useRef, useEffect } from 'react';
 import styles from './daytona-test.module.css';
 
 type Language = 'typescript' | 'javascript' | 'python';
-type ActiveTab = 'bootstrap' | 'create' | 'list' | 'exec' | 'code';
+type ActiveTab = 'bootstrap' | 'create' | 'list' | 'exec' | 'code' | 'snapshots';
+
+interface SnapshotItem {
+    id: string;
+    name: string;
+    state: string;
+    imageName?: string | null;
+    createdAt?: string | null;
+    errorReason?: string | null;
+    cpu?: number | null;
+    memory?: number | null;
+    disk?: number | null;
+}
 
 interface SandboxItem {
     id: string;
@@ -150,6 +162,79 @@ export default function DaytonaTestPage() {
         onError: (err) => addLog('error', `❌ Cleanup failed: ${err.message}`),
     });
 
+    const archiveSandbox = api.daytona.archiveSandbox.useMutation({
+        onSuccess: (data) => {
+            addLog('success', `📦 Sandbox ${data.sandboxId.slice(0, 12)} archived.`);
+            void listQuery.refetch();
+        },
+        onError: (err) => addLog('error', `❌ Archive failed: ${err.message}`),
+    });
+
+    const startSandbox = api.daytona.startSandbox.useMutation({
+        onSuccess: (data) => {
+            addLog('success', `▶️ Sandbox ${data.sandboxId.slice(0, 12)} started (${data.state}).`);
+            void listQuery.refetch();
+        },
+        onError: (err) => addLog('error', `❌ Start failed: ${err.message}`),
+    });
+
+    const recoverSandbox = api.daytona.recoverSandbox.useMutation({
+        onSuccess: (data) => {
+            addLog('success', `🔧 Sandbox ${data.sandboxId.slice(0, 12)} recovered.`);
+            void listQuery.refetch();
+        },
+        onError: (err) => addLog('error', `❌ Recover failed: ${err.message}`),
+    });
+
+    // ── Snapshot state ────────────────────────────────────────────────────
+    const [snapshotName, setSnapshotName] = useState('');
+    const [snapshotImage, setSnapshotImage] = useState('node:20-slim');
+    const [fromSnapshotName, setFromSnapshotName] = useState('');
+
+    const snapshotsQuery = api.daytona.listSnapshots.useQuery(undefined, { refetchInterval: 30_000 });
+    const snapshots: SnapshotItem[] = snapshotsQuery.data ?? [];
+
+    const createSnapshot = api.daytona.createSnapshot.useMutation({
+        onSuccess: (data) => {
+            addLog('success', `📸 Snapshot '${data.name}' created (${data.state}).`);
+            setSnapshotName('');
+            void snapshotsQuery.refetch();
+        },
+        onError: (err) => addLog('error', `❌ Snapshot creation failed: ${err.message}`),
+    });
+
+    const deleteSnapshot = api.daytona.deleteSnapshot.useMutation({
+        onSuccess: (data) => {
+            addLog('success', `🗑️ Snapshot '${data.snapshotName}' deleted.`);
+            void snapshotsQuery.refetch();
+        },
+        onError: (err) => addLog('error', `❌ Snapshot delete failed: ${err.message}`),
+    });
+
+    const activateSnapshot = api.daytona.activateSnapshot.useMutation({
+        onSuccess: (data) => {
+            addLog('success', `✅ Snapshot '${data.name}' activated (${data.state}).`);
+            void snapshotsQuery.refetch();
+        },
+        onError: (err) => addLog('error', `❌ Snapshot activation failed: ${err.message}`),
+    });
+
+    const createFromSnapshot = api.daytona.createFromSnapshot.useMutation({
+        onSuccess: (data) => {
+            addLog('success', `🚀 Sandbox ${data.id.slice(0, 12)} created from snapshot (${data.state}).`);
+            setSelectedSandboxId(data.id);
+            void listQuery.refetch();
+        },
+        onError: (err) => addLog('error', `❌ Create from snapshot failed: ${err.message}`),
+    });
+
+    function snapshotStateColor(state: string) {
+        if (state === 'active') return '#22c55e';
+        if (state === 'pending' || state === 'building') return '#f59e0b';
+        if (state === 'error' || state === 'build_failed') return '#ef4444';
+        return '#94a3b8';
+    }
+
     const runCode = api.daytona.runCode.useMutation({
         onSuccess: (data) => {
             addLog('cmd', '[code run]');
@@ -237,6 +322,7 @@ export default function DaytonaTestPage() {
                             { key: 'bootstrap', label: '⚡ Bootstrap' },
                             { key: 'create', label: '+ Create' },
                             { key: 'list', label: '◈ Sandboxes' },
+                            { key: 'snapshots', label: '📸 Snapshots' },
                             { key: 'exec', label: '$ Command' },
                             { key: 'code', label: '≫ Run Code' },
                         ] as { key: ActiveTab; label: string }[]
@@ -461,12 +547,150 @@ export default function DaytonaTestPage() {
                                             </div>
                                             <div className={styles.sbActions}>
                                                 <button id={`btn-select-${sb.id}`} className={styles.btnXs} onClick={(e) => { e.stopPropagation(); setSelectedSandboxId(sb.id); setActiveTab('exec'); }}>Select</button>
+                                                {(sb.state === 'stopped' || sb.state === 'archived' || sb.state === 'error') && (
+                                                    <button
+                                                        id={`btn-start-${sb.id}`}
+                                                        className={`${styles.btnXs} ${styles.btnSuccess}`}
+                                                        disabled={startSandbox.isPending}
+                                                        onClick={(e) => { e.stopPropagation(); startSandbox.mutate({ sandboxId: sb.id }); }}
+                                                    >
+                                                        {sb.state === 'archived' ? '🔄 Restore' : '▶ Start'}
+                                                    </button>
+                                                )}
+                                                {sb.state === 'error' && (
+                                                    <button
+                                                        id={`btn-recover-${sb.id}`}
+                                                        className={`${styles.btnXs} ${styles.btnWarning}`}
+                                                        disabled={recoverSandbox.isPending}
+                                                        onClick={(e) => { e.stopPropagation(); recoverSandbox.mutate({ sandboxId: sb.id }); }}
+                                                    >
+                                                        🔧 Recover
+                                                    </button>
+                                                )}
+                                                {(sb.state === 'started' || sb.state === 'stopped') && (
+                                                    <button
+                                                        id={`btn-archive-${sb.id}`}
+                                                        className={`${styles.btnXs} ${styles.btnWarning}`}
+                                                        disabled={archiveSandbox.isPending}
+                                                        onClick={(e) => { e.stopPropagation(); if (confirm(`Archive ${sb.id.slice(0, 12)}…? It will be stopped first.`)) archiveSandbox.mutate({ sandboxId: sb.id }); }}
+                                                    >
+                                                        📦 Archive
+                                                    </button>
+                                                )}
                                                 <button id={`btn-delete-${sb.id}`} className={`${styles.btnXs} ${styles.btnDanger}`} onClick={(e) => { e.stopPropagation(); if (confirm(`Delete ${sb.id.slice(0, 12)}…?`)) deleteSandbox.mutate({ sandboxId: sb.id }); }}>Delete</button>
                                             </div>
                                         </div>
                                     ))}
                                 </div>
                             )}
+                        </div>
+                    )}
+
+                    {/* ── Snapshots Panel ────────────────────────── */}
+                    {activeTab === 'snapshots' && (
+                        <div className={styles.panel}>
+                            <div className={styles.panelHeader}>
+                                <h2 className={styles.panelTitle}>Snapshot Manager</h2>
+                                <button id="btn-refresh-snapshots" className={styles.btnSecondary} onClick={() => void snapshotsQuery.refetch()} disabled={snapshotsQuery.isFetching}>
+                                    {snapshotsQuery.isFetching ? 'Refreshing…' : '↻ Refresh'}
+                                </button>
+                            </div>
+
+                            {/* Create Snapshot */}
+                            <div className={styles.subSection}>
+                                <h3 className={styles.subTitle}>Create Snapshot from Docker Image</h3>
+                                <div className={styles.formGrid}>
+                                    <div className={styles.field}>
+                                        <label className={styles.label}>Snapshot Name</label>
+                                        <input id="snapshot-name" type="text" placeholder="e.g. my-nextjs-snapshot" value={snapshotName} onChange={(e) => setSnapshotName(e.target.value)} className={styles.input} />
+                                    </div>
+                                    <div className={styles.field}>
+                                        <label className={styles.label}>Base Docker Image</label>
+                                        <input id="snapshot-image" type="text" value={snapshotImage} onChange={(e) => setSnapshotImage(e.target.value)} className={styles.input} />
+                                        <div className={styles.quickCmds} style={{ marginTop: 8 }}>
+                                            {['node:20-slim', 'python:3.12-slim', 'ubuntu:22.04'].map((img) => (
+                                                <button key={img} className={styles.quickCmd} onClick={() => setSnapshotImage(img)}>{img}</button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                                <button
+                                    id="btn-create-snapshot"
+                                    className={styles.btnPrimary}
+                                    disabled={!snapshotName || !snapshotImage || createSnapshot.isPending}
+                                    onClick={() => createSnapshot.mutate({ name: snapshotName, image: snapshotImage })}
+                                >
+                                    {createSnapshot.isPending ? <><span className={styles.spinner} /> Creating…</> : '📸 Create Snapshot'}
+                                </button>
+                            </div>
+
+                            {/* Launch from Snapshot */}
+                            <div className={styles.subSection}>
+                                <h3 className={styles.subTitle}>Launch Sandbox from Snapshot</h3>
+                                <div className={styles.field}>
+                                    <label className={styles.label}>Snapshot Name</label>
+                                    <input id="from-snapshot-name" type="text" placeholder="Enter snapshot name…" value={fromSnapshotName} onChange={(e) => setFromSnapshotName(e.target.value)} className={styles.input} />
+                                </div>
+                                <button
+                                    id="btn-launch-from-snapshot"
+                                    className={styles.btnPrimary}
+                                    disabled={!fromSnapshotName || createFromSnapshot.isPending}
+                                    onClick={() => createFromSnapshot.mutate({ snapshotName: fromSnapshotName })}
+                                >
+                                    {createFromSnapshot.isPending ? <><span className={styles.spinner} /> Launching…</> : '🚀 Launch from Snapshot'}
+                                </button>
+                            </div>
+
+                            {/* Snapshot List */}
+                            <div className={styles.subSection}>
+                                <h3 className={styles.subTitle}>Your Snapshots ({snapshots.length})</h3>
+                                {snapshots.length === 0 ? (
+                                    <div className={styles.emptyState}><span className={styles.emptyIcon}>📷</span><p>No snapshots found.</p></div>
+                                ) : (
+                                    <div className={styles.sandboxList}>
+                                        {snapshots.map((snap) => (
+                                            <div key={snap.id} id={`snapshot-${snap.id}`} className={styles.sandboxCard}>
+                                                <div className={styles.sbTop}>
+                                                    <div className={styles.sbId}>
+                                                        <span className={styles.sbIdLabel}>NAME</span>
+                                                        <code className={styles.sbIdValue}>{snap.name}</code>
+                                                    </div>
+                                                    <span className={styles.sbState} style={{ color: snapshotStateColor(snap.state) }}>● {snap.state}</span>
+                                                </div>
+                                                <div className={styles.sbMeta}>
+                                                    {snap.imageName && <span className={styles.sbChip}>{snap.imageName}</span>}
+                                                    {snap.cpu != null && <span className={styles.sbChip}>CPU {snap.cpu}</span>}
+                                                    {snap.memory != null && <span className={styles.sbChip}>{snap.memory} GB RAM</span>}
+                                                    {snap.disk != null && <span className={styles.sbChip}>{snap.disk} GB Disk</span>}
+                                                </div>
+                                                {snap.errorReason && <p style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: 4 }}>⚠️ {snap.errorReason}</p>}
+                                                <div className={styles.sbActions}>
+                                                    <button
+                                                        id={`btn-launch-snap-${snap.id}`}
+                                                        className={`${styles.btnXs} ${styles.btnSuccess}`}
+                                                        disabled={createFromSnapshot.isPending}
+                                                        onClick={() => { setFromSnapshotName(snap.name); createFromSnapshot.mutate({ snapshotName: snap.name }); }}
+                                                    >🚀 Launch</button>
+                                                    {snap.state !== 'active' && (
+                                                        <button
+                                                            id={`btn-activate-snap-${snap.id}`}
+                                                            className={styles.btnXs}
+                                                            disabled={activateSnapshot.isPending}
+                                                            onClick={() => activateSnapshot.mutate({ snapshotName: snap.name })}
+                                                        >✅ Activate</button>
+                                                    )}
+                                                    <button
+                                                        id={`btn-delete-snap-${snap.id}`}
+                                                        className={`${styles.btnXs} ${styles.btnDanger}`}
+                                                        disabled={deleteSnapshot.isPending}
+                                                        onClick={() => { if (confirm(`Delete snapshot '${snap.name}'?`)) deleteSnapshot.mutate({ snapshotName: snap.name }); }}
+                                                    >Delete</button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
 
