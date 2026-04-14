@@ -19,6 +19,7 @@ import {
     gitRouter,
 } from './routers';
 import { branchRouter } from './routers/project/branch';
+import { daytonaRouter } from './routers/daytona';
 
 /**
  * This is the primary router for your server.
@@ -27,6 +28,7 @@ import { branchRouter } from './routers/project/branch';
  */
 export const appRouter = createTRPCRouter({
     sandbox: sandboxRouter,
+    daytona: daytonaRouter,
     user: userRouter,
     invitation: invitationRouter,
     project: projectRouter,

@@ -77,6 +77,10 @@ export const env = createEnv({
         CLOUDFLARE_ZONE_ID: z.string().optional(),
         CLOUDFLARE_API_TOKEN: z.string().optional(),
         CLOUDFLARE_SAAS_DOMAIN: z.string().optional(),
+
+        // Sandbox providers
+        SANDBOX_DAYTONA_API_KEY: z.string().optional(),
+        SANDBOX_E2B_API_KEY: z.string().optional(),
     },
     /**
      * Specify your client-side environment variables schema here. This way you can ensure the app
@@ -183,6 +187,10 @@ export const env = createEnv({
         CLOUDFLARE_ZONE_ID: process.env.CLOUDFLARE_ZONE_ID,
         CLOUDFLARE_API_TOKEN: process.env.CLOUDFLARE_API_TOKEN,
         CLOUDFLARE_SAAS_DOMAIN: process.env.CLOUDFLARE_SAAS_DOMAIN,
+
+        // Sandbox providers
+        SANDBOX_DAYTONA_API_KEY: process.env.SANDBOX_DAYTONA_API_KEY,
+        SANDBOX_E2B_API_KEY: process.env.SANDBOX_E2B_API_KEY,
     },
     /**
      * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially
