@@ -90,8 +90,8 @@ export const daytonaRouter = createTRPCRouter({
         .input(
             z.object({
                 language: z.enum(['typescript', 'javascript', 'python']).default('typescript'),
-                autoStopInterval: z.number().min(0).max(240).default(10),
-                autoArchiveInterval: z.number().min(0).max(10080).optional(), // min 0, max 7 days
+                autoStopInterval: z.number().min(0).max(10080).default(120),
+                autoArchiveInterval: z.number().min(0).max(10080).default(30), // auto-archive after 30 mins being stopped
                 envVars: z.record(z.string(), z.string()).optional(),
             }),
         )
@@ -102,7 +102,7 @@ export const daytonaRouter = createTRPCRouter({
                 const params = {
                     language: input.language,
                     autoStopInterval: input.autoStopInterval,
-                    autoArchiveInterval: input.autoArchiveInterval ?? (input.autoStopInterval + 10),
+                    autoArchiveInterval: input.autoArchiveInterval,
                     autoDeleteInterval: 10080, // Default to 7 days for persistence
                     ephemeral: false,
                     public: true,
@@ -516,8 +516,8 @@ export const daytonaRouter = createTRPCRouter({
                     {
                         snapshot: input.snapshotName,
                         language: input.language,
-                        autoStopInterval: input.autoStopInterval,
-                        autoArchiveInterval: input.autoStopInterval + 10,
+                        autoStopInterval: 120,
+                        autoArchiveInterval: 30,
                         autoDeleteInterval: 10080, // Persistence enabled
                         ephemeral: false,
                         public: true,
@@ -592,8 +592,8 @@ export const daytonaRouter = createTRPCRouter({
             } else {
                 const params = {
                     language: 'typescript',
-                    autoStopInterval: input.autoStopInterval,
-                    autoArchiveInterval: input.autoArchiveInterval ?? (input.autoStopInterval + 10),
+                    autoStopInterval: 120,
+                    autoArchiveInterval: 30,
                     autoDeleteInterval: 10080, // Persistence enabled
                     ephemeral: false,
                     public: true,
