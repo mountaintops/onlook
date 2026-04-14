@@ -41,6 +41,21 @@ async function waitForSandboxState(
     throw new Error(`Timeout waiting for sandbox ${sandboxId} to reach state ${targetState} (current: ${(await client.get(sandboxId) as any).state})`);
 }
 
+/**
+ * Safely serialize an error to a string message.
+ */
+function serializeError(error: unknown): string {
+    if (error instanceof Error) return error.message;
+    if (typeof error === 'string') return error;
+    try {
+        const json = JSON.stringify(error);
+        if (json !== '{}') return json;
+    } catch {
+        // Fallback if stringify fails
+    }
+    return String(error);
+}
+
 export const daytonaRouter = createTRPCRouter({
     /**
      * Create a new Daytona sandbox.
@@ -77,7 +92,7 @@ export const daytonaRouter = createTRPCRouter({
             } catch (error) {
                 throw new TRPCError({
                     code: 'INTERNAL_SERVER_ERROR',
-                    message: `Failed to create Daytona sandbox: ${error instanceof Error ? error.message : String(error)}`,
+                    message: `Failed to create Daytona sandbox: ${serializeError(error)}`,
                     cause: error,
                 });
             }
@@ -92,12 +107,15 @@ export const daytonaRouter = createTRPCRouter({
             const client = getDaytonaClient();
             try {
                 const sandbox = await client.get(input.sandboxId);
-                await sandbox.stop();
-                return { success: true, sandboxId: input.sandboxId };
+                const state = (sandbox as any).state;
+                if (state !== 'stopped' && state !== 'archived' && state !== 'stopping') {
+                    await sandbox.stop();
+                }
+                return { success: true, sandboxId: input.sandboxId, state: (sandbox as any).state };
             } catch (error) {
                 throw new TRPCError({
                     code: 'INTERNAL_SERVER_ERROR',
-                    message: `Failed to stop sandbox: ${error instanceof Error ? error.message : String(error)}`,
+                    message: `Failed to stop sandbox: ${serializeError(error)}`,
                     cause: error,
                 });
             }
@@ -127,7 +145,7 @@ export const daytonaRouter = createTRPCRouter({
         } catch (error) {
             throw new TRPCError({
                 code: 'INTERNAL_SERVER_ERROR',
-                message: `Failed to list Daytona sandboxes: ${error instanceof Error ? error.message : String(error)}`,
+                message: `Failed to list Daytona sandboxes: ${serializeError(error)}`,
                 cause: error,
             });
         }
@@ -157,7 +175,7 @@ export const daytonaRouter = createTRPCRouter({
             } catch (error) {
                 throw new TRPCError({
                     code: 'NOT_FOUND',
-                    message: `Sandbox ${input.sandboxId} not found: ${error instanceof Error ? error.message : String(error)}`,
+                    message: `Sandbox ${input.sandboxId} not found: ${serializeError(error)}`,
                     cause: error,
                 });
             }
@@ -185,7 +203,7 @@ export const daytonaRouter = createTRPCRouter({
             } catch (error) {
                 throw new TRPCError({
                     code: 'INTERNAL_SERVER_ERROR',
-                    message: `Command execution failed: ${error instanceof Error ? error.message : String(error)}`,
+                    message: `Command execution failed: ${serializeError(error)}`,
                     cause: error,
                 });
             }
@@ -214,7 +232,7 @@ export const daytonaRouter = createTRPCRouter({
             } catch (error) {
                 throw new TRPCError({
                     code: 'INTERNAL_SERVER_ERROR',
-                    message: `Code execution failed: ${error instanceof Error ? error.message : String(error)}`,
+                    message: `Code execution failed: ${serializeError(error)}`,
                     cause: error,
                 });
             }
@@ -235,7 +253,7 @@ export const daytonaRouter = createTRPCRouter({
             } catch (error) {
                 throw new TRPCError({
                     code: 'INTERNAL_SERVER_ERROR',
-                    message: `Failed to delete sandbox: ${error instanceof Error ? error.message : String(error)}`,
+                    message: `Failed to delete sandbox: ${serializeError(error)}`,
                     cause: error,
                 });
             }
@@ -254,7 +272,7 @@ export const daytonaRouter = createTRPCRouter({
         } catch (error) {
             throw new TRPCError({
                 code: 'INTERNAL_SERVER_ERROR',
-                message: `Failed to delete all sandboxes: ${error instanceof Error ? error.message : String(error)}`,
+                message: `Failed to delete all sandboxes: ${serializeError(error)}`,
                 cause: error,
             });
         }
@@ -288,23 +306,9 @@ export const daytonaRouter = createTRPCRouter({
                 await sandbox.archive();
                 return { success: true, sandboxId: input.sandboxId };
             } catch (error) {
-                let message = 'Unknown error';
-                if (error instanceof Error) {
-                    message = error.message;
-                } else if (typeof error === 'string') {
-                    message = error;
-                } else {
-                    try {
-                        message = JSON.stringify(error);
-                        if (message === '{}') message = String(error);
-                    } catch {
-                        message = String(error);
-                    }
-                }
-
                 throw new TRPCError({
                     code: 'INTERNAL_SERVER_ERROR',
-                    message: `Failed to archive sandbox: ${message}`,
+                    message: `Failed to archive sandbox: ${serializeError(error)}`,
                     cause: error,
                 });
             }
@@ -320,12 +324,15 @@ export const daytonaRouter = createTRPCRouter({
             const client = getDaytonaClient();
             try {
                 const sandbox = await client.get(input.sandboxId);
-                await sandbox.start(input.timeout);
+                const state = (sandbox as any).state;
+                if (state !== 'started' && state !== 'starting' && state !== 'running') {
+                    await sandbox.start(input.timeout);
+                }
                 return { success: true, sandboxId: input.sandboxId, state: (sandbox as any).state };
             } catch (error) {
                 throw new TRPCError({
                     code: 'INTERNAL_SERVER_ERROR',
-                    message: `Failed to start sandbox: ${error instanceof Error ? error.message : String(error)}`,
+                    message: `Failed to start sandbox: ${serializeError(error)}`,
                     cause: error,
                 });
             }
@@ -345,7 +352,7 @@ export const daytonaRouter = createTRPCRouter({
             } catch (error) {
                 throw new TRPCError({
                     code: 'INTERNAL_SERVER_ERROR',
-                    message: `Failed to recover sandbox: ${error instanceof Error ? error.message : String(error)}`,
+                    message: `Failed to recover sandbox: ${serializeError(error)}`,
                     cause: error,
                 });
             }
@@ -372,7 +379,7 @@ export const daytonaRouter = createTRPCRouter({
         } catch (error) {
             throw new TRPCError({
                 code: 'INTERNAL_SERVER_ERROR',
-                message: `Failed to list snapshots: ${error instanceof Error ? error.message : String(error)}`,
+                message: `Failed to list snapshots: ${serializeError(error)}`,
                 cause: error,
             });
         }
@@ -403,7 +410,7 @@ export const daytonaRouter = createTRPCRouter({
             } catch (error) {
                 throw new TRPCError({
                     code: 'INTERNAL_SERVER_ERROR',
-                    message: `Failed to create snapshot: ${error instanceof Error ? error.message : String(error)}`,
+                    message: `Failed to create snapshot: ${serializeError(error)}`,
                     cause: error,
                 });
             }
@@ -423,7 +430,7 @@ export const daytonaRouter = createTRPCRouter({
             } catch (error) {
                 throw new TRPCError({
                     code: 'INTERNAL_SERVER_ERROR',
-                    message: `Failed to delete snapshot: ${error instanceof Error ? error.message : String(error)}`,
+                    message: `Failed to delete snapshot: ${serializeError(error)}`,
                     cause: error,
                 });
             }
@@ -443,7 +450,7 @@ export const daytonaRouter = createTRPCRouter({
             } catch (error) {
                 throw new TRPCError({
                     code: 'INTERNAL_SERVER_ERROR',
-                    message: `Failed to activate snapshot: ${error instanceof Error ? error.message : String(error)}`,
+                    message: `Failed to activate snapshot: ${serializeError(error)}`,
                     cause: error,
                 });
             }
@@ -483,7 +490,7 @@ export const daytonaRouter = createTRPCRouter({
             } catch (error) {
                 throw new TRPCError({
                     code: 'INTERNAL_SERVER_ERROR',
-                    message: `Failed to create sandbox from snapshot: ${error instanceof Error ? error.message : String(error)}`,
+                    message: `Failed to create sandbox from snapshot: ${serializeError(error)}`,
                     cause: error,
                 });
             }
@@ -511,7 +518,7 @@ export const daytonaRouter = createTRPCRouter({
             } catch (error) {
                 throw new TRPCError({
                     code: 'INTERNAL_SERVER_ERROR',
-                    message: `Failed to get preview URL: ${error instanceof Error ? error.message : String(error)}`,
+                    message: `Failed to get preview URL: ${serializeError(error)}`,
                     cause: error,
                 });
             }
@@ -668,7 +675,7 @@ export const daytonaRouter = createTRPCRouter({
             } catch (error) {
                 throw new TRPCError({
                     code: 'INTERNAL_SERVER_ERROR',
-                    message: `Failed to set auto-archive interval: ${error instanceof Error ? error.message : String(error)}`,
+                    message: `Failed to set auto-archive interval: ${serializeError(error)}`,
                     cause: error,
                 });
             }
@@ -695,7 +702,7 @@ export const daytonaRouter = createTRPCRouter({
             } catch (error) {
                 throw new TRPCError({
                     code: 'INTERNAL_SERVER_ERROR',
-                    message: `Failed to set auto-stop interval: ${error instanceof Error ? error.message : String(error)}`,
+                    message: `Failed to set auto-stop interval: ${serializeError(error)}`,
                     cause: error,
                 });
             }
