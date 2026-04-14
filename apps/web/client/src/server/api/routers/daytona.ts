@@ -213,6 +213,25 @@ export const daytonaRouter = createTRPCRouter({
         }),
 
     /**
+     * Delete all Daytona sandboxes (up to 100).
+     */
+    deleteAllSandboxes: publicProcedure.mutation(async () => {
+        const client = getDaytonaClient();
+        try {
+            const result = await client.list(undefined, 1, 100);
+            const deletions = result.items.map((s) => client.delete(s));
+            await Promise.all(deletions);
+            return { success: true, count: result.items.length };
+        } catch (error) {
+            throw new TRPCError({
+                code: 'INTERNAL_SERVER_ERROR',
+                message: `Failed to delete all sandboxes: ${error instanceof Error ? error.message : String(error)}`,
+                cause: error,
+            });
+        }
+    }),
+
+    /**
      * Get the public preview URL for a given port of a sandbox.
      */
     getPreviewUrl: publicProcedure
@@ -262,8 +281,8 @@ export const daytonaRouter = createTRPCRouter({
             } else {
                 const params = {
                     language: 'typescript',
-                    autoStopInterval: 30,
-                    autoArchiveInterval: 60,
+                    autoStopInterval: 10, // Reduced from 30 to 10 to save quota
+                    autoArchiveInterval: 20,
                     autoDeleteInterval: 0,
                     ephemeral: true, // Auto-delete on stop/timeout
                     public: true,
@@ -308,8 +327,9 @@ export const daytonaRouter = createTRPCRouter({
             ]);
 
             // ── 4. Install dependencies ───────────────────────────────────────
+            // Optimized flags to reduce disk/network overhead
             const installResult = await sandbox.process.executeCommand(
-                `cd ${workdir} && npm install --prefer-offline 2>&1 | tail -10`,
+                `cd ${workdir} && npm install --prefer-offline --no-audit --no-fund 2>&1 | tail -10`,
                 undefined,
                 undefined,
                 300, // 5 min

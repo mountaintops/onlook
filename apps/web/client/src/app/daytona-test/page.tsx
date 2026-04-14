@@ -142,6 +142,14 @@ export default function DaytonaTestPage() {
         onError: (err) => addLog('error', `❌ Stop failed: ${err.message}`),
     });
 
+    const deleteAllSandboxes = api.daytona.deleteAllSandboxes.useMutation({
+        onSuccess: (data) => {
+            addLog('success', `🗑️ Deleted ${data.count} sandboxes.`);
+            void listQuery.refetch();
+        },
+        onError: (err) => addLog('error', `❌ Cleanup failed: ${err.message}`),
+    });
+
     const runCode = api.daytona.runCode.useMutation({
         onSuccess: (data) => {
             addLog('cmd', '[code run]');
@@ -417,9 +425,23 @@ export default function DaytonaTestPage() {
                         <div className={styles.panel}>
                             <div className={styles.panelHeader}>
                                 <h2 className={styles.panelTitle}>Active Sandboxes</h2>
-                                <button id="btn-refresh-list" className={styles.btnSecondary} onClick={() => void listQuery.refetch()} disabled={listQuery.isFetching}>
-                                    {listQuery.isFetching ? 'Refreshing…' : '↻ Refresh'}
-                                </button>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <button
+                                        id="btn-cleanup-all"
+                                        className={`${styles.btnSecondary} ${styles.btnDanger}`}
+                                        onClick={() => {
+                                            if (confirm('Delete ALL sandboxes? This cannot be undone.')) {
+                                                deleteAllSandboxes.mutate();
+                                            }
+                                        }}
+                                        disabled={deleteAllSandboxes.isPending || listQuery.isFetching}
+                                    >
+                                        {deleteAllSandboxes.isPending ? <span className={styles.spinner} /> : '🗑 Cleanup All'}
+                                    </button>
+                                    <button id="btn-refresh-list" className={styles.btnSecondary} onClick={() => void listQuery.refetch()} disabled={listQuery.isFetching}>
+                                        {listQuery.isFetching ? 'Refreshing…' : '↻ Refresh'}
+                                    </button>
+                                </div>
                             </div>
                             {sandboxes.length === 0 ? (
                                 <div className={styles.emptyState}><span className={styles.emptyIcon}>⬡</span><p>No sandboxes found.</p></div>
