@@ -17,6 +17,30 @@ function getDaytonaClient(): Daytona {
     return new Daytona({ apiKey });
 }
 
+/**
+ * Wait for a sandbox to reach a specific state.
+ */
+async function waitForSandboxState(
+    client: Daytona,
+    sandboxId: string,
+    targetState: string,
+    maxWaitSeconds = 60,
+): Promise<void> {
+    const start = Date.now();
+    while (Date.now() - start < maxWaitSeconds * 1000) {
+        const sandbox = await client.get(sandboxId);
+        const currentState = (sandbox as any).state;
+        if (currentState === targetState) {
+            return;
+        }
+        if (currentState === 'error') {
+            throw new Error(`Sandbox ${sandboxId} entered error state while waiting for ${targetState}`);
+        }
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+    throw new Error(`Timeout waiting for sandbox ${sandboxId} to reach state ${targetState} (current: ${(await client.get(sandboxId) as any).state})`);
+}
+
 export const daytonaRouter = createTRPCRouter({
     /**
      * Create a new Daytona sandbox.
@@ -240,7 +264,7 @@ export const daytonaRouter = createTRPCRouter({
      * Archive a Daytona sandbox (sandbox must be stopped first).
      * Moves the entire filesystem state to cost-effective object storage.
      */
-    archiveSandbox: publicProcedure
+     archiveSandbox: publicProcedure
         .input(z.object({ sandboxId: z.string() }))
         .mutation(async ({ input }) => {
             const client = getDaytonaClient();
@@ -248,15 +272,39 @@ export const daytonaRouter = createTRPCRouter({
                 const sandbox = await client.get(input.sandboxId);
                 // Sandbox must be stopped before archiving
                 const state = (sandbox as any).state ?? '';
-                if (state === 'started' || state === 'starting') {
-                    await sandbox.stop();
+                if (state !== 'stopped' && state !== 'archived') {
+                    if (state === 'started' || state === 'starting') {
+                        await sandbox.stop();
+                    }
+                    // Wait for it to be fully stopped before archiving
+                    await waitForSandboxState(client, input.sandboxId, 'stopped');
                 }
+                
+                // If it's already archived, we can just return success
+                if (state === 'archived') {
+                    return { success: true, sandboxId: input.sandboxId };
+                }
+
                 await sandbox.archive();
                 return { success: true, sandboxId: input.sandboxId };
             } catch (error) {
+                let message = 'Unknown error';
+                if (error instanceof Error) {
+                    message = error.message;
+                } else if (typeof error === 'string') {
+                    message = error;
+                } else {
+                    try {
+                        message = JSON.stringify(error);
+                        if (message === '{}') message = String(error);
+                    } catch {
+                        message = String(error);
+                    }
+                }
+
                 throw new TRPCError({
                     code: 'INTERNAL_SERVER_ERROR',
-                    message: `Failed to archive sandbox: ${error instanceof Error ? error.message : String(error)}`,
+                    message: `Failed to archive sandbox: ${message}`,
                     cause: error,
                 });
             }
