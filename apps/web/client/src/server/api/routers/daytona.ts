@@ -227,7 +227,7 @@ export const daytonaRouter = createTRPCRouter({
         .input(
             z.object({
                 sandboxId: z.string().optional(), // reuse existing sandbox or create new one
-                workdir: z.string().default('/home/user/nextapp'),
+                workdir: z.string().default('/tmp/nextapp'),
             }),
         )
         .mutation(async ({ input }) => {
@@ -308,7 +308,7 @@ export const daytonaRouter = createTRPCRouter({
         .input(
             z.object({
                 sandboxId: z.string(),
-                workdir: z.string().default('/home/user/nextapp'),
+                workdir: z.string().default('/tmp/nextapp'),
                 port: z.number().default(3000),
             }),
         )
