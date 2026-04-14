@@ -77,8 +77,8 @@ export const daytonaRouter = createTRPCRouter({
                     language: input.language,
                     autoStopInterval: input.autoStopInterval,
                     autoArchiveInterval: input.autoArchiveInterval ?? (input.autoStopInterval + 10),
-                    autoDeleteInterval: 0,
-                    ephemeral: true, // Auto-delete on stop
+                    autoDeleteInterval: 10080, // Default to 7 days for persistence
+                    ephemeral: false,
                     public: true,
                     ...(input.envVars && { envVars: input.envVars as Record<string, string> }),
                 } satisfies CreateSandboxFromSnapshotParams;
@@ -476,8 +476,8 @@ export const daytonaRouter = createTRPCRouter({
                         language: input.language,
                         autoStopInterval: input.autoStopInterval,
                         autoArchiveInterval: input.autoStopInterval + 10,
-                        autoDeleteInterval: 0,
-                        ephemeral: true,
+                        autoDeleteInterval: 10080, // Persistence enabled
+                        ephemeral: false,
                         public: true,
                     },
                     { timeout: 120 },
@@ -550,8 +550,8 @@ export const daytonaRouter = createTRPCRouter({
                     language: 'typescript',
                     autoStopInterval: input.autoStopInterval,
                     autoArchiveInterval: input.autoArchiveInterval ?? (input.autoStopInterval + 10),
-                    autoDeleteInterval: 0,
-                    ephemeral: true, // Auto-delete on stop/timeout
+                    autoDeleteInterval: 10080, // Persistence enabled
+                    ephemeral: false,
                     public: true,
                 } satisfies CreateSandboxFromSnapshotParams;
                 sandbox = await client.create(params, { timeout: 120 });
