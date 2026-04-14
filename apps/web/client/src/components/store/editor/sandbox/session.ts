@@ -50,6 +50,16 @@ export class SessionManager {
         });
     }
 
+    /**
+     * Detect which sandbox provider to use based on the sandbox ID format.
+     * Daytona sandboxes use UUID v4 format (e.g. 550e8400-e29b-41d4-a716-446655440000).
+     * CodeSandbox uses short alphanumeric IDs (e.g. r8pqs3).
+     */
+    private detectProvider(sandboxId: string): CodeProvider {
+        const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        return UUID_REGEX.test(sandboxId) ? CodeProvider.Daytona : CodeProvider.CodeSandbox;
+    }
+
     async start(sandboxId: string, userId?: string): Promise<void> {
         const MAX_RETRIES = 3;
         const RETRY_DELAY_MS = 2000;
@@ -69,27 +79,135 @@ export class SessionManager {
             }
         }, CONNECTION_TIMEOUT_MS);
 
+        const detectedProvider = this.detectProvider(sandboxId);
+        console.log(`[SessionManager] Detected provider: ${detectedProvider} for sandbox ${sandboxId}`);
+
         const attemptConnection = async () => {
-            const provider = await createCodeProviderClient(CodeProvider.CodeSandbox, {
-                providerOptions: {
-                    codesandbox: {
-                        sandboxId,
-                        userId,
-                        initClient: true,
-                        keepActiveWhileConnected: false,
-                        getSession: async (sandboxId, userId) => {
-                            const session = await api.sandbox.start.mutate({ sandboxId });
-                            if (session.signedPreviewUrl) {
-                                this.signedPreviewUrl = session.signedPreviewUrl;
-                            }
-                            return session;
+            if (detectedProvider === CodeProvider.Daytona) {
+                // ── Daytona provider ─────────────────────────────────────────
+                const sid = sandboxId;
+
+                // Fetch preview URL upfront for the iframe
+                let previewUrl: string | undefined;
+                let previewToken: string | undefined;
+                try {
+                    const previewInfo = await api.daytona.getPreviewUrl.query({ sandboxId: sid, port: 3000 });
+                    previewUrl = previewInfo.url ?? undefined;
+                    previewToken = previewInfo.token ?? undefined;
+                    if (previewUrl) this.signedPreviewUrl = previewUrl;
+                } catch (e) {
+                    console.warn('[SessionManager] Could not fetch Daytona preview URL:', e);
+                }
+
+                const provider = await createCodeProviderClient(CodeProvider.Daytona, {
+                    providerOptions: {
+                        daytona: {
+                            sandboxId: sid,
+                            previewUrl,
+                            previewToken,
+                            proxy: {
+                                fs: {
+                                    readFile: async (path) => {
+                                        const r = await api.daytona.fsReadFile.mutate({ sandboxId: sid, path });
+                                        return { content: r.content, type: r.type };
+                                    },
+                                    writeFile: async (path, content, overwrite) => {
+                                        await api.daytona.fsWriteFile.mutate({ sandboxId: sid, path, content, overwrite: overwrite ?? true });
+                                    },
+                                    statFile: async (path) => {
+                                        const r = await api.daytona.fsStatFile.mutate({ sandboxId: sid, path });
+                                        return { type: r.type };
+                                    },
+                                    listFiles: async (path) => {
+                                        const r = await api.daytona.fsListFiles.mutate({ sandboxId: sid, path });
+                                        return r.files;
+                                    },
+                                    deleteFiles: async (path, recursive) => {
+                                        await api.daytona.fsDeleteFiles.mutate({ sandboxId: sid, path, recursive: recursive ?? false });
+                                    },
+                                    renameFile: async (oldPath, newPath) => {
+                                        await api.daytona.fsRenameFile.mutate({ sandboxId: sid, oldPath, newPath });
+                                    },
+                                    copyFiles: async (sourcePath, targetPath, recursive, overwrite) => {
+                                        await api.daytona.fsCopyFiles.mutate({ sandboxId: sid, sourcePath, targetPath, recursive: recursive ?? false, overwrite: overwrite ?? true });
+                                    },
+                                    createDirectory: async (path) => {
+                                        await api.daytona.fsCreateDirectory.mutate({ sandboxId: sid, path });
+                                    },
+                                },
+                                process: {
+                                    executeCommand: async (command) => {
+                                        const r = await api.daytona.processExecuteCommand.mutate({ sandboxId: sid, command });
+                                        return { exitCode: r.exitCode, output: r.output };
+                                    },
+                                    startBackground: async (command) => {
+                                        const r = await api.daytona.processStartBackground.mutate({ sandboxId: sid, command });
+                                        return r.execId;
+                                    },
+                                    stopBackground: async (execId) => {
+                                        await api.daytona.processStopBackground.mutate({ sandboxId: sid, execId });
+                                    },
+                                    pollOutput: async (execId) => {
+                                        const r = await api.daytona.processGetBackgroundOutput.query({ sandboxId: sid, execId });
+                                        return r.output;
+                                    },
+                                    getPtyWsUrl: async (terminalId) => {
+                                        const r = await api.daytona.processGetPtyWsUrl.mutate({ sandboxId: sid, terminalId });
+                                        return { wsUrl: r.wsUrl ?? '', token: r.token ?? undefined };
+                                    },
+                                },
+                                session: {
+                                    createProject: async () => {
+                                        const r = await api.daytona.bootstrapNextjsProject.mutate({});
+                                        return { sandboxId: r.sandboxId };
+                                    },
+                                    startSandbox: async (sandboxId) => {
+                                        await api.daytona.startSandbox.mutate({ sandboxId });
+                                        const preview = await api.daytona.getPreviewUrl.query({ sandboxId, port: 3000 });
+                                        return { previewUrl: preview.url ?? undefined, token: preview.token ?? undefined };
+                                    },
+                                    stopSandbox: async (sandboxId) => {
+                                        await api.daytona.stopSandbox.mutate({ sandboxId });
+                                    },
+                                    gitStatus: async () => {
+                                        const r = await api.daytona.processExecuteCommand.mutate({
+                                            sandboxId: sid,
+                                            command: 'cd /tmp/nextapp && git status --porcelain 2>/dev/null || true',
+                                        });
+                                        const lines = r.output.trim().split('\n').filter(Boolean);
+                                        return { changedFiles: lines.map((l: string) => l.slice(3)) };
+                                    },
+                                },
+                            },
                         },
                     },
-                },
-            });
+                });
 
-            this.provider = provider;
-            await this.createTerminalSessions(provider);
+                this.provider = provider;
+                await this.createTerminalSessions(provider);
+            } else {
+                // ── CodeSandbox provider (original) ───────────────────────────
+                const provider = await createCodeProviderClient(CodeProvider.CodeSandbox, {
+                    providerOptions: {
+                        codesandbox: {
+                            sandboxId,
+                            userId,
+                            initClient: true,
+                            keepActiveWhileConnected: false,
+                            getSession: async (sandboxId, userId) => {
+                                const session = await api.sandbox.start.mutate({ sandboxId });
+                                if (session.signedPreviewUrl) {
+                                    this.signedPreviewUrl = session.signedPreviewUrl;
+                                }
+                                return session;
+                            },
+                        },
+                    },
+                });
+
+                this.provider = provider;
+                await this.createTerminalSessions(provider);
+            }
         };
 
         let lastError: Error | null = null;

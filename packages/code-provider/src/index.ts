@@ -1,8 +1,11 @@
 import { CodeProvider } from './providers';
 import { CodesandboxProvider, type CodesandboxProviderOptions } from './providers/codesandbox';
+import { DaytonaProvider, type DaytonaProviderOptions } from './providers/daytona';
 import { NodeFsProvider, type NodeFsProviderOptions } from './providers/nodefs';
 export * from './providers';
 export { CodesandboxProvider } from './providers/codesandbox';
+export { DaytonaProvider } from './providers/daytona';
+export type { DaytonaProviderOptions, DaytonaProviderProxy, DaytonaFsProxy, DaytonaProcessProxy, DaytonaSessionProxy } from './providers/daytona';
 export { NodeFsProvider } from './providers/nodefs';
 export * from './types';
 
@@ -25,7 +28,7 @@ export async function createCodeProviderClient(
 
 export async function getStaticCodeProvider(
     codeProvider: CodeProvider,
-): Promise<typeof CodesandboxProvider | typeof NodeFsProvider> {
+): Promise<typeof CodesandboxProvider | typeof NodeFsProvider | typeof DaytonaProvider> {
     if (codeProvider === CodeProvider.CodeSandbox) {
         return CodesandboxProvider;
     }
@@ -33,11 +36,17 @@ export async function getStaticCodeProvider(
     if (codeProvider === CodeProvider.NodeFs) {
         return NodeFsProvider;
     }
+
+    if (codeProvider === CodeProvider.Daytona) {
+        return DaytonaProvider;
+    }
+
     throw new Error(`Unimplemented code provider: ${codeProvider}`);
 }
 
 export interface ProviderInstanceOptions {
     codesandbox?: CodesandboxProviderOptions;
+    daytona?: DaytonaProviderOptions;
     nodefs?: NodeFsProviderOptions;
 }
 
@@ -47,6 +56,13 @@ function newProviderInstance(codeProvider: CodeProvider, providerOptions: Provid
             throw new Error('Codesandbox provider options are required.');
         }
         return new CodesandboxProvider(providerOptions.codesandbox);
+    }
+
+    if (codeProvider === CodeProvider.Daytona) {
+        if (!providerOptions.daytona) {
+            throw new Error('Daytona provider options are required.');
+        }
+        return new DaytonaProvider(providerOptions.daytona);
     }
 
     if (codeProvider === CodeProvider.NodeFs) {

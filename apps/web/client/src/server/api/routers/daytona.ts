@@ -775,7 +775,7 @@ export const daytonaRouter = createTRPCRouter({
             const client = getDaytonaClient();
             try {
                 const sandbox = await client.get(input.sandboxId);
-                await sandbox.setAutoStopInterval(input.interval);
+                await sandbox.setAutostopInterval(input.interval);
                 return { success: true, sandboxId: input.sandboxId, interval: input.interval };
             } catch (error) {
                 console.error(`[Daytona] Failed to set auto-stop interval for ${input.sandboxId}:`, error);
@@ -783,6 +783,355 @@ export const daytonaRouter = createTRPCRouter({
                     code: 'INTERNAL_SERVER_ERROR',
                     message: `Failed to set auto-stop interval: ${serializeError(error)}`,
                     cause: error,
+                });
+            }
+        }),
+
+    // =========================================================================
+    // FS PROXY ENDPOINTS — consumed by DaytonaProvider.proxy.fs
+    // =========================================================================
+
+    /**
+     * Read a file from a running Daytona sandbox.
+     */
+    fsReadFile: publicProcedure
+        .input(z.object({ sandboxId: z.string(), path: z.string() }))
+        .mutation(async ({ input }) => {
+            const client = getDaytonaClient();
+            try {
+                const sandbox = await client.get(input.sandboxId);
+                // Use executeCommand to read file content as text
+                const result = await sandbox.process.executeCommand(
+                    `cat "${input.path}" 2>/dev/null`,
+                    undefined, undefined, 30,
+                );
+                return {
+                    content: result.result ?? '',
+                    type: 'text' as const,
+                };
+            } catch (error) {
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Failed to read file ${input.path}: ${serializeError(error)}`,
+                });
+            }
+        }),
+
+    /**
+     * Write a file to a running Daytona sandbox.
+     */
+    fsWriteFile: publicProcedure
+        .input(
+            z.object({
+                sandboxId: z.string(),
+                path: z.string(),
+                content: z.string(),
+                overwrite: z.boolean().optional().default(true),
+            }),
+        )
+        .mutation(async ({ input }) => {
+            const client = getDaytonaClient();
+            try {
+                const sandbox = await client.get(input.sandboxId);
+                await sandbox.fs.uploadFiles([
+                    { source: Buffer.from(input.content), destination: input.path },
+                ]);
+                return { success: true };
+            } catch (error) {
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Failed to write file ${input.path}: ${serializeError(error)}`,
+                });
+            }
+        }),
+
+    /**
+     * Stat a file or directory.
+     */
+    fsStatFile: publicProcedure
+        .input(z.object({ sandboxId: z.string(), path: z.string() }))
+        .mutation(async ({ input }) => {
+            const client = getDaytonaClient();
+            try {
+                const sandbox = await client.get(input.sandboxId);
+                const result = await sandbox.process.executeCommand(
+                    `[ -d "${input.path}" ] && echo dir || ([ -f "${input.path}" ] && echo file || echo notfound)`,
+                    undefined, undefined, 10,
+                );
+                const out = (result.result ?? '').trim();
+                if (out === 'dir') return { type: 'directory' as const };
+                if (out === 'file') return { type: 'file' as const };
+                throw new Error(`Path not found: ${input.path}`);
+            } catch (error) {
+                throw new TRPCError({
+                    code: 'NOT_FOUND',
+                    message: `Failed to stat ${input.path}: ${serializeError(error)}`,
+                });
+            }
+        }),
+
+    /**
+     * List files in a directory.
+     */
+    fsListFiles: publicProcedure
+        .input(z.object({ sandboxId: z.string(), path: z.string() }))
+        .mutation(async ({ input }) => {
+            const client = getDaytonaClient();
+            try {
+                const sandbox = await client.get(input.sandboxId);
+                // ls -1Ap: trailing / for dirs, one per line
+                const result = await sandbox.process.executeCommand(
+                    `ls -1Ap "${input.path}" 2>/dev/null`,
+                    undefined, undefined, 15,
+                );
+                const lines = (result.result ?? '').split('\n').filter(Boolean);
+                const files = lines.map((line) => {
+                    const isDir = line.endsWith('/');
+                    const name = isDir ? line.slice(0, -1) : line;
+                    return {
+                        name,
+                        type: isDir ? ('directory' as const) : ('file' as const),
+                        isSymlink: false,
+                    };
+                });
+                return { files };
+            } catch (error) {
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Failed to list files at ${input.path}: ${serializeError(error)}`,
+                });
+            }
+        }),
+
+    /**
+     * Delete a file or directory.
+     */
+    fsDeleteFiles: publicProcedure
+        .input(
+            z.object({
+                sandboxId: z.string(),
+                path: z.string(),
+                recursive: z.boolean().optional().default(false),
+            }),
+        )
+        .mutation(async ({ input }) => {
+            const client = getDaytonaClient();
+            try {
+                const sandbox = await client.get(input.sandboxId);
+                const flag = input.recursive ? '-rf' : '-f';
+                await sandbox.process.executeCommand(
+                    `rm ${flag} "${input.path}" 2>/dev/null || true`,
+                    undefined, undefined, 15,
+                );
+                return { success: true };
+            } catch (error) {
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Failed to delete ${input.path}: ${serializeError(error)}`,
+                });
+            }
+        }),
+
+    /**
+     * Rename / move a file.
+     */
+    fsRenameFile: publicProcedure
+        .input(z.object({ sandboxId: z.string(), oldPath: z.string(), newPath: z.string() }))
+        .mutation(async ({ input }) => {
+            const client = getDaytonaClient();
+            try {
+                const sandbox = await client.get(input.sandboxId);
+                await sandbox.process.executeCommand(
+                    `mv "${input.oldPath}" "${input.newPath}"`,
+                    undefined, undefined, 15,
+                );
+                return { success: true };
+            } catch (error) {
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Failed to rename ${input.oldPath}: ${serializeError(error)}`,
+                });
+            }
+        }),
+
+    /**
+     * Copy files.
+     */
+    fsCopyFiles: publicProcedure
+        .input(
+            z.object({
+                sandboxId: z.string(),
+                sourcePath: z.string(),
+                targetPath: z.string(),
+                recursive: z.boolean().optional().default(false),
+                overwrite: z.boolean().optional().default(true),
+            }),
+        )
+        .mutation(async ({ input }) => {
+            const client = getDaytonaClient();
+            try {
+                const sandbox = await client.get(input.sandboxId);
+                const flag = input.recursive ? '-r' : '';
+                const overwriteFlag = input.overwrite ? '' : '-n'; // -n = no clobber
+                await sandbox.process.executeCommand(
+                    `cp ${flag} ${overwriteFlag} "${input.sourcePath}" "${input.targetPath}"`,
+                    undefined, undefined, 30,
+                );
+                return { success: true };
+            } catch (error) {
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Failed to copy ${input.sourcePath}: ${serializeError(error)}`,
+                });
+            }
+        }),
+
+    /**
+     * Create a directory (including parents).
+     */
+    fsCreateDirectory: publicProcedure
+        .input(z.object({ sandboxId: z.string(), path: z.string() }))
+        .mutation(async ({ input }) => {
+            const client = getDaytonaClient();
+            try {
+                const sandbox = await client.get(input.sandboxId);
+                await sandbox.process.executeCommand(
+                    `mkdir -p "${input.path}"`,
+                    undefined, undefined, 10,
+                );
+                return { success: true };
+            } catch (error) {
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Failed to create directory ${input.path}: ${serializeError(error)}`,
+                });
+            }
+        }),
+
+    // =========================================================================
+    // PROCESS PROXY ENDPOINTS — consumed by DaytonaProvider.proxy.process
+    // =========================================================================
+
+    /**
+     * Execute a one-shot shell command and return output.
+     * (Re-exports `executeCommand` with a slightly cleaner name for the provider proxy.)
+     */
+    processExecuteCommand: publicProcedure
+        .input(z.object({ sandboxId: z.string(), command: z.string() }))
+        .mutation(async ({ input }) => {
+            const client = getDaytonaClient();
+            try {
+                const sandbox = await client.get(input.sandboxId);
+                const result = await sandbox.process.executeCommand(input.command, undefined, undefined, 60);
+                return {
+                    exitCode: result.exitCode ?? 0,
+                    output: result.result ?? (result as any).artifacts?.stdout ?? '',
+                };
+            } catch (error) {
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Command failed: ${serializeError(error)}`,
+                });
+            }
+        }),
+
+    /**
+     * Start a long-running background command. Returns a unique exec key stored
+     * in Daytona's sandbox process list.  The caller can poll output via
+     * `processGetBackgroundOutput`.
+     */
+    processStartBackground: publicProcedure
+        .input(z.object({ sandboxId: z.string(), command: z.string() }))
+        .mutation(async ({ input }) => {
+            const client = getDaytonaClient();
+            try {
+                const sandbox = await client.get(input.sandboxId);
+                // We use nohup + a unique log file keyed by a timestamp as our exec ID.
+                const execId = `bg-${Date.now()}`;
+                const logFile = `/tmp/onlook-bg-${execId}.log`;
+                await sandbox.process.executeCommand(
+                    `nohup bash -c '${input.command.replace(/'/g, "'\\''")}' > "${logFile}" 2>&1 &`,
+                    undefined, undefined, 10,
+                );
+                return { execId, logFile };
+            } catch (error) {
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Failed to start background command: ${serializeError(error)}`,
+                });
+            }
+        }),
+
+    /**
+     * Stop a background command by killing processes writing to its log file.
+     */
+    processStopBackground: publicProcedure
+        .input(z.object({ sandboxId: z.string(), execId: z.string() }))
+        .mutation(async ({ input }) => {
+            const client = getDaytonaClient();
+            try {
+                const sandbox = await client.get(input.sandboxId);
+                const logFile = `/tmp/onlook-bg-${input.execId}.log`;
+                await sandbox.process.executeCommand(
+                    `fuser -k "${logFile}" 2>/dev/null; rm -f "${logFile}"`,
+                    undefined, undefined, 10,
+                );
+                return { success: true };
+            } catch (error) {
+                // Non-fatal — the process may have already exited.
+                return { success: false, error: serializeError(error) };
+            }
+        }),
+
+    /**
+     * Poll the tail of output from a background command's log file.
+     */
+    processGetBackgroundOutput: publicProcedure
+        .input(z.object({ sandboxId: z.string(), execId: z.string(), lines: z.number().default(20) }))
+        .query(async ({ input }) => {
+            const client = getDaytonaClient();
+            try {
+                const sandbox = await client.get(input.sandboxId);
+                const logFile = `/tmp/onlook-bg-${input.execId}.log`;
+                const result = await sandbox.process.executeCommand(
+                    `tail -n ${input.lines} "${logFile}" 2>/dev/null || echo ""`,
+                    undefined, undefined, 10,
+                );
+                return { output: result.result ?? '' };
+            } catch (error) {
+                return { output: '' };
+            }
+        }),
+
+    /**
+     * Get a PTY WebSocket URL for the given sandbox to enable live terminal streaming.
+     * The frontend can connect xterm.js directly to this WS endpoint.
+     */
+    processGetPtyWsUrl: publicProcedure
+        .input(z.object({ sandboxId: z.string(), terminalId: z.string().optional() }))
+        .mutation(async ({ input }) => {
+            const client = getDaytonaClient();
+            try {
+                const sandbox = await client.get(input.sandboxId);
+                // Daytona exposes a connect endpoint; we get the base RPC URL.
+                // The SDK doesn't expose a typed getPtyUrl method yet,
+                // so we construct it from known patterns.
+                // Preview link gives us the host, we substitute with the RPC port.
+                const previewInfo = await sandbox.getPreviewLink(3000);
+                // Derive the sandbox daemon host from the preview URL.
+                // Daytona daemon typically listens at the RPC endpoint on the same host.
+                const previewUrl = previewInfo?.url ?? '';
+                return {
+                    wsUrl: null as string | null, // Will be set once Daytona exposes a typed WS URL API
+                    previewUrl,
+                    token: previewInfo?.token ?? null,
+                    // Callers should use executeCommand as a fallback until native PTY WS is available.
+                    fallbackMode: true,
+                };
+            } catch (error) {
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Failed to get PTY WS URL: ${serializeError(error)}`,
                 });
             }
         }),
