@@ -351,11 +351,22 @@
 
 .iframeReload:hover { color: #e2e8f0; background: rgba(255, 255, 255, 0.08); }
 
+.stopBtn {
+    margin-right: 2px;
+}
+
+.stopBtn:hover {
+    background: rgba(239, 68, 68, 0.2) !important;
+    border-color: rgba(239, 68, 68, 0.4) !important;
+    color: #f87171 !important;
+}
+
 .iframe {
     flex: 1;
     width: 100%;
     border: none;
     background: white;
+    pointer-events: auto !important;
 }
 
 /* ── Form helpers ────────────────────────────────────────────────────── */

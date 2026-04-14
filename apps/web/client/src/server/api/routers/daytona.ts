@@ -38,6 +38,7 @@ export const daytonaRouter = createTRPCRouter({
                     autoStopInterval: input.autoStopInterval,
                     autoArchiveInterval: input.autoStopInterval + 10,
                     autoDeleteInterval: 0,
+                    ephemeral: true, // Auto-delete on stop
                     public: true,
                     ...(input.envVars && { envVars: input.envVars as Record<string, string> }),
                 } satisfies CreateSandboxFromSnapshotParams;
@@ -52,6 +53,26 @@ export const daytonaRouter = createTRPCRouter({
                 throw new TRPCError({
                     code: 'INTERNAL_SERVER_ERROR',
                     message: `Failed to create Daytona sandbox: ${error instanceof Error ? error.message : String(error)}`,
+                    cause: error,
+                });
+            }
+        }),
+
+    /**
+     * Stop a Daytona sandbox.
+     */
+    stopSandbox: publicProcedure
+        .input(z.object({ sandboxId: z.string() }))
+        .mutation(async ({ input }) => {
+            const client = getDaytonaClient();
+            try {
+                const sandbox = await client.get(input.sandboxId);
+                await sandbox.stop();
+                return { success: true, sandboxId: input.sandboxId };
+            } catch (error) {
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Failed to stop sandbox: ${error instanceof Error ? error.message : String(error)}`,
                     cause: error,
                 });
             }
@@ -244,6 +265,7 @@ export const daytonaRouter = createTRPCRouter({
                     autoStopInterval: 30,
                     autoArchiveInterval: 60,
                     autoDeleteInterval: 0,
+                    ephemeral: true, // Auto-delete on stop/timeout
                     public: true,
                 } satisfies CreateSandboxFromSnapshotParams;
                 sandbox = await client.create(params, { timeout: 120 });

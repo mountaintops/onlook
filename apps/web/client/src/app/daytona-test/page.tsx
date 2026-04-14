@@ -130,6 +130,18 @@ export default function DaytonaTestPage() {
         onError: (err) => addLog('error', `❌ Exec failed: ${err.message}`),
     });
 
+    const stopSandbox = api.daytona.stopSandbox.useMutation({
+        onSuccess: (data) => {
+            addLog('info', `🛑 Sandbox ${data.sandboxId.slice(0, 12)} stopped.`);
+            if (activeTab === 'bootstrap' && bootstrapSandboxId === data.sandboxId) {
+                setBootstrapStep('idle');
+                setPreviewUrl(null);
+            }
+            void listQuery.refetch();
+        },
+        onError: (err) => addLog('error', `❌ Stop failed: ${err.message}`),
+    });
+
     const runCode = api.daytona.runCode.useMutation({
         onSuccess: (data) => {
             addLog('cmd', '[code run]');
@@ -343,6 +355,16 @@ export default function DaytonaTestPage() {
                                                 <span>{previewUrl.split('?')[0]}</span>
                                             </div>
                                             <button
+                                                className={`${styles.iframeReload} ${styles.stopBtn}`}
+                                                title="Stop sandbox"
+                                                disabled={stopSandbox.isPending}
+                                                onClick={() => {
+                                                    if (bootstrapSandboxId) stopSandbox.mutate({ sandboxId: bootstrapSandboxId });
+                                                }}
+                                            >
+                                                {stopSandbox.isPending ? <span className={styles.spinner} /> : '🛑'}
+                                            </button>
+                                            <button
                                                 className={styles.iframeReload}
                                                 title="Reload preview"
                                                 onClick={() => setIframeKey((k) => k + 1)}
@@ -354,8 +376,8 @@ export default function DaytonaTestPage() {
                                             src={previewUrl}
                                             className={styles.iframe}
                                             title="Next.js Daytona Preview"
-                                            allow="cross-origin-isolated"
-                                            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                                            allow="cross-origin-isolated; clipboard-read; clipboard-write; geolocation"
+                                            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads"
                                         />
                                     </div>
                                 )}
