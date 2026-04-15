@@ -82,11 +82,11 @@ export const setupRouter = createTRPCRouter({
             const { workdir, port } = input;
 
             // Get preview link first to determine HMR host
-            const previewInfo = await provider.getPreviewLink(port);
+            const previewLinkData = await provider.getPreviewLink(port);
             let hmrEnv = '';
-            if (previewInfo?.url) {
+            if (previewLinkData?.url) {
                 try {
-                    const url = new URL(previewInfo.url);
+                    const url = new URL(previewLinkData.url);
                     // Force HMR to use the secure tunnel host and wss protocol
                     hmrEnv = `NEXT_HMR_PROTOCOL=wss NEXT_HMR_HOST=${url.hostname} NEXT_HMR_PORT=443 `;
                 } catch (e) {
@@ -111,8 +111,8 @@ export const setupRouter = createTRPCRouter({
 
             return {
                 ready: isReady,
-                previewUrl: previewInfo?.url ?? null,
-                token: previewInfo?.token ?? null,
+                previewUrl: previewLinkData?.url ?? null,
+                token: previewLinkData?.token ?? null,
             };
         }),
 });
