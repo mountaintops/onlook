@@ -1,9 +1,11 @@
 import { CodeProvider } from './providers';
 import { CodesandboxProvider, type CodesandboxProviderOptions } from './providers/codesandbox';
 import { NodeFsProvider, type NodeFsProviderOptions } from './providers/nodefs';
+import { DaytonaProvider, type DaytonaProviderOptions } from './providers/daytona';
 export * from './providers';
 export { CodesandboxProvider } from './providers/codesandbox';
 export { NodeFsProvider } from './providers/nodefs';
+export { DaytonaProvider } from './providers/daytona';
 export * from './types';
 
 export interface CreateClientOptions {
@@ -33,12 +35,17 @@ export async function getStaticCodeProvider(
     if (codeProvider === CodeProvider.NodeFs) {
         return NodeFsProvider;
     }
+
+    if (codeProvider === CodeProvider.Daytona) {
+        return DaytonaProvider as any;
+    }
     throw new Error(`Unimplemented code provider: ${codeProvider}`);
 }
 
 export interface ProviderInstanceOptions {
     codesandbox?: CodesandboxProviderOptions;
     nodefs?: NodeFsProviderOptions;
+    daytona?: DaytonaProviderOptions;
 }
 
 function newProviderInstance(codeProvider: CodeProvider, providerOptions: ProviderInstanceOptions) {
@@ -54,6 +61,10 @@ function newProviderInstance(codeProvider: CodeProvider, providerOptions: Provid
             throw new Error('NodeFs provider options are required.');
         }
         return new NodeFsProvider(providerOptions.nodefs);
+    }
+
+    if (codeProvider === CodeProvider.Daytona) {
+        return new DaytonaProvider(providerOptions.daytona || {});
     }
 
     throw new Error(`Unimplemented code provider: ${codeProvider}`);

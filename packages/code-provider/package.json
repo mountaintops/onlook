@@ -35,6 +35,7 @@
     },
     "dependencies": {
         "@codesandbox/sdk": "^1.1.6",
+        "@daytonaio/sdk": "^0.166.0",
         "@onlook/models": "*",
         "@onlook/parser": "*",
         "@onlook/utility": "*"

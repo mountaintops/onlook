@@ -179,7 +179,15 @@ export interface StopProjectInput {}
 export interface StopProjectOutput {}
 
 export interface ListProjectsInput {}
-export interface ListProjectsOutput {}
+export interface ListProjectsOutput {
+    projects?: {
+        id: string;
+        name: string;
+        state: string;
+        createdAt: string;
+        updatedAt: string;
+    }[];
+}
 
 export interface CreateSessionInput {
     args: {

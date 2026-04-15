@@ -83,7 +83,7 @@ export default function DaytonaTestPage() {
     }
 
     /* ── Mutations & Queries ─────────────────────────────────────────── */
-    const bootstrapMutation = api.daytona.bootstrapNextjsProject.useMutation({
+    const bootstrapMutation = api.daytona.setup.bootstrapNextjsProject.useMutation({
         onSuccess: (data) => {
             setBootstrapSandboxId(data.sandboxId);
             setSelectedSandboxId(data.sandboxId);
@@ -99,7 +99,7 @@ export default function DaytonaTestPage() {
         },
     });
 
-    const startServerMutation = api.daytona.startDevServer.useMutation({
+    const startServerMutation = api.daytona.setup.startDevServer.useMutation({
         onSuccess: (data) => {
             setBootstrapStep('ready');
             if (data.previewUrl) {
@@ -120,7 +120,7 @@ export default function DaytonaTestPage() {
         },
     });
 
-    const createSandbox = api.daytona.createSandbox.useMutation({
+    const createSandbox = api.daytona.sandbox.create.useMutation({
         onSuccess: (data) => {
             addLog('success', `✅ Sandbox created! ID: ${data.id} | State: ${data.state}`);
             setSelectedSandboxId(data.id);
@@ -129,7 +129,7 @@ export default function DaytonaTestPage() {
         onError: (err) => addLog('error', `❌ Create failed: ${err.message}`),
     });
 
-    const deleteSandbox = api.daytona.deleteSandbox.useMutation({
+    const deleteSandbox = api.daytona.sandbox.delete.useMutation({
         onSuccess: (data) => {
             addLog('success', `🗑️ Sandbox ${data.sandboxId} deleted.`);
             if (selectedSandboxId === data.sandboxId) setSelectedSandboxId('');
@@ -138,7 +138,7 @@ export default function DaytonaTestPage() {
         onError: (err) => addLog('error', `❌ Delete failed: ${err.message}`),
     });
 
-    const executeCommand = api.daytona.executeCommand.useMutation({
+    const executeCommand = api.daytona.sandbox.executeCommand.useMutation({
         onSuccess: (data) => {
             addLog('cmd', `$ ${command}`);
             addLog(data.exitCode === 0 ? 'success' : 'error', data.output || '(no output)');
@@ -146,7 +146,7 @@ export default function DaytonaTestPage() {
         onError: (err) => addLog('error', `❌ Exec failed: ${err.message}`),
     });
 
-    const stopSandbox = api.daytona.stopSandbox.useMutation({
+    const stopSandbox = api.daytona.sandbox.stop.useMutation({
         onSuccess: (data) => {
             addLog('info', `🛑 Sandbox ${data.sandboxId.slice(0, 12)} stopped.`);
             if (activeTab === 'bootstrap' && bootstrapSandboxId === data.sandboxId) {
@@ -158,7 +158,7 @@ export default function DaytonaTestPage() {
         onError: (err) => addLog('error', `❌ Stop failed: ${err.message}`),
     });
 
-    const deleteAllSandboxes = api.daytona.deleteAllSandboxes.useMutation({
+    const deleteAllSandboxes = api.daytona.sandbox.deleteAll.useMutation({
         onSuccess: (data) => {
             addLog('success', `🗑️ Deleted ${data.count} sandboxes.`);
             void listQuery.refetch();
@@ -166,7 +166,7 @@ export default function DaytonaTestPage() {
         onError: (err) => addLog('error', `❌ Cleanup failed: ${err.message}`),
     });
 
-    const archiveSandbox = api.daytona.archiveSandbox.useMutation({
+    const archiveSandbox = api.daytona.sandbox.archive.useMutation({
         onSuccess: (data) => {
             addLog('success', `📦 Sandbox ${data.sandboxId.slice(0, 12)} archived.`);
             void listQuery.refetch();
@@ -174,7 +174,7 @@ export default function DaytonaTestPage() {
         onError: (err) => addLog('error', `❌ Archive failed: ${err.message}`),
     });
 
-    const startSandbox = api.daytona.startSandbox.useMutation({
+    const startSandbox = api.daytona.sandbox.start.useMutation({
         onSuccess: (data) => {
             addLog('success', `▶️ Sandbox ${data.sandboxId.slice(0, 12)} started. Booting dev server...`);
             startServerMutation.mutate({ sandboxId: data.sandboxId });
@@ -183,7 +183,7 @@ export default function DaytonaTestPage() {
         onError: (err) => addLog('error', `❌ Start failed: ${err.message}`),
     });
 
-    const recoverSandbox = api.daytona.recoverSandbox.useMutation({
+    const recoverSandbox = api.daytona.sandbox.recover.useMutation({
         onSuccess: (data) => {
             addLog('success', `🔧 Sandbox ${data.sandboxId.slice(0, 12)} recovered.`);
             void listQuery.refetch();
@@ -191,7 +191,7 @@ export default function DaytonaTestPage() {
         onError: (err) => addLog('error', `❌ Recover failed: ${err.message}`),
     });
 
-    const setAutoArchiveInterval = api.daytona.setAutoArchiveInterval.useMutation({
+    const setAutoArchiveInterval = api.daytona.sandbox.setAutoArchiveInterval.useMutation({
         onSuccess: (data) => {
             addLog('success', `⏰ Sandbox ${data.sandboxId.slice(0, 12)} auto-archive set to ${data.interval} min.`);
             void listQuery.refetch();
@@ -199,7 +199,7 @@ export default function DaytonaTestPage() {
         onError: (err) => addLog('error', `❌ Failed to set auto-archive: ${err.message}`),
     });
 
-    const setAutoStopInterval = api.daytona.setAutoStopInterval.useMutation({
+    const setAutoStopInterval = api.daytona.sandbox.setAutoStopInterval.useMutation({
         onSuccess: (data) => {
             addLog('success', `⏰ Sandbox ${data.sandboxId.slice(0, 12)} auto-stop set to ${data.interval} min.`);
             void listQuery.refetch();
@@ -212,10 +212,10 @@ export default function DaytonaTestPage() {
     const [snapshotImage, setSnapshotImage] = useState('node:20-slim');
     const [fromSnapshotName, setFromSnapshotName] = useState('');
 
-    const snapshotsQuery = api.daytona.listSnapshots.useQuery(undefined, { refetchInterval: 30_000 });
+    const snapshotsQuery = api.daytona.snapshot.list.useQuery(undefined, { refetchInterval: 30_000 });
     const snapshots: SnapshotItem[] = snapshotsQuery.data ?? [];
 
-    const createSnapshot = api.daytona.createSnapshot.useMutation({
+    const createSnapshot = api.daytona.snapshot.create.useMutation({
         onSuccess: (data) => {
             addLog('success', `📸 Snapshot '${data.name}' created (${data.state}).`);
             setSnapshotName('');
@@ -224,7 +224,7 @@ export default function DaytonaTestPage() {
         onError: (err) => addLog('error', `❌ Snapshot creation failed: ${err.message}`),
     });
 
-    const deleteSnapshot = api.daytona.deleteSnapshot.useMutation({
+    const deleteSnapshot = api.daytona.snapshot.delete.useMutation({
         onSuccess: (data) => {
             addLog('success', `🗑️ Snapshot '${data.snapshotName}' deleted.`);
             void snapshotsQuery.refetch();
@@ -232,7 +232,7 @@ export default function DaytonaTestPage() {
         onError: (err) => addLog('error', `❌ Snapshot delete failed: ${err.message}`),
     });
 
-    const activateSnapshot = api.daytona.activateSnapshot.useMutation({
+    const activateSnapshot = api.daytona.snapshot.activate.useMutation({
         onSuccess: (data) => {
             addLog('success', `✅ Snapshot '${data.name}' activated (${data.state}).`);
             void snapshotsQuery.refetch();
@@ -240,7 +240,7 @@ export default function DaytonaTestPage() {
         onError: (err) => addLog('error', `❌ Snapshot activation failed: ${err.message}`),
     });
 
-    const createFromSnapshot = api.daytona.createFromSnapshot.useMutation({
+    const createFromSnapshot = api.daytona.sandbox.createFromSnapshot.useMutation({
         onSuccess: (data) => {
             addLog('success', `🚀 Sandbox ${data.id.slice(0, 12)} created from snapshot (${data.state}).`);
             setSelectedSandboxId(data.id);
@@ -256,7 +256,7 @@ export default function DaytonaTestPage() {
         return '#94a3b8';
     }
 
-    const runCode = api.daytona.runCode.useMutation({
+    const runCode = api.daytona.sandbox.runCode.useMutation({
         onSuccess: (data) => {
             addLog('cmd', '[code run]');
             addLog(data.success ? 'success' : 'error', data.output || '(no output)');
@@ -264,7 +264,7 @@ export default function DaytonaTestPage() {
         onError: (err) => addLog('error', `❌ Code run failed: ${err.message}`),
     });
 
-    const listQuery = api.daytona.listSandboxes.useQuery(undefined, { refetchInterval: 15_000 });
+    const listQuery = api.daytona.sandbox.list.useQuery(undefined, { refetchInterval: 15_000 });
     const sandboxes: SandboxItem[] = (listQuery.data ?? []).sort((a, b) => {
         const dateA = new Date(a.updatedAt || a.createdAt || 0).getTime();
         const dateB = new Date(b.updatedAt || b.createdAt || 0).getTime();
