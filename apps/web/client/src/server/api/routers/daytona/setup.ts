@@ -11,57 +11,85 @@ export const setupRouter = createTRPCRouter({
         .input(
             z.object({
                 sandboxId: z.string().optional(),
-                workdir: z.string().default('/tmp/nextapp'),
+                workdir: z.string().default('/home/daytona/onlook-starter'),
                 autoStopInterval: z.number().default(10),
                 autoArchiveInterval: z.number().optional(),
             }),
         )
         .mutation(async ({ input }) => {
             let sandboxId = input.sandboxId;
-            if (!sandboxId) {
-                const result = await DaytonaProvider.createProject({
-                    source: 'typescript',
-                    id: '',
-                    title: 'Next.js Bootstrap Sandbox',
+            try {
+                if (!sandboxId) {
+                    console.log('[Daytona Setup] Creating new sandbox...');
+                    const result = await DaytonaProvider.createProject({
+                        source: 'typescript',
+                        id: '',
+                    });
+                    sandboxId = result.id;
+                    console.log(`[Daytona Setup] Created sandbox: ${sandboxId}`);
+                }
+
+                const provider = (await createCodeProviderClient(CodeProvider.Daytona, {
+                    providerOptions: { daytona: { sandboxId } },
+                })) as DaytonaProvider;
+
+                const workdir = input.workdir;
+                console.log(`[Daytona Setup] Bootstrapping project in ${workdir} (Sandbox: ${sandboxId})`);
+
+                // ── 0. Wait for Agent Readiness ──────────────────────────────────
+                // Even if "create" returns, the agent might need a few seconds to boot fs/process
+                let ready = false;
+                let attempts = 0;
+                while (!ready && attempts < 10) {
+                    ready = await provider.ping();
+                    if (!ready) {
+                        console.log(`[Daytona Setup] Waiting for sandbox agent... (attempt ${attempts + 1})`);
+                        await new Promise(r => setTimeout(r, 2000));
+                        attempts++;
+                    }
+                }
+                if (!ready) throw new Error('Sandbox agent failed to become ready in time');
+
+                // ── 1. Create directories ─────────────────────────────────────────
+                console.log(`[Daytona Setup] Creating directories...`);
+                await provider.runCommand({ args: { command: `mkdir -p ${workdir}/app` } });
+
+                // ── 2. Upload project files ───────────────────────────────────────
+                console.log(`[Daytona Setup] Writing configuration files...`);
+                await provider.writeFile({ args: { path: `${workdir}/package.json`, content: NEXTJS_PACKAGE_JSON } });
+                await provider.writeFile({ args: { path: `${workdir}/next.config.js`, content: NEXTJS_CONFIG } });
+                await provider.writeFile({ args: { path: `${workdir}/tsconfig.json`, content: NEXTJS_TSCONFIG } });
+                await provider.writeFile({ args: { path: `${workdir}/app/layout.tsx`, content: NEXTJS_LAYOUT } });
+                await provider.writeFile({ args: { path: `${workdir}/app/page.tsx`, content: NEXTJS_PAGE } });
+                await provider.writeFile({ args: { path: `${workdir}/app/globals.css`, content: NEXTJS_GLOBALS_CSS } });
+
+                // ── 3. Install dependencies ───────────────────────────────────────
+                console.log(`[Daytona Setup] Running npm install (this may take a few minutes)...`);
+                const { output, exitCode } = await provider.runCommand({
+                    args: { 
+                        command: `cd ${workdir} && npm install --prefer-offline --no-audit --no-fund 2>&1`,
+                        timeout: 300, // 5 minute timeout for npm install
+                    },
                 });
-                sandboxId = result.id;
-            }
 
-            const provider = (await createCodeProviderClient(CodeProvider.Daytona, {
-                providerOptions: { daytona: { sandboxId } },
-            })) as DaytonaProvider;
+                if (exitCode !== 0) {
+                    console.error(`[Daytona Setup] npm install failed:`, output);
+                    throw new Error(`npm install failed (Exit ${exitCode}). Output: ${output.slice(-500)}`);
+                }
 
-            const workdir = input.workdir;
-
-            // ── 1. Create directories ─────────────────────────────────────────
-            await provider.runCommand({ args: { command: `mkdir -p ${workdir}/app` } });
-
-            // ── 2. Upload project files ───────────────────────────────────────
-            await provider.writeFile({ args: { path: `${workdir}/package.json`, content: NEXTJS_PACKAGE_JSON } });
-            await provider.writeFile({ args: { path: `${workdir}/next.config.js`, content: NEXTJS_CONFIG } });
-            await provider.writeFile({ args: { path: `${workdir}/tsconfig.json`, content: NEXTJS_TSCONFIG } });
-            await provider.writeFile({ args: { path: `${workdir}/app/layout.tsx`, content: NEXTJS_LAYOUT } });
-            await provider.writeFile({ args: { path: `${workdir}/app/page.tsx`, content: NEXTJS_PAGE } });
-            await provider.writeFile({ args: { path: `${workdir}/app/globals.css`, content: NEXTJS_GLOBALS_CSS } });
-
-            // ── 3. Install dependencies ───────────────────────────────────────
-            const { output, exitCode } = await provider.runCommand({
-                args: { command: `cd ${workdir} && npm install --prefer-offline --no-audit --no-fund 2>&1` },
-            });
-
-            if (exitCode !== 0) {
-                console.error(`[Daytona] npm install failed in ${sandboxId}:`, output);
+                console.log(`[Daytona Setup] Project bootstrapped successfully!`);
+                return {
+                    success: true,
+                    sandboxId,
+                    workdir,
+                };
+            } catch (error: any) {
+                console.error(`[Daytona Setup] Bootstrap failed for ${sandboxId || 'new'}:`, error.message);
                 throw new TRPCError({
                     code: 'INTERNAL_SERVER_ERROR',
-                    message: `Dependencies installation failed (Exit ${exitCode}). check logs for details.`,
+                    message: `Bootstrap failed: ${error.message}`,
                 });
             }
-
-            return {
-                sandboxId,
-                workdir,
-                installOutput: output.slice(-500), // Return last 500 chars for UI
-            };
         }),
 
     /**

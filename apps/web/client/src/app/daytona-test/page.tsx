@@ -88,7 +88,6 @@ export default function DaytonaTestPage() {
             setBootstrapSandboxId(data.sandboxId);
             setSelectedSandboxId(data.sandboxId);
             addLog('success', `✅ Project ready in sandbox ${data.sandboxId.slice(0, 12)}…`);
-            addLog('info', data.installOutput);
             // Auto-proceed to starting server
             setBootstrapStep('starting-server');
             startServerMutation.mutate({ sandboxId: data.sandboxId });
