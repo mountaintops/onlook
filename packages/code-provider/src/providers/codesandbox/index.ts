@@ -284,10 +284,10 @@ export class CodesandboxProvider extends Provider {
             return {
                 projects: projects.sandboxes.map((project) => ({
                     id: project.id,
-                    name: project.title,
-                    description: project.description,
-                    createdAt: project.createdAt,
-                    updatedAt: project.updatedAt,
+                    name: project.title || project.id,
+                    state: 'active',
+                    createdAt: project.createdAt.toISOString(),
+                    updatedAt: project.updatedAt.toISOString(),
                 })),
             };
         }

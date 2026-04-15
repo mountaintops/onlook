@@ -1,0 +1,12 @@
+src/providers/codesandbox/index.ts(285,17): error TS2322: Type '{ id: string; name: string | undefined; description: string | undefined; createdAt: Date; updatedAt: Date; }[]' is not assignable to type '{ id: string; name: string; state: string; createdAt: string; updatedAt: string; }[]'.
+  Property 'state' is missing in type '{ id: string; name: string | undefined; description: string | undefined; createdAt: Date; updatedAt: Date; }' but required in type '{ id: string; name: string; state: string; createdAt: string; updatedAt: string; }'.
+src/providers/daytona/index.ts(215,83): error TS7006: Parameter 'l' implicitly has an 'any' type.
+../fonts/src/helpers/ast-generators.ts(1,27): error TS2307: Cannot find module 'lodash' or its corresponding type declarations.
+../models/src/chat/message/message.ts(1,32): error TS2307: Cannot find module '@onlook/ai' or its corresponding type declarations.
+../parser/src/code-edit/helpers.ts(1,24): error TS2307: Cannot find module 'nanoid/non-secure' or its corresponding type declarations.
+../utility/src/color.ts(1,24): error TS2307: Cannot find module 'color-namer' or its corresponding type declarations.
+../utility/src/color.ts(2,32): error TS2307: Cannot find module 'css-color-names' or its corresponding type declarations.
+../utility/src/color.ts(4,27): error TS2307: Cannot find module 'parse-css-color' or its corresponding type declarations.
+../utility/src/font.ts(2,27): error TS2307: Cannot find module 'lodash' or its corresponding type declarations.
+../utility/src/id.ts(1,32): error TS2307: Cannot find module 'nanoid' or its corresponding type declarations.
+../utility/src/string.ts(1,27): error TS2307: Cannot find module 'lodash' or its corresponding type declarations.

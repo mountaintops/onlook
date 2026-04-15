@@ -161,12 +161,13 @@ export interface SetupInput {}
 export interface SetupOutput {}
 
 export interface CreateProjectInput {
-    source: string;
+    source?: string;
     id: string;
     title?: string;
     description?: string;
     tags?: string[];
     tier?: string;
+    snapshotName?: string;
 }
 export interface CreateProjectOutput {
     id: string;

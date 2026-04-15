@@ -228,8 +228,13 @@ export const sandboxRouter = createTRPCRouter({
                 providerOptions: { daytona: { sandboxId: input.sandboxId } },
             })) as DaytonaProvider;
             try {
-                // Provider doesn't expose delete yet, use sdk directly from provider if we can or just implement in provider
-                throw new Error('Delete not fully implemented in provider yet');
+                // Get the raw sdk client from provider for deletion
+                const sdk = await (provider as any).getSDK();
+                const apiKey = process.env.SANDBOX_DAYTONA_API_KEY;
+                const client = new sdk({ apiKey });
+                const sandbox = await client.get(input.sandboxId);
+                await client.delete(sandbox);
+                return { success: true, sandboxId: input.sandboxId };
             } catch (error: any) {
                 console.error(`[Daytona] Failed to delete sandbox ${input.sandboxId}:`, error);
                 throw new TRPCError({
@@ -250,7 +255,19 @@ export const sandboxRouter = createTRPCRouter({
             try {
                 const projects = await provider.listProjects({});
                 const ids = projects.projects?.map(p => p.id) || [];
-                // Actually would need to loop delete
+                
+                const sdk = await (provider as any).getSDK();
+                const apiKey = process.env.SANDBOX_DAYTONA_API_KEY;
+                const client = new sdk({ apiKey });
+
+                for (const id of ids) {
+                    try {
+                        const sandbox = await client.get(id);
+                        await client.delete(sandbox);
+                    } catch (e) {
+                        console.warn(`Failed to delete sandbox ${id}:`, e);
+                    }
+                }
                 return { count: ids.length };
             } catch (error: any) {
                 throw new TRPCError({
@@ -266,8 +283,25 @@ export const sandboxRouter = createTRPCRouter({
     createFromSnapshot: publicProcedure
         .input(z.object({ snapshotName: z.string() }))
         .mutation(async ({ input }) => {
-            // Placeholder for now
-            return { id: 'new-from-snap', state: 'created' };
+             try {
+                const result = await DaytonaProvider.createProject({
+                    snapshotName: input.snapshotName,
+                    id: '',
+                    title: `Sandbox from ${input.snapshotName}`,
+                });
+                return {
+                    id: result.id,
+                    state: 'started',
+                    createdAt: new Date().toISOString(),
+                };
+            } catch (error: any) {
+                console.error(`[Daytona] Failed to create sandbox from snapshot ${input.snapshotName}:`, error);
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Failed to create sandbox from snapshot: ${error.message}`,
+                    cause: error,
+                });
+            }
         }),
         
     /**
@@ -276,8 +310,18 @@ export const sandboxRouter = createTRPCRouter({
     setAutoArchiveInterval: publicProcedure
         .input(z.object({ sandboxId: z.string(), interval: z.number().int().min(0).max(10080) }))
         .mutation(async ({ input }) => {
-            // Placeholder for now as provider needs to expose setAutoArchiveInterval
-            return { success: true, sandboxId: input.sandboxId, interval: input.interval };
+            const provider = (await createCodeProviderClient(CodeProvider.Daytona, {
+                providerOptions: { daytona: { sandboxId: input.sandboxId } },
+            })) as DaytonaProvider;
+            try {
+                await provider.setAutoArchiveInterval(input.interval);
+                return { success: true, sandboxId: input.sandboxId, interval: input.interval };
+            } catch (error: any) {
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Failed to set auto-archive interval: ${error.message}`,
+                });
+            }
         }),
 
     /**
@@ -286,7 +330,17 @@ export const sandboxRouter = createTRPCRouter({
     setAutoStopInterval: publicProcedure
         .input(z.object({ sandboxId: z.string(), interval: z.number().int().min(0).max(10080) }))
         .mutation(async ({ input }) => {
-            // Placeholder for now as provider needs to expose setAutoStopInterval
-            return { success: true, sandboxId: input.sandboxId, interval: input.interval };
+            const provider = (await createCodeProviderClient(CodeProvider.Daytona, {
+                providerOptions: { daytona: { sandboxId: input.sandboxId } },
+            })) as DaytonaProvider;
+            try {
+                await provider.setAutoStopInterval(input.interval);
+                return { success: true, sandboxId: input.sandboxId, interval: input.interval };
+            } catch (error: any) {
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Failed to set auto-stop interval: ${error.message}`,
+                });
+            }
         }),
 });

@@ -8,13 +8,11 @@ export const snapshotRouter = createTRPCRouter({
      * List all snapshots.
      */
     list: publicProcedure.query(async () => {
-        // Since snapshots are account-wide, we can just use a blank provider
         const provider = (await createCodeProviderClient(CodeProvider.Daytona, {
             providerOptions: { daytona: {} },
         })) as DaytonaProvider;
         try {
-            // Need to expose listSnapshots on DaytonaProvider or use SDK directly
-            throw new Error('listSnapshots not implemented in provider');
+            return await provider.listSnapshots();
         } catch (error: any) {
             console.error('[Daytona] Failed to list snapshots:', error);
             throw new TRPCError({
@@ -35,8 +33,24 @@ export const snapshotRouter = createTRPCRouter({
             }),
         )
         .mutation(async ({ input }) => {
-             // Placeholder for now
-             return { success: true, name: input.name };
+            const provider = (await createCodeProviderClient(CodeProvider.Daytona, {
+                providerOptions: { daytona: {} },
+            })) as DaytonaProvider;
+            try {
+                const snapshot = await provider.createSnapshot(input.name, input.image);
+                return {
+                    success: true,
+                    id: (snapshot as any).id,
+                    name: (snapshot as any).name,
+                    state: String((snapshot as any).state ?? 'unknown'),
+                };
+            } catch (error: any) {
+                console.error('[Daytona] Failed to create snapshot:', error);
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Failed to create snapshot: ${error.message}`,
+                });
+            }
         }),
 
     /**
@@ -45,8 +59,19 @@ export const snapshotRouter = createTRPCRouter({
     delete: publicProcedure
         .input(z.object({ snapshotName: z.string() }))
         .mutation(async ({ input }) => {
-             // Placeholder for now
-             return { success: true, snapshotName: input.snapshotName };
+            const provider = (await createCodeProviderClient(CodeProvider.Daytona, {
+                providerOptions: { daytona: {} },
+            })) as DaytonaProvider;
+            try {
+                await provider.deleteSnapshot(input.snapshotName);
+                return { success: true, snapshotName: input.snapshotName };
+            } catch (error: any) {
+                console.error(`[Daytona] Failed to delete snapshot ${input.snapshotName}:`, error);
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Failed to delete snapshot: ${error.message}`,
+                });
+            }
         }),
 
     /**
@@ -55,7 +80,22 @@ export const snapshotRouter = createTRPCRouter({
     activate: publicProcedure
         .input(z.object({ snapshotName: z.string() }))
         .mutation(async ({ input }) => {
-             // Placeholder for now
-             return { success: true, name: input.snapshotName };
+            const provider = (await createCodeProviderClient(CodeProvider.Daytona, {
+                providerOptions: { daytona: {} },
+            })) as DaytonaProvider;
+            try {
+                const snapshot = await provider.activateSnapshot(input.snapshotName);
+                return {
+                    success: true,
+                    name: (snapshot as any).name || input.snapshotName,
+                    state: (snapshot as any).state || 'activated',
+                };
+            } catch (error: any) {
+                console.error(`[Daytona] Failed to activate snapshot ${input.snapshotName}:`, error);
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Failed to activate snapshot: ${error.message}`,
+                });
+            }
         }),
 });

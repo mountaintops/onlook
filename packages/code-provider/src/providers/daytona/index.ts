@@ -212,7 +212,7 @@ export class DaytonaProvider extends Provider {
         if (!this.sandbox) throw new Error('Sandbox not initialized');
         const res = await this.sandbox.process.executeCommand('git status --porcelain');
         return {
-            changedFiles: res.result ? res.result.split('\n').filter(Boolean).map(l => l.slice(3)) : [],
+            changedFiles: res.result ? res.result.split('\n').filter(Boolean).map((l: string) => l.slice(3)) : [],
         };
     }
 
@@ -260,6 +260,7 @@ export class DaytonaProvider extends Provider {
             autoStopInterval: 120,
             autoArchiveInterval: 30,
             ephemeral: false,
+            snapshot: input.snapshotName,
         });
 
         return { id: sandbox.id };
@@ -320,6 +321,61 @@ export class DaytonaProvider extends Provider {
     async getPreviewLink(port: number) {
         if (this.sandbox) return this.sandbox.getPreviewLink(port);
         return null;
+    }
+
+    // Interval settings
+    async setAutoArchiveInterval(interval: number) {
+        if (!this.sandbox) throw new Error('Sandbox not initialized');
+        await this.sandbox.setAutoArchiveInterval(interval);
+    }
+
+    async setAutoStopInterval(interval: number) {
+        if (!this.sandbox) throw new Error('Sandbox not initialized');
+        await this.sandbox.setAutoStopInterval(interval);
+    }
+
+    // Snapshot management
+    async listSnapshots() {
+        if (!this.client) {
+             const Daytona = await this.getSDK();
+             const apiKey = this.options.apiKey || process.env.SANDBOX_DAYTONA_API_KEY;
+             if (!apiKey) throw new Error('Daytona API key required');
+             this.client = new Daytona({ apiKey });
+        }
+        const result = await this.client.snapshot.list(1, 100);
+        return result.items || [];
+    }
+
+    async createSnapshot(name: string, image: string) {
+        if (!this.client) {
+             const Daytona = await this.getSDK();
+             const apiKey = this.options.apiKey || process.env.SANDBOX_DAYTONA_API_KEY;
+             if (!apiKey) throw new Error('Daytona API key required');
+             this.client = new Daytona({ apiKey });
+        }
+        return await this.client.snapshot.create({ name, image });
+    }
+
+    async deleteSnapshot(name: string) {
+        if (!this.client) {
+             const Daytona = await this.getSDK();
+             const apiKey = this.options.apiKey || process.env.SANDBOX_DAYTONA_API_KEY;
+             if (!apiKey) throw new Error('Daytona API key required');
+             this.client = new Daytona({ apiKey });
+        }
+        const snapshot = await this.client.snapshot.get(name);
+        await this.client.snapshot.delete(snapshot);
+    }
+
+    async activateSnapshot(name: string) {
+        if (!this.client) {
+             const Daytona = await this.getSDK();
+             const apiKey = this.options.apiKey || process.env.SANDBOX_DAYTONA_API_KEY;
+             if (!apiKey) throw new Error('Daytona API key required');
+             this.client = new Daytona({ apiKey });
+        }
+        const snapshot = await this.client.snapshot.get(name);
+        return await this.client.snapshot.activate(snapshot);
     }
 }
 
