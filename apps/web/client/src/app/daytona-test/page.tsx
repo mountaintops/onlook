@@ -1,8 +1,103 @@
 'use client';
 
+import React, { useState, useRef, useEffect } from 'react';
 import { api } from '~/trpc/react';
-import { useState, useRef, useEffect } from 'react';
 import styles from './daytona-test.module.css';
+import { DaytonaProvider } from '@onlook/code-provider';
+import { CodeProvider } from '@onlook/code-provider';
+import { createCodeProviderClient } from '@onlook/code-provider';
+
+/**
+ * BypassedIframe component handles fetching the preview content with the
+ * required header to skip the Daytona preview warning page.
+ */
+function BypassedIframe({ url, title, className, allow, sandbox }: {
+    url: string;
+    title: string;
+    className?: string;
+    allow?: string;
+    sandbox?: string;
+}) {
+    const [htmlContent, setHtmlContent] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (!url) return;
+
+        let isMounted = true;
+        const fetchContent = async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                // Fetch the HTML content with the required header
+                const response = await fetch(url, {
+                    headers: {
+                        'X-Daytona-Skip-Preview-Warning': 'true',
+                    },
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch preview: ${response.status} ${response.statusText}`);
+                }
+
+                let html = await response.text();
+
+                // Inject <base> tag so relative assets resolve correctly to the Daytona domain
+                const baseTag = `<base href="${url}">`;
+                if (html.includes('<head>')) {
+                    html = html.replace('<head>', `<head>${baseTag}`);
+                } else {
+                    html = `${baseTag}${html}`;
+                }
+
+                if (isMounted) {
+                    setHtmlContent(html);
+                }
+            } catch (err: any) {
+                console.error('[Daytona Bypass] Fetch failed:', err);
+                if (isMounted) {
+                    setError(err.message);
+                }
+            } finally {
+                if (isMounted) {
+                    setLoading(false);
+                }
+            }
+        };
+
+        fetchContent();
+        return () => { isMounted = false; };
+    }, [url]);
+
+    if (loading) {
+        return (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8' }}>
+                <span style={{ marginRight: '8px' }}>🔄</span> Skipping warning page...
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div style={{ padding: '20px', color: '#ef4444', textAlign: 'center' }}>
+                <h3>⚠️ Bypass Failed</h3>
+                <p style={{ fontSize: '0.8rem' }}>{error}</p>
+                <a href={url} target="_blank" rel="noreferrer" style={{ color: '#3b82f6', textDecoration: 'underline' }}>Open directly</a>
+            </div>
+        );
+    }
+
+    return (
+        <iframe
+            srcDoc={htmlContent || ''}
+            className={className}
+            title={title}
+            allow={allow}
+            sandbox={sandbox}
+        />
+    );
+}
 
 type Language = 'typescript' | 'javascript' | 'python';
 type ActiveTab = 'bootstrap' | 'create' | 'list' | 'exec' | 'code' | 'snapshots';
@@ -539,10 +634,8 @@ export default function DaytonaTestPage() {
                                                 onClick={() => setIframeKey((k) => k + 1)}
                                             >↺</button>
                                         </div>
-                                        <iframe
-                                            key={iframeKey}
-                                            ref={iframeRef}
-                                            src={previewUrl}
+                                        <BypassedIframe
+                                            url={previewUrl}
                                             className={styles.iframe}
                                             title="Next.js Daytona Preview"
                                             allow="cross-origin-isolated; clipboard-read; clipboard-write; geolocation"
