@@ -300,21 +300,7 @@ export default function DaytonaTestPage() {
 
     // Automatic teardown when leaving the dashboard
     useEffect(() => {
-        const handleVisibilityChange = () => {
-            if (document.visibilityState === 'hidden' && selectedSandboxId) {
-                // Send a beacon to archive the sandbox in the background
-                try {
-                    const blob = new Blob([JSON.stringify({ sandboxId: selectedSandboxId })], {
-                        type: 'application/json',
-                    });
-                    navigator.sendBeacon('/api/daytona/teardown', blob);
-                } catch (e) {
-                    console.error('Failed to send teardown beacon', e);
-                }
-            }
-        };
-
-        const handleUnload = () => {
+        const handleTeardown = () => {
             if (selectedSandboxId) {
                 try {
                     const blob = new Blob([JSON.stringify({ sandboxId: selectedSandboxId })], {
@@ -322,17 +308,17 @@ export default function DaytonaTestPage() {
                     });
                     navigator.sendBeacon('/api/daytona/teardown', blob);
                 } catch (e) {
-                    // Ignore unload errors
+                    // Ignore beacon errors
                 }
             }
         };
 
-        document.addEventListener('visibilitychange', handleVisibilityChange);
-        window.addEventListener('beforeunload', handleUnload);
+        window.addEventListener('pagehide', handleTeardown);
+        window.addEventListener('beforeunload', handleTeardown);
 
         return () => {
-            document.removeEventListener('visibilitychange', handleVisibilityChange);
-            window.removeEventListener('beforeunload', handleUnload);
+            window.removeEventListener('pagehide', handleTeardown);
+            window.removeEventListener('beforeunload', handleTeardown);
         };
     }, [selectedSandboxId]);
 
