@@ -196,6 +196,7 @@ export class DaytonaProvider extends Provider {
         );
         return {
             output: res.result || '',
+            exitCode: res.exitCode,
         };
     }
 

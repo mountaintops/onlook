@@ -45,14 +45,22 @@ export const setupRouter = createTRPCRouter({
             await provider.writeFile({ args: { path: `${workdir}/app/globals.css`, content: NEXTJS_GLOBALS_CSS } });
 
             // ── 3. Install dependencies ───────────────────────────────────────
-            const { output } = await provider.runCommand({
-                args: { command: `cd ${workdir} && npm install --prefer-offline --no-audit --no-fund 2>&1 | tail -10` },
+            const { output, exitCode } = await provider.runCommand({
+                args: { command: `cd ${workdir} && npm install --prefer-offline --no-audit --no-fund 2>&1` },
             });
+
+            if (exitCode !== 0) {
+                console.error(`[Daytona] npm install failed in ${sandboxId}:`, output);
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Dependencies installation failed (Exit ${exitCode}). check logs for details.`,
+                });
+            }
 
             return {
                 sandboxId,
                 workdir,
-                installOutput: output,
+                installOutput: output.slice(-500), // Return last 500 chars for UI
             };
         }),
 

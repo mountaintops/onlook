@@ -139,6 +139,7 @@ export interface TerminalCommandInput {
 }
 export interface TerminalCommandOutput {
     output: string;
+    exitCode?: number;
 }
 
 export interface TerminalBackgroundCommandInput {
