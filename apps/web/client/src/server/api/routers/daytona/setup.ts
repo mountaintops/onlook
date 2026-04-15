@@ -81,25 +81,33 @@ export const setupRouter = createTRPCRouter({
             })) as DaytonaProvider;
             const { workdir, port } = input;
 
+            // Get preview link first to determine HMR host
+            const previewInfo = await provider.getPreviewLink(port);
+            let hmrEnv = '';
+            if (previewInfo?.url) {
+                try {
+                    const url = new URL(previewInfo.url);
+                    // Force HMR to use the secure tunnel host and wss protocol
+                    hmrEnv = `NEXT_HMR_PROTOCOL=wss NEXT_HMR_HOST=${url.hostname} NEXT_HMR_PORT=443 `;
+                } catch (e) {
+                    console.error('Failed to parse preview URL for HMR env', e);
+                }
+            }
+
             // Kill any previous instance and start fresh in background
-            // Use -9 for guaranteed termination and wait briefly
             await provider.runCommand({
-                args: { command: `pkill -9 -f "next dev" 2>/dev/null; sleep 2; cd ${workdir} && nohup npm run dev -- --hostname 0.0.0.0 -p ${port} > /tmp/next-dev.log 2>&1 &` },
+                args: { command: `pkill -9 -f "next dev" 2>/dev/null; sleep 2; cd ${workdir} && nohup ${hmrEnv}npm run dev -- --hostname 0.0.0.0 --port ${port} --turbopack > /tmp/next-dev.log 2>&1 &` },
             });
             
             // Poll until the dev server is responding
-            // Reduce to 10 attempts (20s total) to prevent RPC timeout (usually 30s)
             const { output: readyOutput } = await provider.runCommand({
                 args: { 
-                    command: `for i in $(seq 1 10); do curl -sf http://localhost:${port} > /dev/null 2>&1 && echo ready && exit 0; sleep 2; done; echo timeout`,
-                    timeout: 25 // Ensure provider doesn't timeout before the loop
+                    command: `for i in $(seq 1 12); do curl -sf http://localhost:${port} > /dev/null 2>&1 && echo ready && exit 0; sleep 2; done; echo timeout`,
+                    timeout: 30
                 },
             });
 
             const isReady = readyOutput.trim() === 'ready';
-
-            // Get preview URL
-            const previewInfo = await provider.getPreviewLink(port);
 
             return {
                 ready: isReady,
