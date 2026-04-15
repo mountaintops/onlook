@@ -141,6 +141,22 @@ const NEXTJS_PACKAGE_JSON = JSON.stringify(
 const NEXTJS_CONFIG = `/** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  devIndicators: {
+    appIsrStatus: false,
+  },
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: "frame-ancestors *",
+          },
+        ],
+      },
+    ];
+  },
 };
 module.exports = nextConfig;
 `;
@@ -186,9 +202,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
 const NEXTJS_PAGE = `export default function Home() {
   return (
-    <div style={{ padding: '40px', fontFamily: 'system-ui' }}>
-      <h1>Daytona Sandbox Test</h1>
+    <div style={{ padding: '40px', fontFamily: 'system-ui', lineHeight: '1.5' }}>
+      <h1 style={{ color: '#0070f3' }}>Daytona Sandbox Test</h1>
       <p>Your Next.js app is running live in a Daytona sandbox.</p>
+      <div style={{ marginTop: '20px', padding: '10px', background: '#eee', borderRadius: '5px' }}>
+        <strong>HMR Test:</strong> Try editing this file in the terminal!
+      </div>
+      <p style={{ fontSize: '12px', color: '#666', marginTop: '20px' }}>
+        Refreshed at: {new Date().toLocaleTimeString()}
+      </p>
     </div>
   );
 }
