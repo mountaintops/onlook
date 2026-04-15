@@ -133,6 +133,8 @@ export interface GetTaskOutput {
 export interface TerminalCommandInput {
     args: {
         command: string;
+        cwd?: string;
+        timeout?: number;
     };
 }
 export interface TerminalCommandOutput {

@@ -74,13 +74,18 @@ export const setupRouter = createTRPCRouter({
             const { workdir, port } = input;
 
             // Kill any previous instance and start fresh in background
+            // Use -9 for guaranteed termination and wait briefly
             await provider.runCommand({
-                args: { command: `pkill -f "next dev" 2>/dev/null; sleep 1; cd ${workdir} && nohup npm run dev -- --hostname 0.0.0.0 -p ${port} > /tmp/next-dev.log 2>&1 &` },
+                args: { command: `pkill -9 -f "next dev" 2>/dev/null; sleep 2; cd ${workdir} && nohup npm run dev -- --hostname 0.0.0.0 -p ${port} > /tmp/next-dev.log 2>&1 &` },
             });
-
+            
             // Poll until the dev server is responding
+            // Reduce to 10 attempts (20s total) to prevent RPC timeout (usually 30s)
             const { output: readyOutput } = await provider.runCommand({
-                args: { command: `for i in $(seq 1 60); do curl -sf http://localhost:${port} > /dev/null 2>&1 && echo ready && exit 0; sleep 2; done; echo timeout` },
+                args: { 
+                    command: `for i in $(seq 1 10); do curl -sf http://localhost:${port} > /dev/null 2>&1 && echo ready && exit 0; sleep 2; done; echo timeout`,
+                    timeout: 25 // Ensure provider doesn't timeout before the loop
+                },
             });
 
             const isReady = readyOutput.trim() === 'ready';
@@ -110,17 +115,15 @@ const NEXTJS_PACKAGE_JSON = JSON.stringify(
             lint: 'next lint',
         },
         dependencies: {
-            next: '15.0.0-canary.152',
-            react: 'rc',
-            'react-dom': 'rc',
+            next: '15.2.4',
+            react: '^19',
+            'react-dom': '^19',
         },
         devDependencies: {
             typescript: '^5',
             '@types/node': '^20',
-            '@types/react': '^18',
-            '@types/react-dom': '^18',
-            eslint: '^8',
-            'eslint-config-next': 'canary',
+            '@types/react': '^19',
+            '@types/react-dom': '^19',
         },
     },
     null,

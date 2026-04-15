@@ -188,7 +188,12 @@ export class DaytonaProvider extends Provider {
 
     async runCommand(input: TerminalCommandInput): Promise<TerminalCommandOutput> {
         if (!this.sandbox) throw new Error('Sandbox not initialized');
-        const res = await this.sandbox.process.executeCommand(input.args.command);
+        const res = await this.sandbox.process.executeCommand(
+            input.args.command,
+            undefined,
+            undefined,
+            input.args.timeout,
+        );
         return {
             output: res.result || '',
         };
