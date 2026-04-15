@@ -372,6 +372,11 @@ export class DaytonaProvider extends Provider {
 
     async getPreviewLink(port: number) {
         const sandbox = await this.ensureSandbox();
+        // Use getSignedPreviewUrl if available as it is better for iframing (bypasses login)
+        if (typeof sandbox.getSignedPreviewUrl === 'function') {
+            console.log(`[DaytonaProvider] Fetching signed preview URL for port ${port}...`);
+            return await sandbox.getSignedPreviewUrl(port);
+        }
         return sandbox.getPreviewLink(port);
     }
 
