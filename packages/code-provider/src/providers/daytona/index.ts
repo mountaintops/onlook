@@ -383,7 +383,7 @@ export class DaytonaProvider extends Provider {
 
     async setAutoStopInterval(interval: number) {
         const sandbox = await this.ensureSandbox();
-        await sandbox.setAutoStopInterval(interval);
+        await sandbox.setAutostopInterval(interval);
     }
 
     // Snapshot management
