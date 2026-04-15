@@ -131,8 +131,9 @@ export default function DaytonaTestPage() {
 
     const deleteSandbox = api.daytona.sandbox.delete.useMutation({
         onSuccess: (data) => {
-            addLog('success', `🗑️ Sandbox ${data.sandboxId} deleted.`);
-            if (selectedSandboxId === data.sandboxId) setSelectedSandboxId('');
+            const id = (data as any).sandboxId || '';
+            addLog('success', `🗑️ Sandbox ${id.slice(0, 12)} deleted.`);
+            if (selectedSandboxId === id) setSelectedSandboxId('');
             void listQuery.refetch();
         },
         onError: (err) => addLog('error', `❌ Delete failed: ${err.message}`),

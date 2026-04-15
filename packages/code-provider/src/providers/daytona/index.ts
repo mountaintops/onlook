@@ -77,22 +77,38 @@ export class DaytonaProvider extends Provider {
     }
 
     async initialize(input: InitializeInput): Promise<InitializeOutput> {
+        console.log(`[DaytonaProvider] Initializing (SandboxID: ${this.options.sandboxId || 'none'})`);
         const Daytona = await this.getSDK();
         const apiKey = this.options.apiKey || process.env.SANDBOX_DAYTONA_API_KEY;
         if (!apiKey) {
+            console.error('[DaytonaProvider] API key is missing from options and process.env');
             throw new Error('Daytona API key is required');
         }
         this.client = new Daytona({ apiKey });
 
-        if (this.options.sandboxId) {
-            this.sandbox = await this.client.get(this.options.sandboxId);
-        }
+        // We no longer fetch the sandbox here to avoid failing initialization 
+        // if a specific sandbox ID is stale or in transition.
         return {};
     }
 
+    private async ensureSandbox() {
+        if (this.sandbox) return this.sandbox;
+        if (!this.options.sandboxId) throw new Error('No sandboxId provided to DaytonaProvider');
+        if (!this.client) await this.initialize({});
+        
+        console.log(`[DaytonaProvider] Fetching sandbox ${this.options.sandboxId}...`);
+        try {
+            this.sandbox = await this.client.get(this.options.sandboxId);
+            return this.sandbox;
+        } catch (error: any) {
+            console.error(`[DaytonaProvider] Failed to fetch sandbox ${this.options.sandboxId}:`, error.message);
+            throw error;
+        }
+    }
+
     async writeFile(input: WriteFileInput): Promise<WriteFileOutput> {
-        if (!this.sandbox) throw new Error('Sandbox not initialized');
-        await this.sandbox.fs.uploadFiles([
+        const sandbox = await this.ensureSandbox();
+        await sandbox.fs.uploadFiles([
             {
                 source: typeof input.args.content === 'string' ? Buffer.from(input.args.content) : Buffer.from(input.args.content),
                 destination: input.args.path,
@@ -102,16 +118,15 @@ export class DaytonaProvider extends Provider {
     }
 
     async renameFile(input: RenameFileInput): Promise<RenameFileOutput> {
-        // Daytona SDK doesn't have a direct rename in fs, use mv command
-        if (!this.sandbox) throw new Error('Sandbox not initialized');
-        await this.sandbox.process.executeCommand(`mv ${input.args.oldPath} ${input.args.newPath}`);
+        const sandbox = await this.ensureSandbox();
+        await sandbox.process.executeCommand(`mv ${input.args.oldPath} ${input.args.newPath}`);
         return {};
     }
 
     async statFile(input: StatFileInput): Promise<StatFileOutput> {
-        if (!this.sandbox) throw new Error('Sandbox not initialized');
+        const sandbox = await this.ensureSandbox();
         // Simple stat implementation via command
-        const res = await this.sandbox.process.executeCommand(`stat ${input.args.path}`);
+        const res = await sandbox.process.executeCommand(`stat ${input.args.path}`);
         if (res.exitCode !== 0) throw new Error(`File not found: ${input.args.path}`);
         
         const isDirResult = await this.sandbox.process.executeCommand(`[ -d ${input.args.path} ]`);
@@ -121,15 +136,15 @@ export class DaytonaProvider extends Provider {
     }
 
     async deleteFiles(input: DeleteFilesInput): Promise<DeleteFilesOutput> {
-        if (!this.sandbox) throw new Error('Sandbox not initialized');
-        await this.sandbox.fs.deleteFile(input.args.path); // Handles recursive internally if it's a folder? 
+        const sandbox = await this.ensureSandbox();
+        await sandbox.fs.deleteFile(input.args.path); // Handles recursive internally if it's a folder? 
         // Docs say deleteFile, plural usually map to rm -rf
         return {};
     }
 
     async listFiles(input: ListFilesInput): Promise<ListFilesOutput> {
-        if (!this.sandbox) throw new Error('Sandbox not initialized');
-        const files = await this.sandbox.fs.listFiles(input.args.path);
+        const sandbox = await this.ensureSandbox();
+        const files = await sandbox.fs.listFiles(input.args.path);
         return {
             files: files.map((f: any) => ({
                 name: f.name,
@@ -140,8 +155,8 @@ export class DaytonaProvider extends Provider {
     }
 
     async readFile(input: ReadFileInput): Promise<ReadFileOutput> {
-        if (!this.sandbox) throw new Error('Sandbox not initialized');
-        const content = await this.sandbox.fs.downloadFile(input.args.path);
+        const sandbox = await this.ensureSandbox();
+        const content = await sandbox.fs.downloadFile(input.args.path);
         return {
             file: {
                 path: input.args.path,
@@ -153,7 +168,8 @@ export class DaytonaProvider extends Provider {
     }
 
     async downloadFiles(input: DownloadFilesInput): Promise<DownloadFilesOutput> {
-        if (!this.sandbox) throw new Error('Sandbox not initialized');
+        // Ensure sandbox exists
+        await this.ensureSandbox();
         // Daytona download returns a Buffer of the zipped files?
         // Actually downloadFile is for single file. 
         // For multiple, we might need a different approach.
@@ -163,14 +179,14 @@ export class DaytonaProvider extends Provider {
     }
 
     async copyFiles(input: CopyFilesInput): Promise<CopyFileOutput> {
-        if (!this.sandbox) throw new Error('Sandbox not initialized');
-        await this.sandbox.process.executeCommand(`cp ${input.args.recursive ? '-r ' : ''}${input.args.sourcePath} ${input.args.targetPath}`);
+        const sandbox = await this.ensureSandbox();
+        await sandbox.process.executeCommand(`cp ${input.args.recursive ? '-r ' : ''}${input.args.sourcePath} ${input.args.targetPath}`);
         return {};
     }
 
     async createDirectory(input: CreateDirectoryInput): Promise<CreateDirectoryOutput> {
-        if (!this.sandbox) throw new Error('Sandbox not initialized');
-        await this.sandbox.fs.createFolder(input.args.path, '755');
+        const sandbox = await this.ensureSandbox();
+        await sandbox.fs.createFolder(input.args.path, '755');
         return {};
     }
 
@@ -187,8 +203,8 @@ export class DaytonaProvider extends Provider {
     }
 
     async runCommand(input: TerminalCommandInput): Promise<TerminalCommandOutput> {
-        if (!this.sandbox) throw new Error('Sandbox not initialized');
-        const res = await this.sandbox.process.executeCommand(
+        const sandbox = await this.ensureSandbox();
+        const res = await sandbox.process.executeCommand(
             input.args.command,
             undefined,
             undefined,
@@ -201,22 +217,22 @@ export class DaytonaProvider extends Provider {
     }
 
     async runBackgroundCommand(input: TerminalBackgroundCommandInput): Promise<TerminalBackgroundCommandOutput> {
-        if (!this.sandbox) throw new Error('Sandbox not initialized');
+        const sandbox = await this.ensureSandbox();
         // Background commands in Daytona use sessions
         const sessionId = `bg-${Date.now()}`;
-        await this.sandbox.process.createSession(sessionId);
-        const command = await this.sandbox.process.executeSessionCommand(sessionId, {
+        await sandbox.process.createSession(sessionId);
+        const command = await sandbox.process.executeSessionCommand(sessionId, {
             command: input.args.command,
             runAsync: true,
         });
         return {
-            command: new DaytonaBackgroundCommand(this.sandbox, sessionId, command.cmdId!),
+            command: new DaytonaBackgroundCommand(sandbox, sessionId, command.cmdId!),
         };
     }
 
     async gitStatus(input: GitStatusInput): Promise<GitStatusOutput> {
-        if (!this.sandbox) throw new Error('Sandbox not initialized');
-        const res = await this.sandbox.process.executeCommand('git status --porcelain');
+        const sandbox = await this.ensureSandbox();
+        const res = await sandbox.process.executeCommand('git status --porcelain');
         return {
             changedFiles: res.result ? res.result.split('\n').filter(Boolean).map((l: string) => l.slice(3)) : [],
         };
@@ -243,9 +259,9 @@ export class DaytonaProvider extends Provider {
     }
 
     async ping(): Promise<boolean> {
-        if (!this.sandbox) return false;
         try {
-            await this.sandbox.process.executeCommand('echo "ping"');
+            const sandbox = await this.ensureSandbox();
+            await sandbox.process.executeCommand('echo "ping"');
             return true;
         } catch {
             return false;
@@ -273,32 +289,57 @@ export class DaytonaProvider extends Provider {
     }
 
     async pauseProject(input: PauseProjectInput): Promise<PauseProjectOutput> {
-        if (this.sandbox) await this.sandbox.stop();
+        const sandbox = await this.ensureSandbox();
+        await sandbox.stop();
         return {};
     }
 
     async stopProject(input: StopProjectInput): Promise<StopProjectOutput> {
-        if (this.sandbox) await this.sandbox.stop();
+        const sandbox = await this.ensureSandbox();
+        await sandbox.stop();
         return {};
     }
 
     async listProjects(input: ListProjectsInput): Promise<ListProjectsOutput> {
-        if (!this.client) return {};
-        const res = await this.client.list(undefined, 1, 100);
-        return {
-            projects: res.items.map((s: any) => ({
-                id: s.id,
-                name: s.id,
-                state: s.state,
-                createdAt: s.createdAt,
-                updatedAt: s.updatedAt,
-            })),
-        };
+        if (!this.client) await this.initialize({});
+        console.log('[DaytonaProvider] Listing projects...');
+        try {
+            const res = await this.client.list(undefined, 1, 100);
+            return {
+                projects: res.items.map((s: any) => ({
+                    id: s.id,
+                    name: s.id,
+                    state: s.state,
+                    createdAt: s.createdAt,
+                    updatedAt: s.updatedAt,
+                })),
+            };
+        } catch (error: any) {
+            console.error('[DaytonaProvider] Failed to list projects:', error.message);
+            throw error;
+        }
     }
 
     async destroy(): Promise<void> {
         this.sandbox = null;
         this.client = null;
+    }
+
+    async deleteProject(input: { sandboxId?: string }): Promise<void> {
+        const id = input.sandboxId || this.options.sandboxId;
+        if (!id) throw new Error('sandboxId is required for deletion');
+
+        if (!this.client) await this.initialize({});
+        console.log(`[DaytonaProvider] Deleting sandbox ${id}...`);
+        try {
+            const sandbox = await this.client.get(id);
+            // Ensure it is stopped before deletion if we have the instance
+            try { await sandbox.stop(); } catch (e) { /* Ignore stop errors */ }
+            await this.client.delete(sandbox);
+        } catch (error: any) {
+            console.error(`[DaytonaProvider] Deletion failed for ${id}:`, error.message);
+            throw error;
+        }
     }
 
     async get(input: { sandboxId: string }) {
@@ -313,43 +354,49 @@ export class DaytonaProvider extends Provider {
 
     // Daytona specific extensions
     async archive() {
-        if (this.sandbox) await this.sandbox.archive();
+        const sandbox = await this.ensureSandbox();
+        // Ensure it is stopped first as archive might fail if running
+        try { await sandbox.stop(); } catch (e) { /* Ignore */ }
+        await sandbox.archive();
     }
 
     async recover() {
-        if (this.sandbox) await this.sandbox.recover(120);
+        const sandbox = await this.ensureSandbox();
+        await sandbox.recover(120);
     }
 
     async start() {
-        if (this.sandbox) await this.sandbox.start(120);
+        const sandbox = await this.ensureSandbox();
+        await sandbox.start(120);
     }
 
     async getPreviewLink(port: number) {
-        if (this.sandbox) return this.sandbox.getPreviewLink(port);
-        return null;
+        const sandbox = await this.ensureSandbox();
+        return sandbox.getPreviewLink(port);
     }
 
     // Interval settings
     async setAutoArchiveInterval(interval: number) {
-        if (!this.sandbox) throw new Error('Sandbox not initialized');
-        await this.sandbox.setAutoArchiveInterval(interval);
+        const sandbox = await this.ensureSandbox();
+        await sandbox.setAutoArchiveInterval(interval);
     }
 
     async setAutoStopInterval(interval: number) {
-        if (!this.sandbox) throw new Error('Sandbox not initialized');
-        await this.sandbox.setAutoStopInterval(interval);
+        const sandbox = await this.ensureSandbox();
+        await sandbox.setAutoStopInterval(interval);
     }
 
     // Snapshot management
     async listSnapshots() {
-        if (!this.client) {
-             const Daytona = await this.getSDK();
-             const apiKey = this.options.apiKey || process.env.SANDBOX_DAYTONA_API_KEY;
-             if (!apiKey) throw new Error('Daytona API key required');
-             this.client = new Daytona({ apiKey });
+        if (!this.client) await this.initialize({});
+        console.log('[DaytonaProvider] Listing snapshots...');
+        try {
+            const result = await this.client.snapshot.list(1, 100);
+            return result.items || [];
+        } catch (error: any) {
+            console.error('[DaytonaProvider] Failed to list snapshots:', error.message);
+            throw error;
         }
-        const result = await this.client.snapshot.list(1, 100);
-        return result.items || [];
     }
 
     async createSnapshot(name: string, image: string) {

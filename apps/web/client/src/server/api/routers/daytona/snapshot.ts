@@ -12,9 +12,10 @@ export const snapshotRouter = createTRPCRouter({
             providerOptions: { daytona: {} },
         })) as DaytonaProvider;
         try {
-            return await provider.listSnapshots();
+            const result = await provider.listSnapshots();
+            return result || [];
         } catch (error: any) {
-            console.error('[Daytona] Failed to list snapshots:', error);
+            console.error(`[tRPC] daytona.snapshot.list failed:`, error.message);
             throw new TRPCError({
                 code: 'INTERNAL_SERVER_ERROR',
                 message: `Failed to list snapshots: ${error.message}`,

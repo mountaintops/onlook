@@ -228,18 +228,13 @@ export const sandboxRouter = createTRPCRouter({
                 providerOptions: { daytona: { sandboxId: input.sandboxId } },
             })) as DaytonaProvider;
             try {
-                // Get the raw sdk client from provider for deletion
-                const sdk = await (provider as any).getSDK();
-                const apiKey = process.env.SANDBOX_DAYTONA_API_KEY;
-                const client = new sdk({ apiKey });
-                const sandbox = await client.get(input.sandboxId);
-                await client.delete(sandbox);
+                await provider.deleteProject({ sandboxId: input.sandboxId });
                 return { success: true, sandboxId: input.sandboxId };
             } catch (error: any) {
-                console.error(`[Daytona] Failed to delete sandbox ${input.sandboxId}:`, error);
+                console.error(`[tRPC] daytona.sandbox.delete failed:`, error.message);
                 throw new TRPCError({
                     code: 'INTERNAL_SERVER_ERROR',
-                    message: `Failed to delete sandbox: ${error.message}`,
+                    message: `Deletion failed: ${error.message}`,
                 });
             }
         }),
