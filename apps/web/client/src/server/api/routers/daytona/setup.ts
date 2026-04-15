@@ -95,15 +95,17 @@ export const setupRouter = createTRPCRouter({
             }
 
             // Kill any previous instance and start fresh in background
+            // Using npx next dev directly for cleaner flag passing and error isolation
             await provider.runCommand({
-                args: { command: `pkill -9 -f "next dev" 2>/dev/null; sleep 2; cd ${workdir} && nohup ${hmrEnv}npm run dev -- --hostname 0.0.0.0 --port ${port} --turbopack > /tmp/next-dev.log 2>&1 &` },
+                args: { command: `pkill -9 -f "next dev" 2>/dev/null; sleep 2; cd ${workdir} && nohup ${hmrEnv}PORT=${port} NODE_ENV=development npx next dev --hostname 0.0.0.0 --port ${port} > /tmp/next-dev.log 2>&1 &` },
             });
             
             // Poll until the dev server is responding
+            // Increase to 15 attempts (30s) to handle slower cold starts
             const { output: readyOutput } = await provider.runCommand({
                 args: { 
-                    command: `for i in $(seq 1 12); do curl -sf http://localhost:${port} > /dev/null 2>&1 && echo ready && exit 0; sleep 2; done; echo timeout`,
-                    timeout: 30
+                    command: `for i in $(seq 1 15); do curl -sf http://localhost:${port} > /dev/null 2>&1 && echo ready && exit 0; sleep 2; done; echo timeout`,
+                    timeout: 40
                 },
             });
 
