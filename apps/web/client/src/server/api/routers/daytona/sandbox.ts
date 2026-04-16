@@ -240,7 +240,33 @@ export const sandboxRouter = createTRPCRouter({
             }
         }),
     
-
+    /**
+     * Fork/Clone an existing sandbox.
+     */
+    fork: publicProcedure
+        .input(z.object({
+            sandboxId: z.string(),
+            name: z.string().optional(),
+        }))
+        .mutation(async ({ input }) => {
+            const provider = (await createCodeProviderClient(CodeProvider.Daytona, {
+                providerOptions: { daytona: { sandboxId: input.sandboxId } },
+            })) as DaytonaProvider;
+            try {
+                const result = await provider.fork(input.name);
+                return {
+                    success: true,
+                    id: result.id,
+                    state: result.state,
+                };
+            } catch (error: any) {
+                console.error(`[Daytona] Fork failed for sandbox ${input.sandboxId}:`, error.message);
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Cloning failed: ${error.message}`,
+                });
+            }
+        }),
 
     /**
      * Delete ALL Daytona sandboxes (Admin/Debug utility).

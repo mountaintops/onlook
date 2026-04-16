@@ -366,6 +366,13 @@ export default function DaytonaTestPage() {
         onError: (err) => addLog('error', `❌ Snapshot delete failed: ${err.message}`),
     });
 
+    const forkSandbox = api.daytona.sandbox.fork.useMutation({
+        onSuccess: (data) => {
+            addLog('success', `👯 Sandbox cloned successfully! New ID: ${data.id.slice(0, 12)}…`);
+            void listQuery.refetch();
+        },
+        onError: (err) => addLog('error', `❌ Cloning failed: ${err.message}`),
+    });
 
     const activateSnapshot = api.daytona.snapshot.activate.useMutation({
         onSuccess: (data) => {
@@ -1068,6 +1075,18 @@ export default function DaytonaTestPage() {
                                                     }}
                                                 >
                                                     📦 Auto-arch
+                                                </button>
+                                                <button
+                                                    id={`btn-clone-${sb.id}`}
+                                                    className={styles.btnXs}
+                                                    disabled={forkSandbox.isPending}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        const name = prompt('Enter a name for the clone (optional):');
+                                                        if (name !== null) forkSandbox.mutate({ sandboxId: sb.id, name: name || undefined });
+                                                    }}
+                                                >
+                                                    👯 Clone & Run
                                                 </button>
                                                 <button id={`btn-delete-${sb.id}`} className={`${styles.btnXs} ${styles.btnDanger}`} onClick={(e) => { e.stopPropagation(); if (confirm(`Delete ${sb.id.slice(0, 12)}…?`)) deleteSandbox.mutate({ sandboxId: sb.id }); }}>Delete</button>
                                             </div>

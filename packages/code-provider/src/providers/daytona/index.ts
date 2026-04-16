@@ -414,8 +414,27 @@ export class DaytonaProvider extends Provider {
         }
         return await this.client.snapshot.create({ name, image });
     }
-
-
+    async fork(name?: string) {
+        console.log(`[DaytonaProvider] Forking sandbox... ${name ? `(name: ${name})` : ''}`);
+        const sandbox = await this.ensureSandbox();
+        
+        // Use the experimental fork method on the sandbox object
+        const forkMethod = (sandbox as any)._experimental_fork || (sandbox as any).fork;
+        
+        if (typeof forkMethod === 'function') {
+            const methodName = (sandbox as any).fork ? 'fork' : '_experimental_fork';
+            console.log(`[DaytonaProvider] Invoking ${methodName} for clone operation`);
+            // The SDK method returns a new Sandbox instance and automatically waits for it to start
+            const forkedSandbox = await forkMethod.call(sandbox, { name });
+            return {
+                id: forkedSandbox.id,
+                state: forkedSandbox.state,
+                createdAt: forkedSandbox.createdAt,
+            };
+        } else {
+            throw new Error(`Daytona SDK version ${require('@daytonaio/sdk/package.json').version} does not support cloning/forking from a running sandbox.`);
+        }
+    }
 
     async deleteSnapshot(name: string) {
         if (!this.client) {
