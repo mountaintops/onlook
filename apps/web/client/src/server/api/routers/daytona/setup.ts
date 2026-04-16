@@ -288,7 +288,7 @@ function getNextjsFiles(deps: any, libraries: string[]) {
         name: 'nextjs-onlook',
         version: '0.1.0',
         private: true,
-        scripts: { dev: 'next dev', build: 'next build', start: 'next start' },
+        scripts: { dev: 'next dev --hostname 0.0.0.0', build: 'next build', start: 'next start' },
         dependencies: {
             "next": "16.2.4",
             "react": "^19.2.5",
@@ -335,7 +335,7 @@ function getNextjsFiles(deps: any, libraries: string[]) {
 function getNuxtFiles(deps: any, libraries: string[]) {
     const pkg = {
         name: 'nuxt-onlook',
-        scripts: { dev: 'nuxt dev', build: 'nuxt build', generate: 'nuxt generate' },
+        scripts: { dev: 'nuxt dev --host 0.0.0.0', build: 'nuxt build', generate: 'nuxt generate' },
         devDependencies: { "nuxt": "^4.4.0", "@tailwindcss/vite": "^4.0.0", ...deps }
     };
 
@@ -385,7 +385,7 @@ function getRemixFiles(deps: any, libraries: string[]) {
     const pkg = {
         name: 'remix-onlook',
         type: 'module',
-        scripts: { dev: 'remix dev --manual', build: 'remix build', start: 'remix-serve ./build/index.js' },
+        scripts: { dev: 'vite --host 0.0.0.0', build: 'remix build', start: 'remix-serve ./build/index.js' },
         dependencies: {
             "@remix-run/node": "^2.15.3",
             "@remix-run/react": "^2.15.3",
@@ -411,7 +411,7 @@ function getSvelteKitFiles(deps: any, libraries: string[]) {
     const pkg = {
         name: 'svelte-onlook',
         type: 'module',
-        scripts: { dev: 'vite dev', build: 'vite build', preview: 'vite preview' },
+        scripts: { dev: 'vite dev --host 0.0.0.0', build: 'vite build', preview: 'vite preview' },
         devDependencies: {
             "@sveltejs/adapter-auto": "^3.0.0",
             "@sveltejs/kit": "^2.16.0",
