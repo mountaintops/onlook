@@ -99,7 +99,7 @@ export const setupRouter = createTRPCRouter({
         .input(
             z.object({
                 sandboxId: z.string(),
-                workdir: z.string().default('/tmp/nextapp'),
+                workdir: z.string().default('/home/daytona/onlook-starter'),
                 port: z.number().default(3000),
             }),
         )
@@ -109,10 +109,25 @@ export const setupRouter = createTRPCRouter({
             })) as DaytonaProvider;
             const { workdir, port } = input;
 
+            console.log(`[Daytona Setup] Starting dev server in ${workdir} on port ${port}...`);
+
             // Kill any previous instance and start fresh in background
             // Use -9 for guaranteed termination and wait briefly
+            // We use 'cd' inside a subshell to catch failures early
+            const { exitCode: shellExit } = await provider.runCommand({
+                args: { command: `pkill -9 -f "next dev" 2>/dev/null; sleep 1; [ -d "${workdir}" ]` },
+            });
+
+            if (shellExit !== 0) {
+                console.error(`[Daytona Setup] Directory ${workdir} does not exist in sandbox ${input.sandboxId}`);
+                throw new TRPCError({
+                    code: 'NOT_FOUND',
+                    message: `Directory ${workdir} not found in sandbox. Did you bootstrap it?`,
+                });
+            }
+
             await provider.runCommand({
-                args: { command: `pkill -9 -f "next dev" 2>/dev/null; sleep 2; cd ${workdir} && nohup npm run dev -- --hostname 0.0.0.0 -p ${port} > /tmp/next-dev.log 2>&1 &` },
+                args: { command: `cd ${workdir} && nohup npm run dev -- --hostname 0.0.0.0 -p ${port} > /tmp/next-dev.log 2>&1 &` },
             });
             
             // Poll until the dev server is responding

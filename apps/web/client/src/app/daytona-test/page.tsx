@@ -185,7 +185,7 @@ export default function DaytonaTestPage() {
             addLog('success', `✅ Project ready in sandbox ${data.sandboxId.slice(0, 12)}…`);
             // Auto-proceed to starting server
             setBootstrapStep('starting-server');
-            startServerMutation.mutate({ sandboxId: data.sandboxId });
+            startServerMutation.mutate({ sandboxId: data.sandboxId, workdir: data.workdir });
         },
         onError: (err) => {
             setBootstrapStep('error');
@@ -272,7 +272,7 @@ export default function DaytonaTestPage() {
     const startSandbox = api.daytona.sandbox.start.useMutation({
         onSuccess: (data) => {
             addLog('success', `▶️ Sandbox ${data.sandboxId.slice(0, 12)} started. Booting dev server...`);
-            startServerMutation.mutate({ sandboxId: data.sandboxId });
+            startServerMutation.mutate({ sandboxId: data.sandboxId }); // Uses consistent default in router now
             void listQuery.refetch();
         },
         onError: (err) => addLog('error', `❌ Start failed: ${err.message}`),
