@@ -339,59 +339,36 @@ function getNuxtFiles(deps: any, libraries: string[]) {
         'nuxt.config.ts': `import tailwindcss from "@tailwindcss/vite";\nexport default defineNuxtConfig({\n  vite: {\n    plugins: [tailwindcss()],\n  },\n  css: ['~/assets/css/main.css'],\n  devtools: { enabled: true }\n})`,
         'assets/css/main.css': `@import "tailwindcss";`,
         'app.vue': `<script setup>
-import { Sparkles, Rocket, Package, ArrowRight, Github } from 'lucide-react';
 import { onMounted, ref } from 'vue';
 import gsap from 'gsap';
 
 const container = ref(null);
-const card = ref(null);
 const title = ref(null);
-const elements = ref([]);
+const sub = ref(null);
+const info = ref(null);
 
 onMounted(() => {
-  const tl = gsap.timeline({ defaults: { ease: 'power4.out', duration: 1.2 } });
+  const tl = gsap.timeline({ defaults: { ease: 'power3.out', duration: 1 } });
   tl.fromTo(container.value, { opacity: 0 }, { opacity: 1, duration: 1.5 })
-    .fromTo(card.value, { scale: 0.9, opacity: 0, y: 40 }, { scale: 1, opacity: 1, y: 0 }, 0.2)
-    .fromTo(title.value, { y: 30, opacity: 0 }, { y: 0, opacity: 1 }, 0.5)
-    .fromTo(elements.value, { y: 20, opacity: 0 }, { y: 0, opacity: 1, stagger: 0.1, duration: 0.8 }, 0.8);
+    .fromTo(title.value, { y: 20, opacity: 0 }, { y: 0, opacity: 1 }, 0.3)
+    .fromTo(sub.value, { y: 15, opacity: 0 }, { y: 0, opacity: 1 }, 0.5)
+    .fromTo(info.value, { y: 10, opacity: 0 }, { y: 0, opacity: 1 }, 0.7);
 });
 </script>
 
 <template>
-  <main ref="container" class="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top_right,#fdfcfb_0%,#e2d1c3_100%)] font-sans text-slate-900 overflow-hidden">
-    <div ref="card" class="relative group p-12 max-w-2xl w-[90%] bg-white/70 backdrop-blur-2xl rounded-[3rem] border border-white/50 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.1)] text-center transition-all hover:bg-white/80">
-      <div class="absolute -top-6 left-1/2 -translate-x-1/2 bg-indigo-900 text-white px-6 py-2 rounded-full text-xs font-bold tracking-[0.2em] uppercase shadow-2xl">
-        Built with Nuxt 3
-      </div>
-      <div class="inline-flex px-4 py-2 bg-green-500/10 text-green-600 rounded-full text-sm font-bold mb-8 items-center">
-        <Sparkles class="w-4 h-4 mr-2" />
-        Daytona Sandbox Active
-      </div>
-      <h1 ref="title" class="text-6xl font-black tracking-tighter mb-6 bg-gradient-to-br from-slate-950 via-slate-800 to-slate-600 bg-clip-text text-transparent leading-[1.1]">
-        A new Nuxt project.
+  <main ref="container" class="min-h-screen flex items-center justify-center bg-[#fafafa] font-sans text-slate-900">
+    <div class="max-w-xl w-full px-8 text-center">
+      <h1 ref="title" class="text-5xl font-bold tracking-tight mb-4">
+        This is a new project.
       </h1>
-      <p class="text-slate-500 text-xl leading-relaxed mb-12 max-w-md mx-auto font-medium">
-        Edit <code class="bg-slate-100 px-2 py-1 rounded text-slate-800 font-mono text-sm">app.vue</code> to start your journey.
+      <p ref="sub" class="text-slate-400 text-lg mb-12">
+        Edit <code class="text-slate-900 font-medium">app.vue</code> to get started.
       </p>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-left mb-10">
-        <div ref="el => elements[0] = el" class="p-6 bg-white/50 rounded-[2rem] border border-slate-100 shadow-sm transition-all hover:shadow-xl hover:scale-[1.02] group/item">
-          <Rocket class="w-8 h-8 text-green-500 mb-4 group-hover/item:rotate-12 transition-transform" />
-          <h3 class="font-extrabold text-slate-900 text-lg">Framework</h3>
-          <p class="text-sm text-slate-400 font-semibold uppercase">Nuxt.js</p>
-        </div>
-        <div ref="el => elements[1] = el" class="p-6 bg-white/50 rounded-[2rem] border border-slate-100 shadow-sm transition-all hover:shadow-xl hover:scale-[1.02] group/item">
-          <Package class="w-8 h-8 text-blue-500 mb-4 group-hover/item:rotate-12 transition-transform" />
-          <h3 class="font-extrabold text-slate-900 text-lg">Libraries</h3>
-          <p class="text-sm text-slate-400 font-semibold truncate hover:text-clip">${libraries.length > 0 ? libraries.join(', ') : 'Standard Bundle'}</p>
-        </div>
-      </div>
-      <div ref="el => elements[2] = el" class="flex flex-col sm:flex-row gap-4 justify-center">
-        <button class="px-8 py-4 bg-green-600 text-white rounded-2xl font-bold flex items-center justify-center hover:bg-green-700 transition-colors group/btn">
-          Explore Nuxt <ArrowRight class="w-4 h-4 ml-2 group-hover/btn:translate-x-1 transition-transform" />
-        </button>
-        <button class="px-8 py-4 bg-white text-slate-900 border border-slate-200 rounded-2xl font-bold flex items-center justify-center hover:bg-slate-50 transition-colors">
-          <Github class="w-4 h-4 mr-2" /> Documentation
-        </button>
+      
+      <div ref="info" class="pt-8 border-t border-slate-100 flex flex-col items-center gap-2 text-[11px] uppercase tracking-widest font-bold text-slate-300">
+        <span>Framework: Nuxt.js</span>
+        <span class="opacity-40">Libraries: ${libraries.join(', ') || 'Standard Bundle'}</span>
       </div>
     </div>
   </main>
@@ -438,58 +415,35 @@ function getSvelteKitFiles(deps: any, libraries: string[]) {
         'svelte.config.js': `import adapter from '@sveltejs/adapter-auto';\nexport default { kit: { adapter: adapter() } };`,
         'vite.config.js': `import { sveltekit } from '@sveltejs/kit/vite';\nimport tailwindcss from '@tailwindcss/vite';\nimport { defineConfig } from 'vite';\nexport default defineConfig({ plugins: [tailwindcss(), sveltekit()] });`,
         'src/routes/+page.svelte': `<script>
-import { Sparkles, Rocket, Package, ArrowRight, Github } from 'lucide-react';
 import { onMount } from 'svelte';
 import gsap from 'gsap';
 
 let container;
-let card;
 let title;
-let elements = [];
+let sub;
+let info;
 
 onMount(() => {
-  const tl = gsap.timeline({ defaults: { ease: 'power4.out', duration: 1.2 } });
+  const tl = gsap.timeline({ defaults: { ease: 'power3.out', duration: 1 } });
   tl.fromTo(container, { opacity: 0 }, { opacity: 1, duration: 1.5 })
-    .fromTo(card, { scale: 0.9, opacity: 0, y: 40 }, { scale: 1, opacity: 1, y: 0 }, 0.2)
-    .fromTo(title, { y: 30, opacity: 0 }, { y: 0, opacity: 1 }, 0.5)
-    .fromTo(elements, { y: 20, opacity: 0 }, { y: 0, opacity: 1, stagger: 0.1, duration: 0.8 }, 0.8);
+    .fromTo(title, { y: 20, opacity: 0 }, { y: 0, opacity: 1 }, 0.3)
+    .fromTo(sub, { y: 15, opacity: 0 }, { y: 0, opacity: 1 }, 0.5)
+    .fromTo(info, { y: 10, opacity: 0 }, { y: 0, opacity: 1 }, 0.7);
 });
 </script>
 
-<main bind:this={container} class="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top_right,#fdfcfb_0%,#e1eec3_100%)] font-sans text-slate-900 overflow-hidden">
-  <div bind:this={card} class="relative group p-12 max-w-2xl w-[90%] bg-white/70 backdrop-blur-2xl rounded-[3rem] border border-white/50 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.1)] text-center transition-all hover:bg-white/80">
-    <div class="absolute -top-6 left-1/2 -translate-x-1/2 bg-rose-600 text-white px-6 py-2 rounded-full text-xs font-bold tracking-[0.2em] uppercase shadow-2xl">
-      SvelteKit Ready
-    </div>
-    <div class="inline-flex px-4 py-2 bg-rose-500/10 text-rose-600 rounded-full text-sm font-bold mb-8 items-center">
-      <Sparkles class="w-4 h-4 mr-2" />
-      Powered by Daytona
-    </div>
-    <h1 bind:this={title} class="text-6xl font-black tracking-tighter mb-6 bg-gradient-to-br from-slate-950 via-slate-800 to-slate-600 bg-clip-text text-transparent leading-[1.1]">
-      A new Svelte project.
+<main bind:this={container} class="min-h-screen flex items-center justify-center bg-[#fafafa] font-sans text-slate-900">
+  <div class="max-w-xl w-full px-8 text-center">
+    <h1 bind:this={title} class="text-5xl font-bold tracking-tight mb-4">
+      This is a new project.
     </h1>
-    <p class="text-slate-500 text-xl leading-relaxed mb-12 max-w-md mx-auto font-medium">
-      Modify <code class="bg-slate-100 px-2 py-1 rounded text-slate-800 font-mono text-sm">src/routes/+page.svelte</code> to build.
+    <p bind:this={sub} class="text-slate-400 text-lg mb-12">
+      Edit <code class="text-slate-900 font-medium">src/routes/+page.svelte</code> to build.
     </p>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-left mb-10">
-      <div bind:this={elements[0]} class="p-6 bg-white/50 rounded-[2rem] border border-slate-100 shadow-sm transition-all hover:shadow-xl hover:scale-[1.02] group/item">
-        <Rocket class="w-8 h-8 text-rose-500 mb-4 group-hover/item:rotate-12 transition-transform" />
-        <h3 class="font-extrabold text-slate-900 text-lg">Framework</h3>
-        <p class="text-sm text-slate-400 font-semibold uppercase">SvelteKit</p>
-      </div>
-      <div bind:this={elements[1]} class="p-6 bg-white/50 rounded-[2rem] border border-slate-100 shadow-sm transition-all hover:shadow-xl hover:scale-[1.02] group/item">
-        <Package class="w-8 h-8 text-orange-500 mb-4 group-hover/item:rotate-12 transition-transform" />
-        <h3 class="font-extrabold text-slate-900 text-lg">Libraries</h3>
-        <p class="text-sm text-slate-400 font-semibold truncate">${libraries.length > 0 ? libraries.join(', ') : 'Standard Bundle'}</p>
-      </div>
-    </div>
-    <div bind:this={elements[2]} class="flex flex-col sm:flex-row gap-4 justify-center">
-      <button class="px-8 py-4 bg-rose-600 text-white rounded-2xl font-bold flex items-center justify-center hover:bg-rose-700 transition-colors group/btn">
-        Start Building <ArrowRight class="w-4 h-4 ml-2 group-hover/btn:translate-x-1 transition-transform" />
-      </button>
-      <button class="px-8 py-4 bg-white text-slate-900 border border-slate-200 rounded-2xl font-bold flex items-center justify-center hover:bg-slate-50 transition-colors">
-        <Github class="w-4 h-4 mr-2" /> Documentation
-      </button>
+    
+    <div bind:this={info} class="pt-8 border-t border-slate-100 flex flex-col items-center gap-2 text-[11px] uppercase tracking-widest font-bold text-slate-300">
+      <span>Framework: SvelteKit</span>
+      <span class="opacity-40">Libraries: ${libraries.join(', ') || 'Standard Bundle'}</span>
     </div>
   </div>
 </main>`,
@@ -499,25 +453,22 @@ onMount(() => {
 
 function getStarterPage(framework: string, libraries: string[]) {
     return `'use client';
-import { Target, LucideIcon, Sparkles, Rocket, Zap, Package, ArrowRight, Github } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import gsap from 'gsap';
 
 export default function Home() {
   const containerRef = useRef(null);
-  const cardRef = useRef(null);
   const titleRef = useRef(null);
-  const elementsRef = useRef<HTMLDivElement[]>([]);
+  const subRef = useRef(null);
+  const infoRef = useRef(null);
 
   useEffect(() => {
     const ctx = gsap.context(() => {
-      const tl = gsap.timeline({ defaults: { ease: 'power4.out', duration: 1.2 } });
-      
-      // Use fromTo to avoid double-mount opacity issues in StrictMode
+      const tl = gsap.timeline({ defaults: { ease: 'power3.out', duration: 1 } });
       tl.fromTo(containerRef.current, { opacity: 0 }, { opacity: 1, duration: 1.5 })
-        .fromTo(cardRef.current, { scale: 0.9, opacity: 0, y: 40 }, { scale: 1, opacity: 1, y: 0 }, 0.2)
-        .fromTo(titleRef.current, { y: 30, opacity: 0 }, { y: 0, opacity: 1 }, 0.5)
-        .fromTo(elementsRef.current, { y: 20, opacity: 0 }, { y: 0, opacity: 1, stagger: 0.1, duration: 0.8 }, 0.8);
+        .fromTo(titleRef.current, { y: 20, opacity: 0 }, { y: 0, opacity: 1 }, 0.3)
+        .fromTo(subRef.current, { y: 15, opacity: 0 }, { y: 0, opacity: 1 }, 0.5)
+        .fromTo(infoRef.current, { y: 10, opacity: 0 }, { y: 0, opacity: 1 }, 0.7);
     });
     return () => ctx.revert();
   }, []);
@@ -525,70 +476,23 @@ export default function Home() {
   return (
     <main 
       ref={containerRef}
-      className="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top_right,#fdfcfb_0%,#e2d1c3_100%)] font-sans text-slate-900 overflow-hidden"
+      className="min-h-screen flex items-center justify-center bg-[#fafafa] font-sans text-slate-900"
     >
-      <div 
-        ref={cardRef}
-        className="relative group p-12 max-w-2xl w-[90%] bg-white/70 backdrop-blur-2xl rounded-[3rem] border border-white/50 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.1)] text-center transition-all hover:bg-white/80"
-      >
-        <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-2 rounded-full text-xs font-bold tracking-[0.2em] uppercase shadow-2xl">
-          Environment Ready
-        </div>
-
-        <div className="inline-flex px-4 py-2 bg-blue-500/10 text-blue-600 rounded-full text-sm font-bold mb-8 items-center">
-          <Sparkles className="w-4 h-4 mr-2" />
-          Daytona Sandbox Provisioned
-        </div>
-        
+      <div className="max-w-xl w-full px-8 text-center">
         <h1 
           ref={titleRef}
-          className="text-6xl font-black tracking-tighter mb-6 bg-gradient-to-br from-slate-950 via-slate-800 to-slate-600 bg-clip-text text-transparent leading-[1.1]"
+          className="text-5xl font-bold tracking-tight mb-4"
         >
           This is a new project.
         </h1>
         
-        <p className="text-slate-500 text-xl leading-relaxed mb-12 max-w-md mx-auto font-medium">
-          Edit <code className="bg-slate-100 px-2 py-1 rounded text-slate-800 font-mono text-sm">app/page.tsx</code> to start building your vision on this premium stack.
+        <p ref={subRef} className="text-slate-400 text-lg mb-12 font-medium">
+          Edit <code className="text-slate-900">app/page.tsx</code> to start building.
         </p>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left mb-10">
-          <div 
-            ref={(el) => { if(el) elementsRef.current[0] = el }}
-            className="p-6 bg-white/50 rounded-[2rem] border border-slate-100 shadow-sm transition-all hover:shadow-xl hover:scale-[1.02] group/item"
-          >
-            <Rocket className="w-8 h-8 text-blue-500 mb-4 group-hover/item:rotate-12 transition-transform" />
-            <h3 className="font-extrabold text-slate-900 text-lg">Framework</h3>
-            <p className="text-sm text-slate-400 font-semibold">${framework.toUpperCase()}</p>
-          </div>
-          
-          <div 
-            ref={(el) => { if(el) elementsRef.current[1] = el }}
-            className="p-6 bg-white/50 rounded-[2rem] border border-slate-100 shadow-sm transition-all hover:shadow-xl hover:scale-[1.02] group/item"
-          >
-            <Package className="w-8 h-8 text-purple-500 mb-4 group-hover/item:rotate-12 transition-transform" />
-            <h3 className="font-extrabold text-slate-900 text-lg">Libraries</h3>
-            <p className="text-sm text-slate-400 font-semibold truncate hover:text-clip">${libraries.length > 0 ? libraries.join(', ') : 'Standard Bundle'}</p>
-          </div>
-        </div>
-
-        <div 
-           ref={(el) => { if(el) elementsRef.current[2] = el }}
-           className="flex flex-col sm:flex-row gap-4 justify-center"
-        >
-          <button className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-bold flex items-center justify-center hover:bg-slate-800 transition-colors group/btn">
-            Get Started <ArrowRight className="w-4 h-4 ml-2 group-hover/btn:translate-x-1 transition-transform" />
-          </button>
-          <button className="px-8 py-4 bg-white text-slate-900 border border-slate-200 rounded-2xl font-bold flex items-center justify-center hover:bg-slate-50 transition-colors">
-            <Github className="w-4 h-4 mr-2" /> Documentation
-          </button>
-        </div>
-
-        <div className="mt-12 pt-8 border-t border-slate-100 flex items-center justify-between text-slate-400 text-[10px] uppercase font-black tracking-[0.2em]">
-          <span>Tailwind 4.0</span>
-          <span className="opacity-20">•</span>
-          <span>GSAP</span>
-          <span className="opacity-20">•</span>
-          <span>${libraries.join(' / ') || 'Starter'}</span>
+        <div ref={infoRef} className="pt-8 border-t border-slate-100 flex flex-col items-center gap-2 text-[11px] uppercase tracking-[0.2em] font-black text-slate-300">
+           <span>Framework: ${framework.toUpperCase()}</span>
+           <span class="opacity-40">Libraries: ${libraries.join(', ') || 'Standard Bundle'}</span>
         </div>
       </div>
     </main>
