@@ -239,6 +239,31 @@ export const sandboxRouter = createTRPCRouter({
                 });
             }
         }),
+    
+    /**
+     * Create a snapshot from an existing sandbox.
+     */
+    createFromSandbox: publicProcedure
+        .input(z.object({
+            sandboxId: z.string(),
+            name: z.string(),
+        }))
+        .mutation(async ({ input }) => {
+            const provider = (await createCodeProviderClient(CodeProvider.Daytona, {
+                providerOptions: { daytona: { sandboxId: input.sandboxId } },
+            })) as DaytonaProvider;
+            try {
+                await provider.snapshot(input.name);
+                return { success: true };
+            } catch (error: any) {
+                console.error(`[Daytona] Failed to create snapshot from sandbox ${input.sandboxId}:`, error);
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Failed to create snapshot: ${error.message}`,
+                    cause: error,
+                });
+            }
+        }),
 
     /**
      * Delete ALL Daytona sandboxes (Admin/Debug utility).

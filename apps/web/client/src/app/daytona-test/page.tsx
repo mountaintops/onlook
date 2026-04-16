@@ -192,6 +192,10 @@ export default function DaytonaTestPage() {
     const [proxyPort, setProxyPort] = useState(8788);
     const [proxySlug, setProxySlug] = useState('');
 
+    const [showStackModal, setShowStackModal] = useState(false);
+    const [selectedFramework, setSelectedFramework] = useState<'next' | 'nuxt' | 'remix' | 'sveltekit'>('next');
+    const [selectedLibs, setSelectedLibs] = useState<string[]>([]);
+    
     // Bootstrap state
     const [bootstrapStep, setBootstrapStep] = useState<BootstrapStep>('idle');
     const [bootstrapSandboxId, setBootstrapSandboxId] = useState('');
@@ -206,7 +210,7 @@ export default function DaytonaTestPage() {
     }
 
     /* ── Mutations & Queries ─────────────────────────────────────────── */
-    const bootstrapMutation = api.daytona.setup.bootstrapNextjsProject.useMutation({
+    const bootstrapMutation = api.daytona.setup.bootstrapProject.useMutation({
         onSuccess: (data) => {
             setBootstrapSandboxId(data.sandboxId);
             setSelectedSandboxId(data.sandboxId);
@@ -362,6 +366,14 @@ export default function DaytonaTestPage() {
         onError: (err) => addLog('error', `❌ Snapshot delete failed: ${err.message}`),
     });
 
+    const createFromSandbox = api.daytona.sandbox.createFromSandbox.useMutation({
+        onSuccess: () => {
+            addLog('success', '📸 Snapshot created from sandbox successfully.');
+            void snapshotsQuery.refetch();
+        },
+        onError: (err) => addLog('error', `❌ Failed to create snapshot from sandbox: ${err.message}`),
+    });
+
     const activateSnapshot = api.daytona.snapshot.activate.useMutation({
         onSuccess: (data) => {
             addLog('success', `✅ Snapshot '${data.name}' activated (${data.state}).`);
@@ -411,12 +423,22 @@ export default function DaytonaTestPage() {
             : sandboxes;
 
     function startBootstrap(existingSandboxId?: string) {
+        if (!existingSandboxId && !showStackModal) {
+            setShowStackModal(true);
+            return;
+        }
+        
+        setShowStackModal(false);
         setPreviewUrl(null);
         setPreviewToken(null);
         setBootstrapStep('creating-sandbox');
-        addLog('info', '🚀 Bootstrapping Next.js project in Daytona…');
+        const stackLabel = `${selectedFramework.toUpperCase()} ${selectedLibs.length > 0 ? `+ ${selectedLibs.join(', ')}` : ''}`;
+        addLog('info', `🚀 Bootstrapping ${stackLabel} in Daytona…`);
+        
         bootstrapMutation.mutate({ 
             sandboxId: existingSandboxId, 
+            framework: selectedFramework,
+            libraries: selectedLibs,
             autoStopInterval: autoStop, 
             autoArchiveInterval: autoArchive,
             subdomain: proxySlug || undefined
@@ -487,8 +509,135 @@ export default function DaytonaTestPage() {
 
     const isBootstrapping = bootstrapMutation.isPending || startServerMutation.isPending;
 
+    // ── Stack Selector Modal ───────────────────────────────────────
+    const StackSelectorModal = () => {
+        if (!showStackModal) return null;
+
+        const frameworks = [
+            { id: 'next', name: 'Next.js' },
+            { id: 'nuxt', name: 'Nuxt 3' },
+            { id: 'remix', name: 'Remix' },
+            { id: 'sveltekit', name: 'SvelteKit' },
+        ];
+
+        const libraries = [
+            { id: 'shadcn', name: 'shadcn/ui', desc: 'Beautifully designed components' },
+            { id: 'heroui', name: 'HeroUI', desc: 'Premium component library' },
+            { id: 'daisyui', name: 'daisyUI', desc: 'DaisyUI component library' },
+            { id: 'trpc', name: 'tRPC', desc: 'End-to-end typesafe APIs' },
+            { id: 'orpc', name: 'oRPC', desc: 'Modern RPC for everyone' },
+        ];
+
+        return (
+            <div style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 9999,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'rgba(15, 23, 42, 0.7)',
+                backdropFilter: 'blur(4px)',
+                padding: '1rem',
+            }}>
+                <div style={{
+                    background: 'white',
+                    borderRadius: '24px',
+                    width: '100%',
+                    maxWidth: '600px',
+                    overflow: 'hidden',
+                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                    border: '1px solid #e2e8f0',
+                    display: 'flex',
+                    flexDirection: 'column',
+                }}>
+                    <div style={{ padding: '24px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                        <h2 style={{ fontSize: '1.5rem', fontWeight: 900, color: '#0f172a', margin: 0 }}>Select Your Stack</h2>
+                        <p style={{ fontSize: '0.875rem', color: '#64748b', margin: '4px 0 0 0' }}>Configure your project before provisioning.</p>
+                    </div>
+
+                    <div style={{ padding: '24px', overflowY: 'auto', maxHeight: '60vh' }}>
+                        <h3 style={{ fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.1em', marginBottom: '12px' }}>Framework</h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginBottom: '24px' }}>
+                            {frameworks.map(f => (
+                                <button
+                                    key={f.id}
+                                    onClick={() => setSelectedFramework(f.id as any)}
+                                    style={{
+                                        padding: '12px',
+                                        borderRadius: '12px',
+                                        border: '2px solid',
+                                        borderColor: selectedFramework === f.id ? '#3b82f6' : '#f1f5f9',
+                                        background: selectedFramework === f.id ? '#eff6ff' : 'white',
+                                        color: selectedFramework === f.id ? '#1e40af' : '#475569',
+                                        fontWeight: 'bold',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                        textAlign: 'center',
+                                    }}
+                                >
+                                    {f.name}
+                                </button>
+                            ))}
+                        </div>
+
+                        <h3 style={{ fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.1em', marginBottom: '12px' }}>Add-ons</h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+                            {libraries.map(lib => (
+                                <label
+                                    key={lib.id}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        padding: '12px',
+                                        borderRadius: '12px',
+                                        border: '2px solid',
+                                        borderColor: selectedLibs.includes(lib.id) ? '#8b5cf6' : '#f1f5f9',
+                                        background: selectedLibs.includes(lib.id) ? '#f5f3ff' : 'white',
+                                        cursor: 'pointer',
+                                    }}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedLibs.includes(lib.id)}
+                                        onChange={() => setSelectedLibs(prev => prev.includes(lib.id) ? prev.filter(i => i !== lib.id) : [...prev, lib.id])}
+                                        style={{ marginRight: '8px' }}
+                                    />
+                                    <div style={{ textAlign: 'left' }}>
+                                        <div style={{ fontSize: '0.8rem', fontWeight: 'bold', color: selectedLibs.includes(lib.id) ? '#5b21b6' : '#1e293b' }}>{lib.name}</div>
+                                        <div style={{ fontSize: '0.6rem', color: '#94a3b8' }}>{lib.desc}</div>
+                                    </div>
+                                </label>
+                            ))}
+                        </div>
+
+                        <div style={{ marginTop: '24px', padding: '12px', background: '#f8fafc', borderRadius: '12px', fontSize: '0.7rem', color: '#64748b', textAlign: 'center' }}>
+                            🚀 Defaults included: <strong>Tailwind 4, Lucide Icons, GSAP</strong>
+                        </div>
+                    </div>
+
+                    <div style={{ padding: '24px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: '8px' }}>
+                        <button
+                            onClick={() => setShowStackModal(false)}
+                            style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', fontWeight: 'bold', cursor: 'pointer' }}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={() => startBootstrap()}
+                            style={{ flex: 2, padding: '12px', borderRadius: '12px', background: '#0f172a', color: 'white', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
+                        >
+                            Bootstrap Project
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     return (
         <div className={styles.page}>
+            <StackSelectorModal />
             {/* ── Header ─────────────────────────────────────────────── */}
             <header className={styles.header}>
                 <div className={styles.headerInner}>
@@ -902,6 +1051,18 @@ export default function DaytonaTestPage() {
                                                         ⏹ Stop
                                                     </button>
                                                 )}
+                                                <button
+                                                    id={`btn-snapshot-${sb.id}`}
+                                                    className={styles.btnXs}
+                                                    disabled={createFromSandbox.isPending}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        const name = prompt('Enter a name for the new snapshot (e.g. pre-installed-deps):');
+                                                        if (name) createFromSandbox.mutate({ sandboxId: sb.id, name });
+                                                    }}
+                                                >
+                                                    📸 Snapshot
+                                                </button>
                                                 <button
                                                     id={`btn-set-stop-${sb.id}`}
                                                     className={styles.btnXs}

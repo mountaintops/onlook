@@ -415,6 +415,16 @@ export class DaytonaProvider extends Provider {
         return await this.client.snapshot.create({ name, image });
     }
 
+    async snapshot(name: string) {
+        const sandbox = await this.ensureSandbox();
+        // Uses the experimental createSnapshot method on the sandbox object
+        if (typeof (sandbox as any)._experimental_createSnapshot === 'function') {
+            await (sandbox as any)._experimental_createSnapshot(name);
+        } else {
+            throw new Error('Daytona SDK does not support experimental snapshotting in this version');
+        }
+    }
+
     async deleteSnapshot(name: string) {
         if (!this.client) {
              const Daytona = await this.getSDK();
