@@ -117,8 +117,35 @@ export const setupRouter = createTRPCRouter({
 
                 // ── 5. Run post-install for optional libs ──────────────────────────
                 if (input.libraries.includes('shadcn')) {
-                    console.log(`[Daytona Setup] Post-install: shadcn init...`);
-                    // We'll skip the interactive init and just provide the required components.json
+                    console.log(`[Daytona Setup] Post-install: shadcn baseline setup...`);
+                    // Create base shadcn files to avoid interactive init
+                    const shadcnFiles = {
+                        'components.json': JSON.stringify({
+                            "$schema": "https://ui.shadcn.com/schema.json",
+                            "style": "new-york",
+                            "rsc": true,
+                            "tsx": true,
+                            "tailwind": {
+                                "config": "tailwind.config.js",
+                                "css": "app/globals.css",
+                                "baseColor": "slate",
+                                "cssVariables": true,
+                                "prefix": ""
+                            },
+                            "aliases": {
+                                "components": "@/components",
+                                "utils": "@/lib/utils",
+                                "ui": "@/components/ui",
+                                "lib": "@/lib",
+                                "hooks": "@/hooks"
+                            }
+                        }, null, 2),
+                        'lib/utils.ts': `import { type ClassValue, clsx } from 'clsx';\nimport { twMerge } from 'tailwind-merge';\n\nexport function cn(...inputs: ClassValue[]) {\n  return twMerge(clsx(inputs));\n}`,
+                    };
+
+                    for (const [path, content] of Object.entries(shadcnFiles)) {
+                        await provider.writeFile({ args: { path: `${workdir}/${path}`, content } });
+                    }
                 }
 
                 console.log(`[Daytona Setup] Project bootstrapped successfully!`);
@@ -267,15 +294,26 @@ function getNextjsFiles(deps: any, libraries: string[]) {
         }
     };
 
-    return {
+    const files: Record<string, string> = {
         'package.json': JSON.stringify(pkg, null, 2),
         'next.config.js': `/** @type {import('next').NextConfig} */\nmodule.exports = { reactStrictMode: true };`,
         'postcss.config.mjs': `export default {\n  plugins: {\n    '@tailwindcss/postcss': {},\n  },\n};`,
         'tsconfig.json': `{\n  "compilerOptions": {\n    "target": "es5",\n    "lib": ["dom", "dom.iterable", "esnext"],\n    "allowJs": true,\n    "skipLibCheck": true,\n    "strict": true,\n    "noEmit": true,\n    "esModuleInterop": true,\n    "module": "esnext",\n    "moduleResolution": "bundler",\n    "resolveJsonModule": true,\n    "isolatedModules": true,\n    "jsx": "preserve",\n    "incremental": true,\n    "plugins": [{ "name": "next" }],\n    "paths": { "@/*": ["./*"] }\n  },\n  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],\n  "exclude": ["node_modules"]\n}`,
         'app/layout.tsx': `import './globals.css';\nimport { Inter } from 'next/font/google';\nconst inter = Inter({ subsets: ['latin'] });\nexport default function RootLayout({ children }: { children: React.ReactNode }) {\n  return (<html lang="en"><body className={inter.className}>{children}</body></html>);\n}`,
         'app/page.tsx': getStarterPage('next', libraries),
-        'app/globals.css': `@import "tailwindcss";\nbody { background: #fafafa; }`,
+        'app/globals.css': `@import "tailwindcss";\n\n@theme {\n  --color-background: #ffffff;\n  --color-foreground: #0f172a;\n}\n\nbody { background: var(--color-background); color: var(--color-foreground); }`,
     };
+
+    if (libraries.includes('shadcn')) {
+        files['components/ui/button.tsx'] = `import * as React from "react";\nimport { Slot } from "@radix-ui/react-slot";\nimport { cva, type VariantProps } from "class-variance-authority";\nimport { cn } from "@/lib/utils";\n\nconst buttonVariants = cva(\n  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",\n  {\n    variants: {\n      variant: {\n        default: "bg-primary text-primary-foreground shadow hover:bg-primary/90",\n        destructive: "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",\n        outline: "border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground",\n        secondary: "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80",\n        ghost: "hover:bg-accent hover:text-accent-foreground",\n        link: "text-primary underline-offset-4 hover:underline",\n      },\n      size: {\n        default: "h-9 px-4 py-2",\n        sm: "h-8 rounded-md px-3 text-xs",\n        lg: "h-10 rounded-md px-8",\n        icon: "h-9 w-9",\n      },\n    },\n    defaultVariants: {\n      variant: "default",\n      size: "default",\n    },\n  }\n);\n\nexport interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {\n  asChild?: boolean;\n}\n\nconst Button = React.forwardRef<HTMLButtonElement, ButtonProps>(({ className, variant, size, asChild = false, ...props }, ref) => {\n  const Comp = asChild ? Slot : "button";\n  return <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />;\n});\nButton.displayName = "Button";\nexport { Button, buttonVariants };`;
+        // Add dependency for shadcn
+        const p = JSON.parse(files['package.json']);
+        p.dependencies["class-variance-authority"] = "^0.7.1";
+        p.dependencies["@radix-ui/react-slot"] = "^1.1.0";
+        files['package.json'] = JSON.stringify(p, null, 2);
+    }
+
+    return files;
 }
 
 function getNuxtFiles(deps: any, libraries: string[]) {
@@ -289,7 +327,64 @@ function getNuxtFiles(deps: any, libraries: string[]) {
         'package.json': JSON.stringify(pkg, null, 2),
         'nuxt.config.ts': `import tailwindcss from "@tailwindcss/vite";\nexport default defineNuxtConfig({\n  vite: {\n    plugins: [tailwindcss()],\n  },\n  css: ['~/assets/css/main.css'],\n  devtools: { enabled: true }\n})`,
         'assets/css/main.css': `@import "tailwindcss";`,
-        'app.vue': `<template>\n  <div class="min-h-screen flex items-center justify-center bg-slate-50 font-sans">\n    <div class="p-12 max-w-2xl w-full bg-white/80 backdrop-blur-xl rounded-3xl border border-slate-200 shadow-xl text-center">\n      <h1 class="text-4xl font-extrabold text-slate-900 mb-4">Welcome to Nuxt</h1>\n      <p class="text-slate-600 text-lg">Your new project is ready in the sandbox.</p>\n    </div>\n  </div>\n</template>`,
+        'app.vue': `<script setup>
+import { Sparkles, Rocket, Package, ArrowRight, Github } from 'lucide-react';
+import { onMounted, ref } from 'vue';
+import gsap from 'gsap';
+
+const container = ref(null);
+const card = ref(null);
+const title = ref(null);
+const elements = ref([]);
+
+onMounted(() => {
+  const tl = gsap.timeline({ defaults: { ease: 'power4.out', duration: 1.2 } });
+  tl.from(container.value, { opacity: 0, duration: 1.5 })
+    .from(card.value, { scale: 0.9, opacity: 0, y: 40 }, 0.2)
+    .from(title.value, { y: 30, opacity: 0 }, 0.5)
+    .from(elements.value, { y: 20, opacity: 0, stagger: 0.1, duration: 0.8 }, 0.8);
+});
+</script>
+
+<template>
+  <main ref="container" class="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top_right,#fdfcfb_0%,#e2d1c3_100%)] font-sans text-slate-900 overflow-hidden">
+    <div ref="card" class="relative group p-12 max-w-2xl w-[90%] bg-white/70 backdrop-blur-2xl rounded-[3rem] border border-white/50 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.1)] text-center transition-all hover:bg-white/80">
+      <div class="absolute -top-6 left-1/2 -translate-x-1/2 bg-indigo-900 text-white px-6 py-2 rounded-full text-xs font-bold tracking-[0.2em] uppercase shadow-2xl">
+        Built with Nuxt 3
+      </div>
+      <div class="inline-flex px-4 py-2 bg-green-500/10 text-green-600 rounded-full text-sm font-bold mb-8 items-center">
+        <Sparkles class="w-4 h-4 mr-2" />
+        Daytona Sandbox Active
+      </div>
+      <h1 ref="title" class="text-6xl font-black tracking-tighter mb-6 bg-gradient-to-br from-slate-950 via-slate-800 to-slate-600 bg-clip-text text-transparent leading-[1.1]">
+        A new Nuxt project.
+      </h1>
+      <p class="text-slate-500 text-xl leading-relaxed mb-12 max-w-md mx-auto font-medium">
+        Edit <code class="bg-slate-100 px-2 py-1 rounded text-slate-800 font-mono text-sm">app.vue</code> to start your journey.
+      </p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-left mb-10">
+        <div ref="el => elements[0] = el" class="p-6 bg-white/50 rounded-[2rem] border border-slate-100 shadow-sm transition-all hover:shadow-xl hover:scale-[1.02] group/item">
+          <Rocket class="w-8 h-8 text-green-500 mb-4 group-hover/item:rotate-12 transition-transform" />
+          <h3 class="font-extrabold text-slate-900 text-lg">Framework</h3>
+          <p class="text-sm text-slate-400 font-semibold uppercase">Nuxt.js</p>
+        </div>
+        <div ref="el => elements[1] = el" class="p-6 bg-white/50 rounded-[2rem] border border-slate-100 shadow-sm transition-all hover:shadow-xl hover:scale-[1.02] group/item">
+          <Package class="w-8 h-8 text-blue-500 mb-4 group-hover/item:rotate-12 transition-transform" />
+          <h3 class="font-extrabold text-slate-900 text-lg">Libraries</h3>
+          <p class="text-sm text-slate-400 font-semibold truncate hover:text-clip">${libraries.length > 0 ? libraries.join(', ') : 'Standard Bundle'}</p>
+        </div>
+      </div>
+      <div ref="el => elements[2] = el" class="flex flex-col sm:flex-row gap-4 justify-center">
+        <button class="px-8 py-4 bg-green-600 text-white rounded-2xl font-bold flex items-center justify-center hover:bg-green-700 transition-colors group/btn">
+          Explore Nuxt <ArrowRight class="w-4 h-4 ml-2 group-hover/btn:translate-x-1 transition-transform" />
+        </button>
+        <button class="px-8 py-4 bg-white text-slate-900 border border-slate-200 rounded-2xl font-bold flex items-center justify-center hover:bg-slate-50 transition-colors">
+          <Github class="w-4 h-4 mr-2" /> Documentation
+        </button>
+      </div>
+    </div>
+  </main>
+</template>`,
     };
 }
 
@@ -314,7 +409,7 @@ function getRemixFiles(deps: any, libraries: string[]) {
         'package.json': JSON.stringify(pkg, null, 2),
         'vite.config.ts': `import { vitePlugin as remix } from "@remix-run/dev";\nimport { defineConfig } from "vite";\nimport tailwindcss from "@tailwindcss/vite";\nexport default defineConfig({ plugins: [tailwindcss(), remix()] });`,
         'app/root.tsx': `import { Links, Meta, Outlet, Scripts, ScrollRestoration } from "@remix-run/react";\nimport "./globals.css";\nexport default function App() {\n  return (<html><head><Meta /><Links /></head><body><Outlet /><ScrollRestoration /><Scripts /></body></html>);\n}`,
-        'app/routes/_index.tsx': `export default function Index() {\n  return (<div className="p-10 font-sans"><h1>Welcome to Remix</h1></div>);\n}`,
+        'app/routes/_index.tsx': getStarterPage('remix', libraries),
         'app/globals.css': `@import "tailwindcss";`,
     };
 }
@@ -331,53 +426,162 @@ function getSvelteKitFiles(deps: any, libraries: string[]) {
         'package.json': JSON.stringify(pkg, null, 2),
         'svelte.config.js': `import adapter from '@sveltejs/adapter-auto';\nexport default { kit: { adapter: adapter() } };`,
         'vite.config.js': `import { sveltekit } from '@sveltejs/kit/vite';\nimport tailwindcss from '@tailwindcss/vite';\nimport { defineConfig } from 'vite';\nexport default defineConfig({ plugins: [tailwindcss(), sveltekit()] });`,
-        'src/routes/+page.svelte': `<h1 class="text-3xl font-bold p-10">Welcome to SvelteKit</h1>`,
+        'src/routes/+page.svelte': `<script>
+import { Sparkles, Rocket, Package, ArrowRight, Github } from 'lucide-react';
+import { onMount } from 'svelte';
+import gsap from 'gsap';
+
+let container;
+let card;
+let title;
+let elements = [];
+
+onMount(() => {
+  const tl = gsap.timeline({ defaults: { ease: 'power4.out', duration: 1.2 } });
+  tl.from(container, { opacity: 0, duration: 1.5 })
+    .from(card, { scale: 0.9, opacity: 0, y: 40 }, 0.2)
+    .from(title, { y: 30, opacity: 0 }, 0.5)
+    .from(elements, { y: 20, opacity: 0, stagger: 0.1, duration: 0.8 }, 0.8);
+});
+</script>
+
+<main bind:this={container} class="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top_right,#fdfcfb_0%,#e1eec3_100%)] font-sans text-slate-900 overflow-hidden">
+  <div bind:this={card} class="relative group p-12 max-w-2xl w-[90%] bg-white/70 backdrop-blur-2xl rounded-[3rem] border border-white/50 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.1)] text-center transition-all hover:bg-white/80">
+    <div class="absolute -top-6 left-1/2 -translate-x-1/2 bg-rose-600 text-white px-6 py-2 rounded-full text-xs font-bold tracking-[0.2em] uppercase shadow-2xl">
+      SvelteKit Ready
+    </div>
+    <div class="inline-flex px-4 py-2 bg-rose-500/10 text-rose-600 rounded-full text-sm font-bold mb-8 items-center">
+      <Sparkles class="w-4 h-4 mr-2" />
+      Powered by Daytona
+    </div>
+    <h1 bind:this={title} class="text-6xl font-black tracking-tighter mb-6 bg-gradient-to-br from-slate-950 via-slate-800 to-slate-600 bg-clip-text text-transparent leading-[1.1]">
+      A new Svelte project.
+    </h1>
+    <p class="text-slate-500 text-xl leading-relaxed mb-12 max-w-md mx-auto font-medium">
+      Modify <code class="bg-slate-100 px-2 py-1 rounded text-slate-800 font-mono text-sm">src/routes/+page.svelte</code> to build.
+    </p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-left mb-10">
+      <div bind:this={elements[0]} class="p-6 bg-white/50 rounded-[2rem] border border-slate-100 shadow-sm transition-all hover:shadow-xl hover:scale-[1.02] group/item">
+        <Rocket class="w-8 h-8 text-rose-500 mb-4 group-hover/item:rotate-12 transition-transform" />
+        <h3 class="font-extrabold text-slate-900 text-lg">Framework</h3>
+        <p class="text-sm text-slate-400 font-semibold uppercase">SvelteKit</p>
+      </div>
+      <div bind:this={elements[1]} class="p-6 bg-white/50 rounded-[2rem] border border-slate-100 shadow-sm transition-all hover:shadow-xl hover:scale-[1.02] group/item">
+        <Package class="w-8 h-8 text-orange-500 mb-4 group-hover/item:rotate-12 transition-transform" />
+        <h3 class="font-extrabold text-slate-900 text-lg">Libraries</h3>
+        <p class="text-sm text-slate-400 font-semibold truncate">${libraries.length > 0 ? libraries.join(', ') : 'Standard Bundle'}</p>
+      </div>
+    </div>
+    <div bind:this={elements[2]} class="flex flex-col sm:flex-row gap-4 justify-center">
+      <button class="px-8 py-4 bg-rose-600 text-white rounded-2xl font-bold flex items-center justify-center hover:bg-rose-700 transition-colors group/btn">
+        Start Building <ArrowRight class="w-4 h-4 ml-2 group-hover/btn:translate-x-1 transition-transform" />
+      </button>
+      <button class="px-8 py-4 bg-white text-slate-900 border border-slate-200 rounded-2xl font-bold flex items-center justify-center hover:bg-slate-50 transition-colors">
+        <Github class="w-4 h-4 mr-2" /> Documentation
+      </button>
+    </div>
+  </div>
+</main>`,
         'src/app.html': `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8" /><link rel="icon" href="%sveltekit.assets%/favicon.png" /><meta name="viewport" content="width=device-width" />%sveltekit.head%</head><body><div style="display: contents">%sveltekit.body%</div></body></html>`,
     };
 }
 
 function getStarterPage(framework: string, libraries: string[]) {
-    return `
-import { Target, LucideIcon, Sparkles, Rocket, Zap, Package } from 'lucide-react';
+    return `'use client';
+import { Target, LucideIcon, Sparkles, Rocket, Zap, Package, ArrowRight, Github } from 'lucide-react';
+import { useEffect, useRef } from 'react';
+import gsap from 'gsap';
 
 export default function Home() {
+  const containerRef = useRef(null);
+  const cardRef = useRef(null);
+  const titleRef = useRef(null);
+  const elementsRef = useRef<HTMLDivElement[]>([]);
+
+  useEffect(() => {
+    const ctx = gsap.context(() => {
+      const tl = gsap.timeline({ defaults: { ease: 'power4.out', duration: 1.2 } });
+      
+      tl.from(containerRef.current, { opacity: 0, duration: 1.5 })
+        .from(cardRef.current, { scale: 0.9, opacity: 0, y: 40 }, 0.2)
+        .from(titleRef.current, { y: 30, opacity: 0 }, 0.5)
+        .from(elementsRef.current, { 
+          y: 20, 
+          opacity: 0, 
+          stagger: 0.1,
+          duration: 0.8 
+        }, 0.8);
+    });
+    return () => ctx.revert();
+  }, []);
+
   return (
-    <main className="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top_left,#f8fafc,#f1f5f9)] font-sans text-slate-900">
-      <div className="p-12 max-w-2xl w-[90%] bg-white/80 backdrop-blur-xl rounded-[2rem] border border-white/40 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.05)] text-center">
-        <div className="inline-flex px-4 py-2 bg-blue-500/10 text-blue-600 rounded-full text-sm font-bold mb-6 tracking-wide uppercase">
+    <main 
+      ref={containerRef}
+      className="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top_right,#fdfcfb_0%,#e2d1c3_100%)] font-sans text-slate-900 overflow-hidden"
+    >
+      <div 
+        ref={cardRef}
+        className="relative group p-12 max-w-2xl w-[90%] bg-white/70 backdrop-blur-2xl rounded-[3rem] border border-white/50 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.1)] text-center transition-all hover:bg-white/80"
+      >
+        <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-2 rounded-full text-xs font-bold tracking-[0.2em] uppercase shadow-2xl">
+          Environment Ready
+        </div>
+
+        <div className="inline-flex px-4 py-2 bg-blue-500/10 text-blue-600 rounded-full text-sm font-bold mb-8 items-center">
           <Sparkles className="w-4 h-4 mr-2" />
-          Stack Provisioned Successfully
+          Daytona Sandbox Provisioned
         </div>
         
-        <h1 className="text-5xl font-black tracking-tight mb-4 bg-gradient-to-br from-slate-900 to-slate-600 bg-clip-text text-transparent">
-          Welcome to Onlook
+        <h1 
+          ref={titleRef}
+          className="text-6xl font-black tracking-tighter mb-6 bg-gradient-to-br from-slate-950 via-slate-800 to-slate-600 bg-clip-text text-transparent leading-[1.1]"
+        >
+          This is a new project.
         </h1>
         
-        <p className="text-slate-500 text-xl leading-relaxed mb-10">
-          This is a new project waiting for your vision. 
-          Everything is ready for you to start building.
+        <p className="text-slate-500 text-xl leading-relaxed mb-12 max-w-md mx-auto font-medium">
+          Edit <code className="bg-slate-100 px-2 py-1 rounded text-slate-800 font-mono text-sm">app/page.tsx</code> to start building your vision on this premium stack.
         </p>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
-          <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-sm transition-all hover:shadow-md hover:border-blue-200 group">
-            <Rocket className="w-6 h-6 text-blue-500 mb-3 group-hover:scale-110 transition-transform" />
-            <h3 className="font-bold text-slate-800">Framework</h3>
-            <p className="text-sm text-slate-500">Running on ${framework.toUpperCase()}</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left mb-10">
+          <div 
+            ref={(el) => { if(el) elementsRef.current[0] = el }}
+            className="p-6 bg-white/50 rounded-[2rem] border border-slate-100 shadow-sm transition-all hover:shadow-xl hover:scale-[1.02] group/item"
+          >
+            <Rocket className="w-8 h-8 text-blue-500 mb-4 group-hover/item:rotate-12 transition-transform" />
+            <h3 className="font-extrabold text-slate-900 text-lg">Framework</h3>
+            <p className="text-sm text-slate-400 font-semibold">${framework.toUpperCase()}</p>
           </div>
           
-          <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-sm transition-all hover:shadow-md hover:border-purple-200 group">
-            <Package className="w-6 h-6 text-purple-500 mb-3 group-hover:scale-110 transition-transform" />
-            <h3 className="font-bold text-slate-800">Libraries</h3>
-            <p className="text-sm text-slate-500">${libraries.length > 0 ? libraries.join(', ') : 'Standard Bundle'}</p>
+          <div 
+            ref={(el) => { if(el) elementsRef.current[1] = el }}
+            className="p-6 bg-white/50 rounded-[2rem] border border-slate-100 shadow-sm transition-all hover:shadow-xl hover:scale-[1.02] group/item"
+          >
+            <Package className="w-8 h-8 text-purple-500 mb-4 group-hover/item:rotate-12 transition-transform" />
+            <h3 className="font-extrabold text-slate-900 text-lg">Libraries</h3>
+            <p className="text-sm text-slate-400 font-semibold truncate hover:text-clip">${libraries.length > 0 ? libraries.join(', ') : 'Standard Bundle'}</p>
           </div>
         </div>
 
-        <div className="mt-10 pt-8 border-t border-slate-100 flex items-center justify-between text-slate-400 text-[10px] uppercase font-bold tracking-widest">
-          <span>Tailwind 4.0 Enabled</span>
-          <span>•</span>
-          <span>GSAP Powered</span>
-          <span>•</span>
-          <span>Lucide Icons</span>
+        <div 
+           ref={(el) => { if(el) elementsRef.current[2] = el }}
+           className="flex flex-col sm:flex-row gap-4 justify-center"
+        >
+          <button className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-bold flex items-center justify-center hover:bg-slate-800 transition-colors group/btn">
+            Get Started <ArrowRight className="w-4 h-4 ml-2 group-hover/btn:translate-x-1 transition-transform" />
+          </button>
+          <button className="px-8 py-4 bg-white text-slate-900 border border-slate-200 rounded-2xl font-bold flex items-center justify-center hover:bg-slate-50 transition-colors">
+            <Github className="w-4 h-4 mr-2" /> Documentation
+          </button>
+        </div>
+
+        <div className="mt-12 pt-8 border-t border-slate-100 flex items-center justify-between text-slate-400 text-[10px] uppercase font-black tracking-[0.2em]">
+          <span>Tailwind 4.0</span>
+          <span className="opacity-20">•</span>
+          <span>GSAP Animations</span>
+          <span className="opacity-20">•</span>
+          <span>Lucide React</span>
         </div>
       </div>
     </main>
