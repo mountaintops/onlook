@@ -25,6 +25,15 @@ function BypassedIframe({ url, title, className, allow, sandbox }: {
     useEffect(() => {
         if (!url) return;
 
+        // If it's a proxy URL (localhost), we don't need the manual bypass 
+        // because the proxy handles it.
+        if (url.includes('localhost:')) {
+            setHtmlContent(null);
+            setError(null);
+            setLoading(false);
+            return;
+        }
+
         let isMounted = true;
         const fetchContent = async () => {
             setLoading(true);
@@ -85,6 +94,20 @@ function BypassedIframe({ url, title, className, allow, sandbox }: {
                 <p style={{ fontSize: '0.8rem' }}>{error}</p>
                 <a href={url} target="_blank" rel="noreferrer" style={{ color: '#3b82f6', textDecoration: 'underline' }}>Open directly</a>
             </div>
+        );
+    }
+
+    // If htmlContent is null but we're not loading or in error, 
+    // it's likely a proxy URL and we should just use src.
+    if (!htmlContent && !loading && !error && url.includes('localhost:')) {
+        return (
+            <iframe
+                src={url}
+                className={className}
+                title={title}
+                allow={allow}
+                sandbox={sandbox}
+            />
         );
     }
 
@@ -164,6 +187,10 @@ export default function DaytonaTestPage() {
     const [activeTab, setActiveTab] = useState<ActiveTab>('bootstrap');
     const [archivedFilter, setArchivedFilter] = useState<'all' | 'active' | 'archived'>('all');
 
+    // Proxy settings
+    const [useProxy, setUseProxy] = useState(true);
+    const [proxyPort, setProxyPort] = useState(1234);
+
     // Bootstrap state
     const [bootstrapStep, setBootstrapStep] = useState<BootstrapStep>('idle');
     const [bootstrapSandboxId, setBootstrapSandboxId] = useState('');
@@ -194,16 +221,22 @@ export default function DaytonaTestPage() {
     });
 
     const startServerMutation = api.daytona.setup.startDevServer.useMutation({
-        onSuccess: (data) => {
+        onSuccess: (data, variables) => {
             setBootstrapStep('ready');
             if (data.previewUrl) {
-                const url = data.token
-                    ? `${data.previewUrl}?token=${data.token}`
-                    : data.previewUrl;
+                let url = data.previewUrl;
+
+                if (useProxy && variables.sandboxId) {
+                    // Force the local proxy URL: http://[port]-[id].localhost:[proxyPort]
+                    url = `http://3000-${variables.sandboxId}.localhost:${proxyPort}`;
+                } else if (data.token) {
+                    url = `${data.previewUrl}?token=${data.token}`;
+                }
+
                 setPreviewUrl(url);
                 setPreviewToken(data.token ?? null);
                 setIframeKey((k) => k + 1);
-                addLog('success', `🌐 Preview URL: ${data.previewUrl}`);
+                addLog('success', `🌐 Preview URL: ${url}`);
             } else {
                 addLog(data.ready ? 'success' : 'error', data.ready ? '✅ Server started (no public URL)' : '⚠️ Server may not be ready yet');
             }
@@ -532,6 +565,33 @@ export default function DaytonaTestPage() {
                                             <input type="range" min={0} max={240} value={autoArchive} onChange={(e) => setAutoArchive(Number(e.target.value))} className={styles.range} />
                                             <span style={{ fontSize: '0.65rem', color: '#475569' }}>Set to 0 for platform default (7d)</span>
                                         </div>
+                                    </div>
+
+                                    {/* Proxy Settings */}
+                                    <div className={styles.field} style={{ borderTop: '1px solid #1e293b', paddingTop: '16px', marginTop: '8px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                                            <input
+                                                id="use-proxy-toggle"
+                                                type="checkbox"
+                                                checked={useProxy}
+                                                onChange={(e) => setUseProxy(e.target.checked)}
+                                                style={{ cursor: 'pointer' }}
+                                            />
+                                            <label htmlFor="use-proxy-toggle" className={styles.label} style={{ marginBottom: 0, cursor: 'pointer', textTransform: 'none' }}>
+                                                Use Local Proxy <span style={{ color: '#475569', fontSize: '0.7rem' }}>(requires test/proxy/index.ts running)</span>
+                                            </label>
+                                        </div>
+                                        {useProxy && (
+                                            <div className={styles.field}>
+                                                <label className={styles.label}>Proxy Port</label>
+                                                <input
+                                                    type="number"
+                                                    value={proxyPort}
+                                                    onChange={(e) => setProxyPort(Number(e.target.value))}
+                                                    className={styles.input}
+                                                />
+                                            </div>
+                                        )}
                                     </div>
 
                                     <button
