@@ -55,8 +55,12 @@ export const setupRouter = createTRPCRouter({
 
                 // ── 1. Create directories ─────────────────────────────────────────
                 console.log(`[Daytona Setup] Creating directories...`);
-                const appDir = input.framework === 'next' ? 'app' : (input.framework === 'sveltekit' ? 'src/routes' : 'app');
+                // Nuxt 4 uses app/ directory, SvelteKit uses src/routes/, others use app/
+                const appDir = input.framework === 'next' ? 'app' : (input.framework === 'sveltekit' ? 'src/routes' : (input.framework === 'nuxt' ? 'app' : 'app'));
                 await provider.runCommand({ args: { command: `mkdir -p ${workdir}/${appDir}` } });
+                if (input.framework === 'nuxt') {
+                    await provider.runCommand({ args: { command: `mkdir -p ${workdir}/app/assets/css` } });
+                }
 
                 // ── 2. Prepare Tech Stack ─────────────────────────────────────────
                 const techStack = {
@@ -70,6 +74,13 @@ export const setupRouter = createTRPCRouter({
                 
                 // Get framework-specific files
                 const files = getFrameworkFiles(input.framework, input.libraries);
+                
+                // Inject tRPC / oRPC boilerplate if selected
+                if (input.libraries.includes('trpc') || input.libraries.includes('orpc')) {
+                    files['server/api.ts'] = `// [Boilerplate] Minimal API router\nexport const router = {\n  hello: async () => "World"\n};`;
+                    files['lib/api-client.ts'] = `// [Boilerplate] Minimal Client\nexport const api = {\n  hello: async () => "World"\n};`;
+                }
+
                 for (const [path, content] of Object.entries(files)) {
                     const fullPath = path.startsWith('/') ? path : `${workdir}/${path}`;
                     await provider.writeFile({ args: { path: fullPath, content: content as string } });
@@ -243,13 +254,13 @@ Enjoy your new project!
 }
 
 function getFrameworkFiles(framework: string, libraries: string[]) {
-    // Shared dependencies
+    // Shared dependencies (April 2026 Standards)
     const baseDeps = {
         "tailwindcss": "^4.0.0",
         "@tailwindcss/postcss": "^4.0.0",
         "postcss": "^8.4.0",
-        "lucide-react": "^0.473.0",
-        "gsap": "^3.12.5",
+        "lucide-react": "^0.474.0",
+        "gsap": "^3.12.7",
         "clsx": "^2.1.1",
         "tailwind-merge": "^2.5.2"
     };
@@ -268,15 +279,9 @@ function getFrameworkFiles(framework: string, libraries: string[]) {
         case 'sveltekit':
             return getSvelteKitFiles(baseDeps, libraries);
         default:
+            return getNextjsFiles(baseDeps, libraries);
     }
-    
-    // Inject tRPC / oRPC boilerplate if selected
-    if (libraries.includes('trpc') || libraries.includes('orpc')) {
-        files['server/api.ts'] = `// [Boilerplate] Minimal API router\nexport const router = {\n  hello: async () => "World"\n};`;
-        files['lib/api-client.ts'] = `// [Boilerplate] Minimal Client\nexport const api = {\n  hello: async () => "World"\n};`;
-    }
-
-    return files;
+}
 
 function getNextjsFiles(deps: any, libraries: string[]) {
     const pkg = {
@@ -285,14 +290,14 @@ function getNextjsFiles(deps: any, libraries: string[]) {
         private: true,
         scripts: { dev: 'next dev', build: 'next build', start: 'next start' },
         dependencies: {
-            "next": "15.1.4",
-            "react": "^19",
-            "react-dom": "^19",
+            "next": "16.2.4",
+            "react": "^19.2.5",
+            "react-dom": "^19.2.5",
             ...deps
         },
         devDependencies: {
             "typescript": "^5",
-            "@types/node": "^20",
+            "@types/node": "^22",
             "@types/react": "^19",
             "@types/react-dom": "^19",
             "postcss": "^8.4.31",
@@ -316,7 +321,7 @@ function getNextjsFiles(deps: any, libraries: string[]) {
         files['components.json'] = `{\n  "$schema": "https://ui.shadcn.com/schema.json",\n  "style": "new-york",\n  "rsc": true,\n  "tsx": true,\n  "tailwind": {\n    "config": "tailwind.config.js",\n    "css": "app/globals.css",\n    "baseColor": "zinc",\n    "cssVariables": true,\n    "prefix": ""\n  },\n  "aliases": {\n    "components": "@/components",\n    "utils": "@/lib/utils"\n  }\n}`;
 
         // Add dependencies for shadcn
-        const p = JSON.parse(files['package.json']);
+        const p = JSON.parse(files['package.json']!);
         p.dependencies["class-variance-authority"] = "^0.7.1";
         p.dependencies["@radix-ui/react-slot"] = "^1.1.0";
         p.dependencies["clsx"] = "^2.1.1";
@@ -331,14 +336,14 @@ function getNuxtFiles(deps: any, libraries: string[]) {
     const pkg = {
         name: 'nuxt-onlook',
         scripts: { dev: 'nuxt dev', build: 'nuxt build', generate: 'nuxt generate' },
-        devDependencies: { "nuxt": "^3.11.2", "@tailwindcss/vite": "^4.0.0", ...deps }
+        devDependencies: { "nuxt": "^4.4.0", "@tailwindcss/vite": "^4.0.0", ...deps }
     };
 
     return {
         'package.json': JSON.stringify(pkg, null, 2),
-        'nuxt.config.ts': `import tailwindcss from "@tailwindcss/vite";\nexport default defineNuxtConfig({\n  vite: {\n    plugins: [tailwindcss()],\n  },\n  css: ['~/assets/css/main.css'],\n  devtools: { enabled: true }\n})`,
-        'assets/css/main.css': `@import "tailwindcss";`,
-        'app.vue': `<script setup>
+        'nuxt.config.ts': `import tailwindcss from "@tailwindcss/vite";\nexport default defineNuxtConfig({\n  future: { compatibilityVersion: 4 },\n  vite: {\n    plugins: [tailwindcss()],\n  },\n  css: ['~/assets/css/main.css'],\n  devtools: { enabled: true }\n})`,
+        'app/assets/css/main.css': `@import "tailwindcss";`,
+        'app/app.vue': `<script setup>
 import { onMounted, ref } from 'vue';
 import gsap from 'gsap';
 
@@ -382,15 +387,15 @@ function getRemixFiles(deps: any, libraries: string[]) {
         type: 'module',
         scripts: { dev: 'remix dev --manual', build: 'remix build', start: 'remix-serve ./build/index.js' },
         dependencies: {
-            "@remix-run/node": "^2.8.1",
-            "@remix-run/react": "^2.8.1",
-            "@remix-run/serve": "^2.8.1",
-            "isbot": "^4.1.0",
-            "react": "^18.2.0",
-            "react-dom": "^18.2.0",
+            "@remix-run/node": "^2.15.3",
+            "@remix-run/react": "^2.15.3",
+            "@remix-run/serve": "^2.15.3",
+            "isbot": "^5.0.0",
+            "react": "^19.2.5",
+            "react-dom": "^19.2.5",
             ...deps
         },
-        devDependencies: { "@remix-run/dev": "^2.8.1", "vite": "^5.1.4", "typescript": "^5.4.2", "@tailwindcss/vite": "^4.0.0" }
+        devDependencies: { "@remix-run/dev": "^2.15.3", "vite": "^6.0.0", "typescript": "^5.7.0", "@tailwindcss/vite": "^4.0.0" }
     };
 
     return {
@@ -404,10 +409,18 @@ function getRemixFiles(deps: any, libraries: string[]) {
 
 function getSvelteKitFiles(deps: any, libraries: string[]) {
     const pkg = {
-        name: 'sveltekit-onlook',
+        name: 'svelte-onlook',
         type: 'module',
         scripts: { dev: 'vite dev', build: 'vite build', preview: 'vite preview' },
-        devDependencies: { "@sveltejs/adapter-auto": "^3.0.0", "@sveltejs/kit": "^2.0.0", "svelte": "^4.2.7", "vite": "^5.0.3", "tailwindcss": "^4.0.0", "@tailwindcss/vite": "^4.0.0", ...deps }
+        devDependencies: {
+            "@sveltejs/adapter-auto": "^3.0.0",
+            "@sveltejs/kit": "^2.16.0",
+            "@sveltejs/vite-plugin-svelte": "^5.0.0",
+            "svelte": "^5.2.0",
+            "vite": "^6.0.0",
+            "@tailwindcss/vite": "^4.0.0",
+            ...deps
+        }
     };
 
     return {
