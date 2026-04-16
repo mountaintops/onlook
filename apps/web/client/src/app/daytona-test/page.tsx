@@ -1068,6 +1068,7 @@ export default function DaytonaTestPage() {
                                                                 alert('Invalid snapshot name. Please use alphanumeric characters.');
                                                                 return;
                                                             }
+                                                            console.log(`[Daytona Test] Triggering snapshot creation for sandboxId: ${sb.id}, name: ${sanitized}`);
                                                             createFromSandbox.mutate({ sandboxId: sb.id, name: sanitized });
                                                         }
                                                     }}
