@@ -505,7 +505,7 @@ export default function Home() {
 
         <div ref={infoRef} className="pt-8 border-t border-slate-100 flex flex-col items-center gap-2 text-[11px] uppercase tracking-[0.2em] font-black text-slate-300">
            <span>Framework: ${framework.toUpperCase()}</span>
-           <span class="opacity-40">Libraries: ${libraries.join(', ') || 'Standard Bundle'}</span>
+           <span className="opacity-40">Libraries: ${libraries.join(', ') || 'Standard Bundle'}</span>
         </div>
       </div>
     </main>
