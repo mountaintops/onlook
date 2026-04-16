@@ -366,13 +366,6 @@ export default function DaytonaTestPage() {
         onError: (err) => addLog('error', `❌ Snapshot delete failed: ${err.message}`),
     });
 
-    const createFromSandbox = api.daytona.sandbox.createFromSandbox.useMutation({
-        onSuccess: () => {
-            addLog('success', '📸 Snapshot created from sandbox successfully.');
-            void snapshotsQuery.refetch();
-        },
-        onError: (err) => addLog('error', `❌ Failed to create snapshot from sandbox: ${err.message}`),
-    });
 
     const activateSnapshot = api.daytona.snapshot.activate.useMutation({
         onSuccess: (data) => {
@@ -1051,30 +1044,7 @@ export default function DaytonaTestPage() {
                                                         ⏹ Stop
                                                     </button>
                                                 )}
-                                                <button
-                                                    id={`btn-snapshot-${sb.id}`}
-                                                    className={styles.btnXs}
-                                                    disabled={createFromSandbox.isPending}
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        const rawName = prompt('Enter a name for the new snapshot (e.g. pre-installed-deps):');
-                                                        if (rawName) {
-                                                            const sanitized = rawName.toLowerCase()
-                                                                .replace(/[^a-z0-9]/g, '-')
-                                                                .replace(/-+/g, '-')
-                                                                .replace(/^-|-$/g, '');
-                                                            
-                                                            if (!sanitized) {
-                                                                alert('Invalid snapshot name. Please use alphanumeric characters.');
-                                                                return;
-                                                            }
-                                                            console.log(`[Daytona Test] Triggering snapshot creation for sandboxId: ${sb.id}, name: ${sanitized}`);
-                                                            createFromSandbox.mutate({ sandboxId: sb.id, name: sanitized });
-                                                        }
-                                                    }}
-                                                >
-                                                    📸 Snapshot
-                                                </button>
+
                                                 <button
                                                     id={`btn-set-stop-${sb.id}`}
                                                     className={styles.btnXs}
