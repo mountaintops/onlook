@@ -189,7 +189,7 @@ export default function DaytonaTestPage() {
 
     // Proxy settings
     const [useProxy, setUseProxy] = useState(true);
-    const [proxyPort, setProxyPort] = useState(1234);
+    const [proxyPort, setProxyPort] = useState(8788);
     const [proxySlug, setProxySlug] = useState('');
 
     // Bootstrap state
@@ -230,7 +230,7 @@ export default function DaytonaTestPage() {
                 if (useProxy && variables.sandboxId) {
                     // Use custom slug if provided, otherwise fallback to sandboxId
                     const identifier = proxySlug || variables.sandboxId;
-                    url = `http://3000-${identifier}.localhost:${proxyPort}`;
+                    url = `http://${identifier}.localhost:${proxyPort}`;
                 } else if (data.token) {
                     url = `${data.previewUrl}?token=${data.token}`;
                 }
@@ -585,7 +585,7 @@ export default function DaytonaTestPage() {
                                                 style={{ cursor: 'pointer' }}
                                             />
                                             <label htmlFor="use-proxy-toggle" className={styles.label} style={{ marginBottom: 0, cursor: 'pointer', textTransform: 'none' }}>
-                                                Use Local Proxy <span style={{ color: '#475569', fontSize: '0.7rem' }}>(requires test/proxy/index.ts running)</span>
+                                                Use Cloudflare Proxy <span style={{ color: '#475569', fontSize: '0.7rem' }}>(requires tool/proxy dev running)</span>
                                             </label>
                                         </div>
                                         {useProxy && (
