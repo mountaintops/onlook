@@ -80,17 +80,39 @@ export const setupRouter = createTRPCRouter({
                 await provider.writeFile({ args: { path: `${workdir}/TECH_STACK.txt`, content: techStackContent } });
 
                 // ── 4. Install dependencies ───────────────────────────────────────
+                console.log(`[Daytona Setup] Checking memory...`);
+                await provider.runCommand({ args: { command: `free -m` } });
+
                 console.log(`[Daytona Setup] Running bun install...`);
+                // Use a hint to limit RAM usage to prevent OOM
+                const installCmd = `cd ${workdir} && BUN_JSC_forceRAMSize=536870912 bun install --no-save 2>&1`;
                 const { output, exitCode } = await provider.runCommand({
                     args: { 
-                        command: `cd ${workdir} && bun install 2>&1`,
+                        command: installCmd,
                         timeout: 300, 
                     },
                 });
 
                 if (exitCode !== 0) {
-                    console.error(`[Daytona Setup] bun install failed:`, output);
-                    throw new Error(`bun install failed (Exit ${exitCode}). Output: ${output.slice(-500)}`);
+                    console.warn(`[Daytona Setup] bun install failed (Exit ${exitCode})`);
+                    
+                    // Fallback for OOM (137) or other resolution failures
+                    if (exitCode === 137 || exitCode === 1 || output.includes('Out of memory')) {
+                        console.log(`[Daytona Setup] Memory issues detected. Initializing fallback to npm...`);
+                        const fallbackRes = await provider.runCommand({
+                            args: {
+                                command: `cd ${workdir} && npm install --prefer-offline --no-audit --no-fund 2>&1`,
+                                timeout: 420
+                            }
+                        });
+                        
+                        if (fallbackRes.exitCode !== 0) {
+                            throw new Error(`Bootstrap failed: Both bun and npm failed. npm output: ${fallbackRes.output.slice(-500)}`);
+                        }
+                        console.log(`[Daytona Setup] Fallback successful. Continuing...`);
+                    } else {
+                        throw new Error(`bun install failed (Exit ${exitCode}). Output: ${output.slice(-500)}`);
+                    }
                 }
 
                 // ── 5. Run post-install for optional libs ──────────────────────────
