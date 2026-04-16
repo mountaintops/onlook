@@ -190,6 +190,7 @@ export default function DaytonaTestPage() {
     // Proxy settings
     const [useProxy, setUseProxy] = useState(true);
     const [proxyPort, setProxyPort] = useState(1234);
+    const [proxySlug, setProxySlug] = useState('');
 
     // Bootstrap state
     const [bootstrapStep, setBootstrapStep] = useState<BootstrapStep>('idle');
@@ -227,8 +228,9 @@ export default function DaytonaTestPage() {
                 let url = data.previewUrl;
 
                 if (useProxy && variables.sandboxId) {
-                    // Force the local proxy URL: http://[port]-[id].localhost:[proxyPort]
-                    url = `http://3000-${variables.sandboxId}.localhost:${proxyPort}`;
+                    // Use custom slug if provided, otherwise fallback to sandboxId
+                    const identifier = proxySlug || variables.sandboxId;
+                    url = `http://3000-${identifier}.localhost:${proxyPort}`;
                 } else if (data.token) {
                     url = `${data.previewUrl}?token=${data.token}`;
                 }
@@ -413,7 +415,12 @@ export default function DaytonaTestPage() {
         setPreviewToken(null);
         setBootstrapStep('creating-sandbox');
         addLog('info', '🚀 Bootstrapping Next.js project in Daytona…');
-        bootstrapMutation.mutate({ sandboxId: existingSandboxId, autoStopInterval: autoStop, autoArchiveInterval: autoArchive });
+        bootstrapMutation.mutate({ 
+            sandboxId: existingSandboxId, 
+            autoStopInterval: autoStop, 
+            autoArchiveInterval: autoArchive,
+            subdomain: proxySlug || undefined
+        });
     }
 
     // When bootstrap mutation is running step 2 (uploading), update visual step
@@ -582,14 +589,26 @@ export default function DaytonaTestPage() {
                                             </label>
                                         </div>
                                         {useProxy && (
-                                            <div className={styles.field}>
-                                                <label className={styles.label}>Proxy Port</label>
-                                                <input
-                                                    type="number"
-                                                    value={proxyPort}
-                                                    onChange={(e) => setProxyPort(Number(e.target.value))}
-                                                    className={styles.input}
-                                                />
+                                            <div className={styles.formGrid} style={{ marginTop: '8px' }}>
+                                                <div className={styles.field}>
+                                                    <label className={styles.label}>Proxy Port</label>
+                                                    <input
+                                                        type="number"
+                                                        value={proxyPort}
+                                                        onChange={(e) => setProxyPort(Number(e.target.value))}
+                                                        className={styles.input}
+                                                    />
+                                                </div>
+                                                <div className={styles.field}>
+                                                    <label className={styles.label}>Custom Slug <span style={{ color: '#475569', textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="e.g. my-app"
+                                                        value={proxySlug}
+                                                        onChange={(e) => setProxySlug(e.target.value)}
+                                                        className={styles.input}
+                                                    />
+                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -737,7 +756,17 @@ export default function DaytonaTestPage() {
                                 </div>
                             </div>
 
-                            <button id="btn-create-sandbox" className={styles.btnPrimary} disabled={createSandbox.isPending} onClick={() => createSandbox.mutate({ language, autoStopInterval: autoStop, autoArchiveInterval: autoArchive })}>
+                            <button 
+                                id="btn-create-sandbox" 
+                                className={styles.btnPrimary} 
+                                disabled={createSandbox.isPending} 
+                                onClick={() => createSandbox.mutate({ 
+                                    language, 
+                                    autoStopInterval: autoStop, 
+                                    autoArchiveInterval: autoArchive,
+                                    subdomain: proxySlug || undefined
+                                })}
+                            >
                                 {createSandbox.isPending ? <><span className={styles.spinner} /> Provisioning…</> : '+ Create Sandbox'}
                             </button>
                         </div>
@@ -955,7 +984,7 @@ export default function DaytonaTestPage() {
                                     id="btn-launch-from-snapshot"
                                     className={styles.btnPrimary}
                                     disabled={!fromSnapshotName || createFromSnapshot.isPending}
-                                    onClick={() => createFromSnapshot.mutate({ snapshotName: fromSnapshotName })}
+                                    onClick={() => createFromSnapshot.mutate({ snapshotName: fromSnapshotName, subdomain: proxySlug || undefined })}
                                 >
                                     {createFromSnapshot.isPending ? <><span className={styles.spinner} /> Launching…</> : '🚀 Launch from Snapshot'}
                                 </button>
@@ -989,7 +1018,7 @@ export default function DaytonaTestPage() {
                                                         id={`btn-launch-snap-${snap.id}`}
                                                         className={`${styles.btnXs} ${styles.btnSuccess}`}
                                                         disabled={createFromSnapshot.isPending}
-                                                        onClick={() => { setFromSnapshotName(snap.name); createFromSnapshot.mutate({ snapshotName: snap.name }); }}
+                                                        onClick={() => { setFromSnapshotName(snap.name); createFromSnapshot.mutate({ snapshotName: snap.name, subdomain: proxySlug || undefined }); }}
                                                     >🚀 Launch</button>
                                                     {snap.state !== 'active' && (
                                                         <button

@@ -14,6 +14,7 @@ export const setupRouter = createTRPCRouter({
                 workdir: z.string().default('/home/daytona/onlook-starter'),
                 autoStopInterval: z.number().default(10),
                 autoArchiveInterval: z.number().optional(),
+                subdomain: z.string().optional(),
             }),
         )
         .mutation(async ({ input }) => {
@@ -24,6 +25,7 @@ export const setupRouter = createTRPCRouter({
                     const result = await DaytonaProvider.createProject({
                         source: 'typescript',
                         id: '',
+                        labels: input.subdomain ? { 'onlook:subdomain': input.subdomain } : undefined,
                     });
                     sandboxId = result.id;
                     console.log(`[Daytona Setup] Created sandbox: ${sandboxId}`);

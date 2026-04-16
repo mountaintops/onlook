@@ -283,6 +283,7 @@ export class DaytonaProvider extends Provider {
             autoArchiveInterval: 30,
             ephemeral: false,
             snapshot: input.snapshotName,
+            labels: input.labels,
         });
 
         return { id: sandbox.id };

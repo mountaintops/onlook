@@ -171,6 +171,7 @@ export interface CreateProjectInput {
     tags?: string[];
     tier?: string;
     snapshotName?: string;
+    labels?: Record<string, string>;
 }
 export interface CreateProjectOutput {
     id: string;

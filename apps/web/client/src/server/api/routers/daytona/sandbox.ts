@@ -14,15 +14,16 @@ export const sandboxRouter = createTRPCRouter({
                 autoStopInterval: z.number().min(0).max(10080).default(120),
                 autoArchiveInterval: z.number().min(0).max(10080).default(30),
                 envVars: z.record(z.string(), z.string()).optional(),
+                subdomain: z.string().optional(),
             }),
         )
         .mutation(async ({ input }) => {
             try {
-                // Static method on DaytonaProvider handles creation
                 const result = await DaytonaProvider.createProject({
                     source: input.language,
                     id: '', // Auto-generated
                     title: `Daytona ${input.language} Sandbox`,
+                    labels: input.subdomain ? { 'onlook:subdomain': input.subdomain } : undefined,
                 });
                 return {
                     id: result.id,
@@ -276,13 +277,17 @@ export const sandboxRouter = createTRPCRouter({
      * Create a sandbox from a snapshot.
      */
     createFromSnapshot: publicProcedure
-        .input(z.object({ snapshotName: z.string() }))
+        .input(z.object({ 
+            snapshotName: z.string(),
+            subdomain: z.string().optional(),
+        }))
         .mutation(async ({ input }) => {
              try {
                 const result = await DaytonaProvider.createProject({
                     snapshotName: input.snapshotName,
                     id: '',
                     title: `Sandbox from ${input.snapshotName}`,
+                    labels: input.subdomain ? { 'onlook:subdomain': input.subdomain } : undefined,
                 });
                 return {
                     id: result.id,
