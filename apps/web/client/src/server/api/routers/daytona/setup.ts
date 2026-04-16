@@ -268,9 +268,15 @@ function getFrameworkFiles(framework: string, libraries: string[]) {
         case 'sveltekit':
             return getSvelteKitFiles(baseDeps, libraries);
         default:
-            return getNextjsFiles(baseDeps, libraries);
     }
-}
+    
+    // Inject tRPC / oRPC boilerplate if selected
+    if (libraries.includes('trpc') || libraries.includes('orpc')) {
+        files['server/api.ts'] = `// [Boilerplate] Minimal API router\nexport const router = {\n  hello: async () => "World"\n};`;
+        files['lib/api-client.ts'] = `// [Boilerplate] Minimal Client\nexport const api = {\n  hello: async () => "World"\n};`;
+    }
+
+    return files;
 
 function getNextjsFiles(deps: any, libraries: string[]) {
     const pkg = {
@@ -299,17 +305,22 @@ function getNextjsFiles(deps: any, libraries: string[]) {
         'next.config.js': `/** @type {import('next').NextConfig} */\nmodule.exports = { reactStrictMode: true };`,
         'postcss.config.mjs': `export default {\n  plugins: {\n    '@tailwindcss/postcss': {},\n  },\n};`,
         'tsconfig.json': `{\n  "compilerOptions": {\n    "target": "es5",\n    "lib": ["dom", "dom.iterable", "esnext"],\n    "allowJs": true,\n    "skipLibCheck": true,\n    "strict": true,\n    "noEmit": true,\n    "esModuleInterop": true,\n    "module": "esnext",\n    "moduleResolution": "bundler",\n    "resolveJsonModule": true,\n    "isolatedModules": true,\n    "jsx": "preserve",\n    "incremental": true,\n    "plugins": [{ "name": "next" }],\n    "paths": { "@/*": ["./*"] }\n  },\n  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],\n  "exclude": ["node_modules"]\n}`,
-        'app/layout.tsx': `import './globals.css';\nimport { Inter } from 'next/font/google';\nconst inter = Inter({ subsets: ['latin'] });\nexport default function RootLayout({ children }: { children: React.ReactNode }) {\n  return (<html lang="en"><body className={inter.className}>{children}</body></html>);\n}`,
+        'app/layout.tsx': `import './globals.css';\nimport { Inter } from 'next/font/google';\n${libraries.includes('heroui') ? "import { HeroUIProvider } from '@heroui/react';" : ""}\nconst inter = Inter({ subsets: ['latin'] });\nexport default function RootLayout({ children }: { children: React.ReactNode }) {\n  return (<html lang="en"><body>${libraries.includes('heroui') ? "<HeroUIProvider>" : ""}<main className={inter.className}>{children}</main>${libraries.includes('heroui') ? "</HeroUIProvider>" : ""}</body></html>);\n}`,
         'app/page.tsx': getStarterPage('next', libraries),
-        'app/globals.css': `@import "tailwindcss";\n\n@theme {\n  --color-background: #ffffff;\n  --color-foreground: #0f172a;\n}\n\nbody { background: var(--color-background); color: var(--color-foreground); }`,
+        'app/globals.css': `@import "tailwindcss";\n${libraries.includes('daisyui') ? '@import "daisyui";' : ""}\n\n@theme {\n  --color-background: #ffffff;\n  --color-foreground: #0f172a;\n}\n\nbody { background: var(--color-background); color: var(--color-foreground); }`,
     };
 
     if (libraries.includes('shadcn')) {
         files['components/ui/button.tsx'] = `import * as React from "react";\nimport { Slot } from "@radix-ui/react-slot";\nimport { cva, type VariantProps } from "class-variance-authority";\nimport { cn } from "@/lib/utils";\n\nconst buttonVariants = cva(\n  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",\n  {\n    variants: {\n      variant: {\n        default: "bg-primary text-primary-foreground shadow hover:bg-primary/90",\n        destructive: "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",\n        outline: "border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground",\n        secondary: "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80",\n        ghost: "hover:bg-accent hover:text-accent-foreground",\n        link: "text-primary underline-offset-4 hover:underline",\n      },\n      size: {\n        default: "h-9 px-4 py-2",\n        sm: "h-8 rounded-md px-3 text-xs",\n        lg: "h-10 rounded-md px-8",\n        icon: "h-9 w-9",\n      },\n    },\n    defaultVariants: {\n      variant: "default",\n      size: "default",\n    },\n  }\n);\n\nexport interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {\n  asChild?: boolean;\n}\n\nconst Button = React.forwardRef<HTMLButtonElement, ButtonProps>(({ className, variant, size, asChild = false, ...props }, ref) => {\n  const Comp = asChild ? Slot : "button";\n  return <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />;\n});\nButton.displayName = "Button";\nexport { Button, buttonVariants };`;
-        // Add dependency for shadcn
+        files['lib/utils.ts'] = `import { clsx, type ClassValue } from "clsx";\nimport { twMerge } from "tailwind-merge";\n\nexport function cn(...inputs: ClassValue[]) {\n  return twMerge(clsx(inputs));\n}`;
+        files['components.json'] = `{\n  "$schema": "https://ui.shadcn.com/schema.json",\n  "style": "new-york",\n  "rsc": true,\n  "tsx": true,\n  "tailwind": {\n    "config": "tailwind.config.js",\n    "css": "app/globals.css",\n    "baseColor": "zinc",\n    "cssVariables": true,\n    "prefix": ""\n  },\n  "aliases": {\n    "components": "@/components",\n    "utils": "@/lib/utils"\n  }\n}`;
+
+        // Add dependencies for shadcn
         const p = JSON.parse(files['package.json']);
         p.dependencies["class-variance-authority"] = "^0.7.1";
         p.dependencies["@radix-ui/react-slot"] = "^1.1.0";
+        p.dependencies["clsx"] = "^2.1.1";
+        p.dependencies["tailwind-merge"] = "^2.5.2";
         files['package.json'] = JSON.stringify(p, null, 2);
     }
 
@@ -339,10 +350,10 @@ const elements = ref([]);
 
 onMounted(() => {
   const tl = gsap.timeline({ defaults: { ease: 'power4.out', duration: 1.2 } });
-  tl.from(container.value, { opacity: 0, duration: 1.5 })
-    .from(card.value, { scale: 0.9, opacity: 0, y: 40 }, 0.2)
-    .from(title.value, { y: 30, opacity: 0 }, 0.5)
-    .from(elements.value, { y: 20, opacity: 0, stagger: 0.1, duration: 0.8 }, 0.8);
+  tl.fromTo(container.value, { opacity: 0 }, { opacity: 1, duration: 1.5 })
+    .fromTo(card.value, { scale: 0.9, opacity: 0, y: 40 }, { scale: 1, opacity: 1, y: 0 }, 0.2)
+    .fromTo(title.value, { y: 30, opacity: 0 }, { y: 0, opacity: 1 }, 0.5)
+    .fromTo(elements.value, { y: 20, opacity: 0 }, { y: 0, opacity: 1, stagger: 0.1, duration: 0.8 }, 0.8);
 });
 </script>
 
@@ -438,10 +449,10 @@ let elements = [];
 
 onMount(() => {
   const tl = gsap.timeline({ defaults: { ease: 'power4.out', duration: 1.2 } });
-  tl.from(container, { opacity: 0, duration: 1.5 })
-    .from(card, { scale: 0.9, opacity: 0, y: 40 }, 0.2)
-    .from(title, { y: 30, opacity: 0 }, 0.5)
-    .from(elements, { y: 20, opacity: 0, stagger: 0.1, duration: 0.8 }, 0.8);
+  tl.fromTo(container, { opacity: 0 }, { opacity: 1, duration: 1.5 })
+    .fromTo(card, { scale: 0.9, opacity: 0, y: 40 }, { scale: 1, opacity: 1, y: 0 }, 0.2)
+    .fromTo(title, { y: 30, opacity: 0 }, { y: 0, opacity: 1 }, 0.5)
+    .fromTo(elements, { y: 20, opacity: 0 }, { y: 0, opacity: 1, stagger: 0.1, duration: 0.8 }, 0.8);
 });
 </script>
 
@@ -502,15 +513,11 @@ export default function Home() {
     const ctx = gsap.context(() => {
       const tl = gsap.timeline({ defaults: { ease: 'power4.out', duration: 1.2 } });
       
-      tl.from(containerRef.current, { opacity: 0, duration: 1.5 })
-        .from(cardRef.current, { scale: 0.9, opacity: 0, y: 40 }, 0.2)
-        .from(titleRef.current, { y: 30, opacity: 0 }, 0.5)
-        .from(elementsRef.current, { 
-          y: 20, 
-          opacity: 0, 
-          stagger: 0.1,
-          duration: 0.8 
-        }, 0.8);
+      // Use fromTo to avoid double-mount opacity issues in StrictMode
+      tl.fromTo(containerRef.current, { opacity: 0 }, { opacity: 1, duration: 1.5 })
+        .fromTo(cardRef.current, { scale: 0.9, opacity: 0, y: 40 }, { scale: 1, opacity: 1, y: 0 }, 0.2)
+        .fromTo(titleRef.current, { y: 30, opacity: 0 }, { y: 0, opacity: 1 }, 0.5)
+        .fromTo(elementsRef.current, { y: 20, opacity: 0 }, { y: 0, opacity: 1, stagger: 0.1, duration: 0.8 }, 0.8);
     });
     return () => ctx.revert();
   }, []);
@@ -579,9 +586,9 @@ export default function Home() {
         <div className="mt-12 pt-8 border-t border-slate-100 flex items-center justify-between text-slate-400 text-[10px] uppercase font-black tracking-[0.2em]">
           <span>Tailwind 4.0</span>
           <span className="opacity-20">•</span>
-          <span>GSAP Animations</span>
+          <span>GSAP</span>
           <span className="opacity-20">•</span>
-          <span>Lucide React</span>
+          <span>${libraries.join(' / ') || 'Starter'}</span>
         </div>
       </div>
     </main>
