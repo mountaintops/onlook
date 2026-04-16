@@ -1057,8 +1057,19 @@ export default function DaytonaTestPage() {
                                                     disabled={createFromSandbox.isPending}
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        const name = prompt('Enter a name for the new snapshot (e.g. pre-installed-deps):');
-                                                        if (name) createFromSandbox.mutate({ sandboxId: sb.id, name });
+                                                        const rawName = prompt('Enter a name for the new snapshot (e.g. pre-installed-deps):');
+                                                        if (rawName) {
+                                                            const sanitized = rawName.toLowerCase()
+                                                                .replace(/[^a-z0-9]/g, '-')
+                                                                .replace(/-+/g, '-')
+                                                                .replace(/^-|-$/g, '');
+                                                            
+                                                            if (!sanitized) {
+                                                                alert('Invalid snapshot name. Please use alphanumeric characters.');
+                                                                return;
+                                                            }
+                                                            createFromSandbox.mutate({ sandboxId: sb.id, name: sanitized });
+                                                        }
                                                     }}
                                                 >
                                                     📸 Snapshot

@@ -416,13 +416,26 @@ export class DaytonaProvider extends Provider {
     }
 
     async snapshot(name: string) {
+        console.log(`[DaytonaProvider] Starting snapshot creation: ${name}`);
         const sandbox = await this.ensureSandbox();
+        
+        // Log available methods on the sandbox instance for debugging
+        const methods = Object.getOwnPropertyNames(Object.getPrototypeOf(sandbox));
+        console.log(`[DaytonaProvider] Sandbox methods available:`, methods.filter(m => m.includes('Snapshot')));
+
         // Uses the experimental createSnapshot method on the sandbox object
+        // Some versions might have promoted it to a non-experimental name
         if (typeof (sandbox as any)._experimental_createSnapshot === 'function') {
+            console.log(`[DaytonaProvider] Using _experimental_createSnapshot for snapshot '${name}'`);
             await (sandbox as any)._experimental_createSnapshot(name);
+        } else if (typeof (sandbox as any).createSnapshot === 'function') {
+            console.log(`[DaytonaProvider] Using createSnapshot for snapshot '${name}'`);
+            await (sandbox as any).createSnapshot(name);
         } else {
-            throw new Error('Daytona SDK does not support experimental snapshotting in this version');
+            console.error(`[DaytonaProvider] No snapshot method found on sandbox instance. Prototype:`, Object.getPrototypeOf(sandbox).constructor.name);
+            throw new Error(`Daytona SDK version ${require('@daytonaio/sdk/package.json').version} does not support snapshotting from a running sandbox in this environment.`);
         }
+        console.log(`[DaytonaProvider] Snapshot '${name}' creation call completed.`);
     }
 
     async deleteSnapshot(name: string) {
