@@ -169,7 +169,7 @@ type BootstrapStep =
 const BOOTSTRAP_STEPS: { key: BootstrapStep; label: string; desc: string }[] = [
     { key: 'creating-sandbox', label: 'Create Sandbox', desc: 'Provisioning a fresh Daytona environment' },
     { key: 'uploading-files', label: 'Setup Files', desc: 'Uploading Next.js starter project files' },
-    { key: 'installing-deps', label: 'Install Deps', desc: 'Running npm install (may take 2–4 min)' },
+    { key: 'installing-deps', label: 'Install Deps', desc: 'Running bun install (fast & modern)' },
     { key: 'starting-server', label: 'Start Server', desc: 'Launching Next.js dev server on port 3000' },
     { key: 'ready', label: 'Preview Ready', desc: 'App is live in the sandbox!' },
 ];
@@ -830,7 +830,7 @@ export default function DaytonaTestPage() {
                                             <>
                                                 <div className={`${styles.previewPlaceholderIcon} ${styles.spinFast}`}>⚙️</div>
                                                 <p>Setting up your Next.js sandbox…</p>
-                                                <p className={styles.previewHint}>This takes 2–5 min on first run (npm install)</p>
+                                                <p className={styles.previewHint}>This takes 1–2 min on first run (bun install)</p>
                                             </>
                                         )}
                                     </div>

@@ -80,17 +80,17 @@ export const setupRouter = createTRPCRouter({
                 await provider.writeFile({ args: { path: `${workdir}/TECH_STACK.txt`, content: techStackContent } });
 
                 // ── 4. Install dependencies ───────────────────────────────────────
-                console.log(`[Daytona Setup] Running npm install...`);
+                console.log(`[Daytona Setup] Running bun install...`);
                 const { output, exitCode } = await provider.runCommand({
                     args: { 
-                        command: `cd ${workdir} && npm install --prefer-offline --no-audit --no-fund 2>&1`,
-                        timeout: 420, 
+                        command: `cd ${workdir} && bun install 2>&1`,
+                        timeout: 300, 
                     },
                 });
 
                 if (exitCode !== 0) {
-                    console.error(`[Daytona Setup] npm install failed:`, output);
-                    throw new Error(`npm install failed (Exit ${exitCode}). Output: ${output.slice(-500)}`);
+                    console.error(`[Daytona Setup] bun install failed:`, output);
+                    throw new Error(`bun install failed (Exit ${exitCode}). Output: ${output.slice(-500)}`);
                 }
 
                 // ── 5. Run post-install for optional libs ──────────────────────────
@@ -135,7 +135,7 @@ export const setupRouter = createTRPCRouter({
             console.log(`[Daytona Setup] Starting dev server in ${workdir} on port ${port}...`);
 
             // Detect framework command
-            let devCommand = 'npm run dev';
+            let devCommand = 'bun run dev';
             
             // Cleanup previous instances
             await provider.runCommand({
@@ -239,13 +239,16 @@ function getNextjsFiles(deps: any, libraries: string[]) {
             "typescript": "^5",
             "@types/node": "^20",
             "@types/react": "^19",
-            "@types/react-dom": "^19"
+            "@types/react-dom": "^19",
+            "postcss": "^8.4.31",
+            "@tailwindcss/postcss": "^4.0.0"
         }
     };
 
     return {
         'package.json': JSON.stringify(pkg, null, 2),
         'next.config.js': `/** @type {import('next').NextConfig} */\nmodule.exports = { reactStrictMode: true };`,
+        'postcss.config.mjs': `export default {\n  plugins: {\n    '@tailwindcss/postcss': {},\n  },\n};`,
         'tsconfig.json': `{\n  "compilerOptions": {\n    "target": "es5",\n    "lib": ["dom", "dom.iterable", "esnext"],\n    "allowJs": true,\n    "skipLibCheck": true,\n    "strict": true,\n    "noEmit": true,\n    "esModuleInterop": true,\n    "module": "esnext",\n    "moduleResolution": "bundler",\n    "resolveJsonModule": true,\n    "isolatedModules": true,\n    "jsx": "preserve",\n    "incremental": true,\n    "plugins": [{ "name": "next" }],\n    "paths": { "@/*": ["./*"] }\n  },\n  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],\n  "exclude": ["node_modules"]\n}`,
         'app/layout.tsx': `import './globals.css';\nimport { Inter } from 'next/font/google';\nconst inter = Inter({ subsets: ['latin'] });\nexport default function RootLayout({ children }: { children: React.ReactNode }) {\n  return (<html lang="en"><body className={inter.className}>{children}</body></html>);\n}`,
         'app/page.tsx': getStarterPage('next', libraries),
@@ -257,12 +260,13 @@ function getNuxtFiles(deps: any, libraries: string[]) {
     const pkg = {
         name: 'nuxt-onlook',
         scripts: { dev: 'nuxt dev', build: 'nuxt build', generate: 'nuxt generate' },
-        devDependencies: { "nuxt": "^3.11.2", "@nuxtjs/tailwindcss": "^6.11.4", ...deps }
+        devDependencies: { "nuxt": "^3.11.2", "@tailwindcss/vite": "^4.0.0", ...deps }
     };
 
     return {
         'package.json': JSON.stringify(pkg, null, 2),
-        'nuxt.config.ts': `export default defineNuxtConfig({\n  modules: ['@nuxtjs/tailwindcss'],\n  devtools: { enabled: true }\n})`,
+        'nuxt.config.ts': `import tailwindcss from "@tailwindcss/vite";\nexport default defineNuxtConfig({\n  vite: {\n    plugins: [tailwindcss()],\n  },\n  css: ['~/assets/css/main.css'],\n  devtools: { enabled: true }\n})`,
+        'assets/css/main.css': `@import "tailwindcss";`,
         'app.vue': `<template>\n  <div class="min-h-screen flex items-center justify-center bg-slate-50 font-sans">\n    <div class="p-12 max-w-2xl w-full bg-white/80 backdrop-blur-xl rounded-3xl border border-slate-200 shadow-xl text-center">\n      <h1 class="text-4xl font-extrabold text-slate-900 mb-4">Welcome to Nuxt</h1>\n      <p class="text-slate-600 text-lg">Your new project is ready in the sandbox.</p>\n    </div>\n  </div>\n</template>`,
     };
 }
@@ -281,12 +285,12 @@ function getRemixFiles(deps: any, libraries: string[]) {
             "react-dom": "^18.2.0",
             ...deps
         },
-        devDependencies: { "@remix-run/dev": "^2.8.1", "vite": "^5.1.4", "typescript": "^5.4.2" }
+        devDependencies: { "@remix-run/dev": "^2.8.1", "vite": "^5.1.4", "typescript": "^5.4.2", "@tailwindcss/vite": "^4.0.0" }
     };
 
     return {
         'package.json': JSON.stringify(pkg, null, 2),
-        'vite.config.ts': `import { vitePlugin as remix } from "@remix-run/dev";\nimport { defineConfig } from "vite";\nexport default defineConfig({ plugins: [remix()] });`,
+        'vite.config.ts': `import { vitePlugin as remix } from "@remix-run/dev";\nimport { defineConfig } from "vite";\nimport tailwindcss from "@tailwindcss/vite";\nexport default defineConfig({ plugins: [tailwindcss(), remix()] });`,
         'app/root.tsx': `import { Links, Meta, Outlet, Scripts, ScrollRestoration } from "@remix-run/react";\nimport "./globals.css";\nexport default function App() {\n  return (<html><head><Meta /><Links /></head><body><Outlet /><ScrollRestoration /><Scripts /></body></html>);\n}`,
         'app/routes/_index.tsx': `export default function Index() {\n  return (<div className="p-10 font-sans"><h1>Welcome to Remix</h1></div>);\n}`,
         'app/globals.css': `@import "tailwindcss";`,
