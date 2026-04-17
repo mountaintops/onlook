@@ -23,11 +23,16 @@ export const setupRouter = createTRPCRouter({
             let sandboxId = input.sandboxId;
             try {
                 if (!sandboxId) {
+                    const labels: Record<string, string> = {
+                        'onlook:framework': input.framework,
+                    };
+                    if (input.subdomain) labels['onlook:subdomain'] = input.subdomain;
+
                     console.log(`[Daytona Setup] Creating new sandbox for ${input.framework}...`);
                     const result = await DaytonaProvider.createProject({
                         source: 'typescript',
                         id: '',
-                        labels: input.subdomain ? { 'onlook:subdomain': input.subdomain } : undefined,
+                        labels,
                     });
                     sandboxId = result.id;
                     console.log(`[Daytona Setup] Created sandbox: ${sandboxId}`);
@@ -192,18 +197,27 @@ export const setupRouter = createTRPCRouter({
             })) as DaytonaProvider;
             const { workdir, port } = input;
 
-            console.log(`[Daytona Setup] Starting dev server in ${workdir} on port ${port}...`);
-
-            // Detect framework command
-            let devCommand = 'bun run dev';
+            // Detect framework from labels to use correct flags
+            const project = await provider.get({ sandboxId: input.sandboxId });
+            const framework = project.labels?.['onlook:framework'] || 'next';
             
+            // Framework-specific flags
+            // Next.js: --hostname/-p, Vite/Nuxt: --host/--port
+            let flags = `--hostname 0.0.0.0 -p ${port}`;
+            if (framework === 'sveltekit' || framework === 'nuxt') {
+                flags = `--host 0.0.0.0 --port ${port}`;
+            }
+
+            const devCommand = 'bun run dev';
+            console.log(`[Daytona Setup] Starting ${framework} dev server on port ${port} in ${workdir}...`);
+
             // Cleanup previous instances
             await provider.runCommand({
-                args: { command: `pkill -9 -f "node" 2>/dev/null; pkill -9 -f "next" 2>/dev/null; pkill -9 -f "nuxt" 2>/dev/null; sleep 1` },
+                args: { command: `pkill -9 -f "node" 2>/dev/null; pkill -9 -f "next" 2>/dev/null; pkill -9 -f "nuxt" 2>/dev/null; pkill -9 -f "vite" 2>/dev/null; sleep 1` },
             });
 
             await provider.runCommand({
-                args: { command: `cd ${workdir} && nohup ${devCommand} -- --hostname 0.0.0.0 -p ${port} > /tmp/dev.log 2>&1 &` },
+                args: { command: `cd ${workdir} && nohup ${devCommand} -- ${flags} > /tmp/dev.log 2>&1 &` },
             });
             
             const { output: readyOutput } = await provider.runCommand({
@@ -333,7 +347,7 @@ function getNextjsFiles(deps: any, libraries: string[]) {
 function getNuxtFiles(deps: any, libraries: string[]) {
     const pkg = {
         name: 'nuxt-onlook',
-        scripts: { dev: 'nuxt dev --host 0.0.0.0', build: 'nuxt build', generate: 'nuxt generate' },
+        scripts: { dev: 'nuxt dev', build: 'nuxt build', generate: 'nuxt generate' },
         devDependencies: { "nuxt": "^4.4.0", "@tailwindcss/vite": "^4.0.0", ...deps }
     };
 
@@ -384,7 +398,7 @@ function getSvelteKitFiles(deps: any, libraries: string[]) {
     const pkg = {
         name: 'svelte-onlook',
         type: 'module',
-        scripts: { dev: 'vite dev --host 0.0.0.0', build: 'vite build', preview: 'vite preview' },
+        scripts: { dev: 'vite dev', build: 'vite build', preview: 'vite preview' },
         devDependencies: {
             "@sveltejs/adapter-auto": "^3.0.0",
             "@sveltejs/kit": "^2.16.0",
