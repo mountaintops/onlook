@@ -269,15 +269,18 @@ Enjoy your new project!
 
 function getFrameworkFiles(framework: string, libraries: string[]) {
     // Shared dependencies (April 2026 Standards)
-    const baseDeps = {
+    const baseDeps: any = {
         "tailwindcss": "^4.0.0",
         "@tailwindcss/postcss": "^4.0.0",
         "postcss": "^8.4.0",
-        "lucide-react": "^0.474.0",
         "gsap": "^3.12.7",
         "clsx": "^2.1.1",
         "tailwind-merge": "^2.5.2"
     };
+
+    if (framework === 'sveltekit') baseDeps["lucide-svelte"] = "^0.474.0";
+    else if (framework === 'nuxt') baseDeps["lucide-vue-next"] = "^0.474.0";
+    else baseDeps["lucide-react"] = "^0.474.0";
 
     if (libraries.includes('heroui')) (baseDeps as any)["@heroui/react"] = "latest";
     if (libraries.includes('daisyui')) (baseDeps as any)["daisyui"] = "latest";
@@ -412,6 +415,13 @@ function getSvelteKitFiles(deps: any, libraries: string[]) {
 
     return {
         'package.json': JSON.stringify(pkg, null, 2),
+        'src/app.css': `@import "tailwindcss";`,
+        'src/routes/+layout.svelte': `<script>
+  import '../app.css';
+  let { children } = $props();
+</script>
+
+{@render children()}`,
         'svelte.config.js': `import adapter from '@sveltejs/adapter-auto';\nexport default { kit: { adapter: adapter() } };`,
         'vite.config.js': `import { sveltekit } from '@sveltejs/kit/vite';\nimport tailwindcss from '@tailwindcss/vite';\nimport { defineConfig } from 'vite';\nexport default defineConfig({ plugins: [tailwindcss(), sveltekit()] });`,
         'src/routes/+page.svelte': `<script>
@@ -434,11 +444,11 @@ onMount(() => {
 
 <main bind:this={container} class="min-h-screen flex items-center justify-center bg-[#fafafa] font-sans text-slate-900">
   <div class="max-w-xl w-full px-8 text-center">
-    <h1 bind:this={title} class="text-5xl font-bold tracking-tight mb-4">
+    <h1 bind:this={title} class="text-5xl font-bold tracking-tight mb-4 text-slate-900">
       This is a new project.
     </h1>
     <p bind:this={sub} class="text-slate-400 text-lg mb-12">
-      Edit <code class="text-slate-900 font-medium">src/routes/+page.svelte</code> to build.
+      Edit <code class="text-slate-900 font-medium bg-slate-100 px-1 rounded">src/routes/+page.svelte</code> to build.
     </p>
     
     <div bind:this={info} class="pt-8 border-t border-slate-100 flex flex-col items-center gap-2 text-[11px] uppercase tracking-widest font-bold text-slate-300">
