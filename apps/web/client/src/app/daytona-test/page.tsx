@@ -6,6 +6,9 @@ import styles from './daytona-test.module.css';
 import { DaytonaProvider } from '@onlook/code-provider';
 import { CodeProvider } from '@onlook/code-provider';
 import { createCodeProviderClient } from '@onlook/code-provider';
+import { Terminal } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
+import '@xterm/xterm/css/xterm.css';
 
 declare global {
     interface Window {
@@ -136,7 +139,7 @@ function BypassedIframe({ url, title, className, allow, sandbox }: {
 }
 
 type Language = 'typescript' | 'javascript' | 'python';
-type ActiveTab = 'bootstrap' | 'create' | 'list' | 'exec' | 'code' | 'snapshots' | 'files';
+type ActiveTab = 'bootstrap' | 'create' | 'list' | 'snapshots' | 'files' | 'terminal' | 'exec' | 'code';
 
 interface SnapshotItem {
     id: string;
@@ -186,6 +189,143 @@ const BOOTSTRAP_STEPS: { key: BootstrapStep; label: string; desc: string }[] = [
     { key: 'starting-server', label: 'Start Server', desc: 'Launching Next.js dev server on port 3000' },
     { key: 'ready', label: 'Preview Ready', desc: 'App is live in the sandbox!' },
 ];
+
+/**
+ * SandboxTerminal component provides a real-time interactive terminal 
+ * for a Daytona sandbox using xterm.js and tRPC polling.
+ */
+function SandboxTerminal({ sandboxId }: { sandboxId: string }) {
+    const terminalRef = useRef<HTMLDivElement>(null);
+    const xtermRef = useRef<Terminal | null>(null);
+    const sessionIdRef = useRef<string | null>(null);
+    const [status, setStatus] = useState<'connecting' | 'connected' | 'error' | 'idle'>('idle');
+
+    const createPty = api.daytona.sandbox.createPty.useMutation();
+    const writePty = api.daytona.sandbox.writePty.useMutation();
+    const resizePty = api.daytona.sandbox.resizePty.useMutation();
+    const closePty = api.daytona.sandbox.closePty.useMutation();
+    
+    // Polling for output
+    const pollPty = api.daytona.sandbox.pollPty.useQuery(
+        { sessionId: sessionIdRef.current ?? '' },
+        { 
+            enabled: !!sessionIdRef.current && status === 'connected',
+            refetchInterval: 100, // Poll every 100ms
+        }
+    );
+
+    // Write polled data to xterm
+    useEffect(() => {
+        if (pollPty.data?.data && xtermRef.current) {
+            xtermRef.current.write(pollPty.data.data);
+        }
+    }, [pollPty.data]);
+
+    useEffect(() => {
+        if (!sandboxId || !terminalRef.current) return;
+
+        let isMounted = true;
+        let cleanupFn: (() => void) | undefined;
+
+        const initTerminal = async () => {
+            setStatus('connecting');
+            try {
+                // Initialize xterm.js
+                const term = new Terminal({
+                    cursorBlink: true,
+                    fontSize: 13,
+                    fontFamily: 'JetBrains Mono, Menlo, Monaco, Courier New, monospace',
+                    theme: {
+                        background: '#000000',
+                        foreground: '#ffffff',
+                        selectionBackground: 'rgba(99, 102, 241, 0.3)',
+                    },
+                    allowProposedApi: true,
+                });
+
+                const fitAddon = new FitAddon();
+                term.loadAddon(fitAddon);
+                term.open(terminalRef.current!);
+                fitAddon.fit();
+
+                // Create server-side PTY
+                const { sessionId } = await createPty.mutateAsync({
+                    sandboxId,
+                    cols: term.cols,
+                    rows: term.rows,
+                });
+
+                if (!isMounted) {
+                    await closePty.mutateAsync({ sessionId });
+                    term.dispose();
+                    return;
+                }
+
+                sessionIdRef.current = sessionId;
+                xtermRef.current = term;
+
+                // Handle terminal input
+                term.onData((data: string) => {
+                    writePty.mutate({ sessionId, input: data });
+                });
+
+                // Handle window resize
+                const handleResize = () => {
+                    fitAddon.fit();
+                    resizePty.mutate({ sessionId, cols: term.cols, rows: term.rows });
+                };
+
+                window.addEventListener('resize', handleResize);
+                setStatus('connected');
+
+                cleanupFn = () => {
+                    window.removeEventListener('resize', handleResize);
+                    closePty.mutate({ sessionId });
+                    term.dispose();
+                    sessionIdRef.current = null;
+                };
+            } catch (err) {
+                console.error('Failed to init terminal:', err);
+                if (isMounted) setStatus('error');
+            }
+        };
+
+        initTerminal();
+
+        return () => {
+            isMounted = false;
+            cleanupFn?.();
+        };
+    }, [sandboxId]);
+
+    return (
+        <div className={styles.terminalContainer}>
+            <div ref={terminalRef} style={{ height: '100%', width: '100%' }} />
+            {status === 'connecting' && (
+                <div className={styles.terminalOverlay}>
+                    <div className={styles.terminalLoading}>
+                        <span className={styles.spinner} />
+                        <div className={styles.terminalOverlayTitle}>Waking up Daytona Shell...</div>
+                    </div>
+                </div>
+            )}
+            {status === 'error' && (
+                <div className={styles.terminalOverlay}>
+                    <div style={{ color: '#f87171' }} className={styles.terminalOverlayTitle}>
+                        Failed to connect to terminal session.
+                    </div>
+                    <button 
+                        className={styles.btnXs} 
+                        onClick={() => window.location.reload()}
+                        style={{ marginTop: '12px' }}
+                    >
+                        Reload Page
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+}
 
 export default function DaytonaTestPage() {
     const [language, setLanguage] = useState<Language>('typescript');
@@ -776,6 +916,7 @@ export default function DaytonaTestPage() {
                             { key: 'list', label: '◈ Sandboxes' },
                             { key: 'snapshots', label: '📸 Snapshots' },
                             { key: 'files', label: '📁 Files' },
+                            { key: 'terminal', label: '⌨ Terminal' },
                             { key: 'exec', label: '$ Command' },
                             { key: 'code', label: '≫ Run Code' },
                         ] as { key: ActiveTab; label: string }[]
@@ -1466,6 +1607,39 @@ export default function DaytonaTestPage() {
                         </div>
                     )}
                 </div>
+                {/* ── Terminal Panel ─────────────────────────────── */}
+                {activeTab === 'terminal' && (
+                    <div className={styles.panel}>
+                        <div className={styles.panelHeader}>
+                            <div>
+                                <h2 className={styles.panelTitle}>Interactive Terminal</h2>
+                                <p className={styles.panelDesc}>Direct shell access to your Daytona sandbox.</p>
+                            </div>
+                            {selectedSandboxId && (
+                                <button 
+                                    className={styles.btnSecondary}
+                                    onClick={() => {
+                                        setActiveTab('list');
+                                        setTimeout(() => setActiveTab('terminal'), 10);
+                                    }}
+                                >
+                                    🔄 Reconnect
+                                </button>
+                            )}
+                        </div>
+                        
+                        <div style={{ height: '600px' }}>
+                            {selectedSandboxId ? (
+                                <SandboxTerminal sandboxId={selectedSandboxId} />
+                            ) : (
+                                <div className={styles.terminalPlaceholder}>
+                                    <span style={{ fontSize: '2.5rem' }}>⌨</span>
+                                    <span>Please select a sandbox from the "Sandboxes" tab first.</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
             </main>
 
             {/* ── Log Console ──────────────────────────────────────────── */}

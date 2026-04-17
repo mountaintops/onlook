@@ -30,6 +30,7 @@ import {
     type ListProjectsOutput,
     type PauseProjectInput,
     type PauseProjectOutput,
+    type ProviderTerminalShellSize,
     type ReadFileInput,
     type ReadFileOutput,
     type RenameFileInput,
@@ -195,7 +196,11 @@ export class DaytonaProvider extends Provider {
     }
 
     async createTerminal(input: CreateTerminalInput): Promise<CreateTerminalOutput> {
-        throw new Error('createTerminal not implemented for Daytona provider');
+        const sandbox = await this.ensureSandbox();
+        
+        // We need to manage the multicasting of output here or in DaytonaTerminal
+        const terminal = new DaytonaTerminal(sandbox);
+        return { terminal };
     }
 
     async getTask(input: GetTaskInput): Promise<GetTaskOutput> {
@@ -456,6 +461,67 @@ export class DaytonaProvider extends Provider {
         }
         const snapshot = await this.client.snapshot.get(name);
         return await this.client.snapshot.activate(snapshot);
+    }
+}
+
+export class DaytonaTerminal extends ProviderTerminal {
+    private ptyHandle: any = null;
+    private outputCallbacks: Set<(data: string) => void> = new Set();
+    private decoder = new TextDecoder();
+
+    constructor(private readonly sandbox: any) {
+        super();
+    }
+
+    get id(): string {
+        return this.ptyHandle?.sessionId || 'pending';
+    }
+
+    get name(): string {
+        return 'Daytona Terminal';
+    }
+
+    async open(dimensions?: ProviderTerminalShellSize): Promise<string> {
+        if (this.ptyHandle) return this.id;
+
+        this.ptyHandle = await this.sandbox.process.createPty({
+            cols: dimensions?.cols || 80,
+            rows: dimensions?.rows || 24,
+            onData: (data: Uint8Array) => {
+                const text = this.decoder.decode(data);
+                this.outputCallbacks.forEach(cb => cb(text));
+            }
+        });
+
+        await this.ptyHandle.waitForConnection();
+        return this.id;
+    }
+
+    async write(input: string, dimensions?: ProviderTerminalShellSize): Promise<void> {
+        if (!this.ptyHandle) await this.open(dimensions);
+        if (dimensions) {
+            await this.ptyHandle.resize(dimensions.cols, dimensions.rows);
+        }
+        await this.ptyHandle.sendInput(input);
+    }
+
+    async run(input: string, dimensions?: ProviderTerminalShellSize): Promise<void> {
+        await this.write(input + '\n', dimensions);
+    }
+
+    async kill(): Promise<void> {
+        if (this.ptyHandle) {
+            await this.ptyHandle.kill();
+            await this.ptyHandle.disconnect();
+            this.ptyHandle = null;
+        }
+    }
+
+    onOutput(callback: (data: string) => void): () => void {
+        this.outputCallbacks.add(callback);
+        return () => {
+            this.outputCallbacks.delete(callback);
+        };
     }
 }
 

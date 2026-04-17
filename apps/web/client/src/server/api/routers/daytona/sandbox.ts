@@ -2,6 +2,7 @@ import { CodeProvider, createCodeProviderClient, DaytonaProvider } from '@onlook
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { createTRPCRouter, publicProcedure } from '../../trpc';
+import { ptyManager } from './pty-manager';
 
 export const sandboxRouter = createTRPCRouter({
     /**
@@ -370,5 +371,92 @@ export const sandboxRouter = createTRPCRouter({
                     message: `Failed to set auto-stop interval: ${error.message}`,
                 });
             }
+        }),
+    
+    /**
+     * Create a new PTY session.
+     */
+    createPty: publicProcedure
+        .input(z.object({ 
+            sandboxId: z.string(),
+            cols: z.number().optional(),
+            rows: z.number().optional()
+        }))
+        .mutation(async ({ input }) => {
+            const provider = (await createCodeProviderClient(CodeProvider.Daytona, {
+                providerOptions: { daytona: { sandboxId: input.sandboxId } },
+            })) as DaytonaProvider;
+            
+            const sessionId = await ptyManager.create(input.sandboxId, provider, {
+                cols: input.cols || 80,
+                rows: input.rows || 24
+            });
+            
+            return { sessionId };
+        }),
+
+    /**
+     * Poll for PTY output.
+     */
+    pollPty: publicProcedure
+        .input(z.object({ sessionId: z.string() }))
+        .query(async ({ input }) => {
+            const data = ptyManager.poll(input.sessionId);
+            return { data: data || '' };
+        }),
+
+    /**
+     * Write input to PTY.
+     */
+    writePty: publicProcedure
+        .input(z.object({ 
+            sessionId: z.string(), 
+            input: z.string(),
+            cols: z.number().optional(),
+            rows: z.number().optional()
+        }))
+        .mutation(async ({ input }) => {
+            try {
+                await ptyManager.write(input.sessionId, input.input, 
+                    (input.cols && input.rows) ? { cols: input.cols, rows: input.rows } : undefined
+                );
+                return { success: true };
+            } catch (error: any) {
+                throw new TRPCError({
+                    code: 'NOT_FOUND',
+                    message: `PTY session ${input.sessionId} not found: ${error.message}`,
+                });
+            }
+        }),
+
+    /**
+     * Resize PTY.
+     */
+    resizePty: publicProcedure
+        .input(z.object({ 
+            sessionId: z.string(), 
+            cols: z.number(), 
+            rows: z.number() 
+        }))
+        .mutation(async ({ input }) => {
+            try {
+                await ptyManager.resize(input.sessionId, input.cols, input.rows);
+                return { success: true };
+            } catch (error: any) {
+                throw new TRPCError({
+                    code: 'NOT_FOUND',
+                    message: `PTY session ${input.sessionId} not found: ${error.message}`,
+                });
+            }
+        }),
+
+    /**
+     * Close PTY session.
+     */
+    closePty: publicProcedure
+        .input(z.object({ sessionId: z.string() }))
+        .mutation(async ({ input }) => {
+            await ptyManager.close(input.sessionId);
+            return { success: true };
         }),
 });

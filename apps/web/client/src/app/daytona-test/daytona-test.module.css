@@ -884,3 +884,64 @@
     resize: none;
     outline: none;
 }
+
+/* ── Terminal ────────────────────────────────────────────────────────── */
+.terminalContainer {
+    height: 100%;
+    min-height: 500px;
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    padding: 8px;
+    position: relative;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+/* Fix for xterm.js focus outline */
+.terminalContainer :global(.xterm) {
+    padding: 8px;
+}
+
+.terminalOverlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(10, 10, 15, 0.9);
+    backdrop-filter: blur(8px);
+    padding: 24px 32px;
+    border-radius: 16px;
+    text-align: center;
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    z-index: 10;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.terminalOverlayTitle {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #f1f5f9;
+    margin-bottom: 12px;
+}
+
+.terminalLoading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    color: #818cf8;
+}
+
+.terminalPlaceholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #475569;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 12px;
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+    gap: 12px;
+}
