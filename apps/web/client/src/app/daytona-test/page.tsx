@@ -7,6 +7,19 @@ import { DaytonaProvider } from '@onlook/code-provider';
 import { CodeProvider } from '@onlook/code-provider';
 import { createCodeProviderClient } from '@onlook/code-provider';
 
+declare global {
+    interface Window {
+        daytona: {
+            archive: (id?: string) => Promise<any>;
+            stop: (id?: string) => Promise<any>;
+            start: (id?: string) => Promise<any>;
+            restart: (id?: string) => Promise<any>;
+            editfile: (path: string, content: string, id?: string) => Promise<any>;
+            selectedId: string;
+        };
+    }
+}
+
 /**
  * BypassedIframe component handles fetching the preview content with the
  * required header to skip the Daytona preview warning page.
@@ -512,6 +525,70 @@ export default function DaytonaTestPage() {
         };
     }, [selectedSandboxId]);
 
+    /* ── Unified Actions (DX) ───────────────────────────────────────── */
+    const actions = {
+        archive: async (id?: string) => {
+            const sandboxId = id || selectedSandboxId;
+            if (!sandboxId) {
+                addLog('error', '❌ No sandbox selected for archive.');
+                return;
+            }
+            addLog('info', `📦 Archiving sandbox ${sandboxId.slice(0, 12)}…`);
+            return archiveSandbox.mutateAsync({ sandboxId });
+        },
+        stop: async (id?: string) => {
+            const sandboxId = id || selectedSandboxId;
+            if (!sandboxId) {
+                addLog('error', '❌ No sandbox selected for stop.');
+                return;
+            }
+            addLog('info', `🛑 Stopping sandbox ${sandboxId.slice(0, 12)}…`);
+            return stopSandbox.mutateAsync({ sandboxId });
+        },
+        start: async (id?: string) => {
+            const sandboxId = id || selectedSandboxId;
+            if (!sandboxId) {
+                addLog('error', '❌ No sandbox selected for start.');
+                return;
+            }
+            addLog('info', `▶️ Starting sandbox ${sandboxId.slice(0, 12)}…`);
+            return startSandbox.mutateAsync({ sandboxId });
+        },
+        restart: async (id?: string) => {
+            const sandboxId = id || selectedSandboxId;
+            if (!sandboxId) {
+                addLog('error', '❌ No sandbox selected for restart.');
+                return;
+            }
+            addLog('info', `↺ Restarting sandbox ${sandboxId.slice(0, 12)}…`);
+            await stopSandbox.mutateAsync({ sandboxId });
+            return startSandbox.mutateAsync({ sandboxId });
+        },
+        editfile: async (path: string, content: string, id?: string) => {
+            const sandboxId = id || selectedSandboxId;
+            if (!sandboxId) {
+                addLog('error', '❌ No sandbox selected for editfile.');
+                return;
+            }
+            addLog('info', `📝 Editing ${path} in ${sandboxId.slice(0, 12)}…`);
+            const res = await writeFileMutation.mutateAsync({ sandboxId, path, content });
+            // Auto-refresh if relevant
+            if (activeTab === 'files') {
+                void lsQuery.refetch();
+                if (selectedFilePath === path) void readFileQuery.refetch();
+            }
+            return res;
+        },
+    };
+
+    // Expose to window for console DX
+    useEffect(() => {
+        window.daytona = {
+            ...actions,
+            selectedId: selectedSandboxId,
+        };
+    }, [selectedSandboxId, activeTab, selectedFilePath]);
+
 
     function getStepStatus(stepKey: BootstrapStep): 'done' | 'active' | 'pending' | 'error' {
         if (bootstrapStep === 'error') {
@@ -884,7 +961,7 @@ export default function DaytonaTestPage() {
                                                 title="Stop sandbox"
                                                 disabled={stopSandbox.isPending}
                                                 onClick={() => {
-                                                    if (bootstrapSandboxId) stopSandbox.mutate({ sandboxId: bootstrapSandboxId });
+                                                    if (bootstrapSandboxId) actions.stop(bootstrapSandboxId);
                                                 }}
                                             >
                                                 {stopSandbox.isPending ? <span className={styles.spinner} /> : '🛑'}
@@ -1007,7 +1084,7 @@ export default function DaytonaTestPage() {
                                                     <button
                                                         className={`${styles.btnXs} ${styles.btnSuccess}`}
                                                         style={{ padding: '6px 14px' }}
-                                                        onClick={(e) => { e.stopPropagation(); startSandbox.mutate({ sandboxId: sb.id }); }}
+                                                        onClick={(e) => { e.stopPropagation(); actions.start(sb.id); }}
                                                     >
                                                         🔄 Restore & Run
                                                     </button>
@@ -1049,7 +1126,7 @@ export default function DaytonaTestPage() {
                                                         id={`btn-start-${sb.id}`}
                                                         className={`${styles.btnXs} ${styles.btnSuccess}`}
                                                         disabled={startSandbox.isPending}
-                                                        onClick={(e) => { e.stopPropagation(); startSandbox.mutate({ sandboxId: sb.id }); }}
+                                                        onClick={(e) => { e.stopPropagation(); actions.start(sb.id); }}
                                                     >
                                                         {sb.state === 'archived' ? '🔄 Restore' : '▶ Start'}
                                                     </button>
@@ -1069,7 +1146,7 @@ export default function DaytonaTestPage() {
                                                         id={`btn-archive-${sb.id}`}
                                                         className={`${styles.btnXs} ${styles.btnWarning}`}
                                                         disabled={archiveSandbox.isPending}
-                                                        onClick={(e) => { e.stopPropagation(); if (confirm(`Archive ${sb.id.slice(0, 12)}…? It will be stopped first.`)) archiveSandbox.mutate({ sandboxId: sb.id }); }}
+                                                        onClick={(e) => { e.stopPropagation(); if (confirm(`Archive ${sb.id.slice(0, 12)}…? It will be stopped first.`)) actions.archive(sb.id); }}
                                                     >
                                                         📦 Archive
                                                     </button>
@@ -1079,7 +1156,7 @@ export default function DaytonaTestPage() {
                                                         id={`btn-stop-${sb.id}`}
                                                         className={styles.btnXs}
                                                         disabled={stopSandbox.isPending}
-                                                        onClick={(e) => { e.stopPropagation(); stopSandbox.mutate({ sandboxId: sb.id }); }}
+                                                        onClick={(e) => { e.stopPropagation(); actions.stop(sb.id); }}
                                                     >
                                                         ⏹ Stop
                                                     </button>
@@ -1372,11 +1449,7 @@ export default function DaytonaTestPage() {
                                             <button 
                                                 className={styles.saveBtn} 
                                                 disabled={writeFileMutation.isPending || fileEditContent === readFileQuery.data?.content}
-                                                onClick={() => writeFileMutation.mutate({ 
-                                                    sandboxId: selectedSandboxId, 
-                                                    path: selectedFilePath, 
-                                                    content: fileEditContent 
-                                                })}
+                                                onClick={() => actions.editfile(selectedFilePath, fileEditContent)}
                                             >
                                                 {writeFileMutation.isPending ? <span className={styles.spinner} /> : '💾 Save Changes'}
                                             </button>
