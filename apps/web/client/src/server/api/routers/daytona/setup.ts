@@ -196,20 +196,39 @@ export const setupRouter = createTRPCRouter({
 
             // Detect framework command
             let devCommand = 'bun run dev';
-            
+            let devFlags = `--hostname 0.0.0.0 -p ${port}`;
+
+            try {
+                const { output: pkgOutput } = await provider.runCommand({
+                    args: { command: `cat ${workdir}/package.json` }
+                });
+                const pkg = JSON.parse(pkgOutput);
+                const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+
+                if (deps['nuxt'] || deps['@remix-run/dev'] || deps['@sveltejs/kit'] || deps['vite']) {
+                    console.log(`[Daytona Setup] Vite-based framework detected. Using --host --port.`);
+                    devFlags = `--host 0.0.0.0 --port ${port}`;
+                } else if (deps['next']) {
+                    console.log(`[Daytona Setup] Next.js detected. Using --hostname -p.`);
+                    devFlags = `--hostname 0.0.0.0 -p ${port}`;
+                }
+            } catch (err) {
+                console.warn(`[Daytona Setup] Framework detection failed, defaulting to Next.js flags:`, err);
+            }
+
             // Cleanup previous instances
             await provider.runCommand({
-                args: { command: `pkill -9 -f "node" 2>/dev/null; pkill -9 -f "next" 2>/dev/null; pkill -9 -f "nuxt" 2>/dev/null; sleep 1` },
+                args: { command: `pkill -9 -f "node" 2>/dev/null; pkill -9 -f "next" 2>/dev/null; pkill -9 -f "nuxt" 2>/dev/null; pkill -9 -f "vite" 2>/dev/null; sleep 1` },
             });
 
             await provider.runCommand({
-                args: { command: `cd ${workdir} && nohup ${devCommand} -- --hostname 0.0.0.0 -p ${port} > /tmp/dev.log 2>&1 &` },
+                args: { command: `cd ${workdir} && nohup PORT=${port} ${devCommand} -- ${devFlags} > /tmp/dev.log 2>&1 &` },
             });
             
             const { output: readyOutput } = await provider.runCommand({
                 args: { 
-                    command: `for i in $(seq 1 15); do curl -sf http://localhost:${port} > /dev/null 2>&1 && echo ready && exit 0; sleep 2; done; echo timeout`,
-                    timeout: 40
+                    command: `for i in $(seq 1 20); do curl -sf http://localhost:${port} > /dev/null 2>&1 && echo ready && exit 0; sleep 2; done; echo timeout`,
+                    timeout: 50
                 },
             });
 
@@ -341,7 +360,7 @@ function getNuxtFiles(deps: any, libraries: string[]) {
 
     return {
         'package.json': JSON.stringify(pkg, null, 2),
-        'nuxt.config.ts': `import tailwindcss from "@tailwindcss/vite";\nexport default defineNuxtConfig({\n  future: { compatibilityVersion: 4 },\n  vite: {\n    plugins: [tailwindcss()],\n  },\n  css: ['~/assets/css/main.css'],\n  devtools: { enabled: true }\n})`,
+        'nuxt.config.ts': `import tailwindcss from "@tailwindcss/vite";\nexport default defineNuxtConfig({\n  future: { compatibilityVersion: 4 },\n  vite: {\n    plugins: [tailwindcss()],\n    server: { allowedHosts: true, hmr: { clientPort: 443 } }\n  },\n  css: ['~/assets/css/main.css'],\n  devtools: { enabled: true }\n})`,
         'app/assets/css/main.css': `@import "tailwindcss";`,
         'app/app.vue': `<script setup>
 import { onMounted, ref } from 'vue';
@@ -400,7 +419,7 @@ function getRemixFiles(deps: any, libraries: string[]) {
 
     return {
         'package.json': JSON.stringify(pkg, null, 2),
-        'vite.config.ts': `import { vitePlugin as remix } from "@remix-run/dev";\nimport { defineConfig } from "vite";\nimport tailwindcss from "@tailwindcss/vite";\nexport default defineConfig({ plugins: [tailwindcss(), remix()] });`,
+        'vite.config.ts': `import { vitePlugin as remix } from "@remix-run/dev";\nimport { defineConfig } from "vite";\nimport tailwindcss from "@tailwindcss/vite";\nexport default defineConfig({ plugins: [tailwindcss(), remix()], server: { allowedHosts: true, hmr: { clientPort: 443 } } });`,
         'app/root.tsx': `import { Links, Meta, Outlet, Scripts, ScrollRestoration } from "@remix-run/react";\nimport "./globals.css";\nexport default function App() {\n  return (<html><head><Meta /><Links /></head><body><Outlet /><ScrollRestoration /><Scripts /></body></html>);\n}`,
         'app/routes/_index.tsx': getStarterPage('remix', libraries),
         'app/globals.css': `@import "tailwindcss";`,
@@ -426,7 +445,7 @@ function getSvelteKitFiles(deps: any, libraries: string[]) {
     return {
         'package.json': JSON.stringify(pkg, null, 2),
         'svelte.config.js': `import adapter from '@sveltejs/adapter-auto';\nexport default { kit: { adapter: adapter() } };`,
-        'vite.config.js': `import { sveltekit } from '@sveltejs/kit/vite';\nimport tailwindcss from '@tailwindcss/vite';\nimport { defineConfig } from 'vite';\nexport default defineConfig({ plugins: [tailwindcss(), sveltekit()] });`,
+        'vite.config.js': `import { sveltekit } from '@sveltejs/kit/vite';\nimport tailwindcss from '@tailwindcss/vite';\nimport { defineConfig } from 'vite';\nexport default defineConfig({ plugins: [tailwindcss(), sveltekit()], server: { allowedHosts: true, hmr: { clientPort: 443 } } });`,
         'src/routes/+page.svelte': `<script>
 import { onMount } from 'svelte';
 import gsap from 'gsap';
