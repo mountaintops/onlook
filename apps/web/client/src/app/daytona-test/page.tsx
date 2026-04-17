@@ -198,7 +198,7 @@ export default function DaytonaTestPage() {
     const [proxySlug, setProxySlug] = useState('');
 
     const [showStackModal, setShowStackModal] = useState(false);
-    const [selectedFramework, setSelectedFramework] = useState<'next' | 'nuxt' | 'remix' | 'sveltekit'>('next');
+    const [selectedFramework, setSelectedFramework] = useState<'next' | 'nuxt' | 'sveltekit'>('next');
     const [selectedLibs, setSelectedLibs] = useState<string[]>([]);
     
     // Bootstrap state
@@ -549,7 +549,6 @@ export default function DaytonaTestPage() {
         const frameworks = [
             { id: 'next', name: 'Next.js' },
             { id: 'nuxt', name: 'Nuxt 3' },
-            { id: 'remix', name: 'Remix' },
             { id: 'sveltekit', name: 'SvelteKit' },
         ];
 
