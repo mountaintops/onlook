@@ -6,8 +6,8 @@ import styles from './daytona-test.module.css';
 import { DaytonaProvider } from '@onlook/code-provider';
 import { CodeProvider } from '@onlook/code-provider';
 import { createCodeProviderClient } from '@onlook/code-provider';
-import { Terminal } from '@xterm/xterm';
-import { FitAddon } from '@xterm/addon-fit';
+import type { Terminal } from '@xterm/xterm';
+import type { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 
 declare global {
@@ -230,6 +230,10 @@ function SandboxTerminal({ sandboxId }: { sandboxId: string }) {
         const initTerminal = async () => {
             setStatus('connecting');
             try {
+                // Dynamically import xterm classes only on client side
+                const { Terminal } = await import('@xterm/xterm');
+                const { FitAddon } = await import('@xterm/addon-fit');
+
                 // Initialize xterm.js
                 const term = new Terminal({
                     cursorBlink: true,
