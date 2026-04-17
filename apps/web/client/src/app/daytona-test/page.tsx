@@ -123,7 +123,7 @@ function BypassedIframe({ url, title, className, allow, sandbox }: {
 }
 
 type Language = 'typescript' | 'javascript' | 'python';
-type ActiveTab = 'bootstrap' | 'create' | 'list' | 'exec' | 'code' | 'snapshots';
+type ActiveTab = 'bootstrap' | 'create' | 'list' | 'exec' | 'code' | 'snapshots' | 'files';
 
 interface SnapshotItem {
     id: string;
@@ -186,6 +186,11 @@ export default function DaytonaTestPage() {
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [activeTab, setActiveTab] = useState<ActiveTab>('bootstrap');
     const [archivedFilter, setArchivedFilter] = useState<'all' | 'active' | 'archived'>('all');
+
+    // FS state
+    const [currentPath, setCurrentPath] = useState('.');
+    const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
+    const [fileEditContent, setFileEditContent] = useState('');
 
     // Proxy settings
     const [useProxy, setUseProxy] = useState(true);
@@ -404,6 +409,34 @@ export default function DaytonaTestPage() {
             addLog(data.success ? 'success' : 'error', data.output || '(no output)');
         },
         onError: (err) => addLog('error', `❌ Code run failed: ${err.message}`),
+    });
+
+    // ── FS Hooks ──────────────────────────────────────────────────────────
+    const lsQuery = api.daytona.fs.ls.useQuery(
+        { sandboxId: selectedSandboxId, path: currentPath },
+        { enabled: activeTab === 'files' && !!selectedSandboxId, refetchInterval: 30_000 }
+    );
+
+    const readFileQuery = api.daytona.fs.read.useQuery(
+        { sandboxId: selectedSandboxId, path: selectedFilePath || '' },
+        { 
+            enabled: activeTab === 'files' && !!selectedSandboxId && !!selectedFilePath,
+            staleTime: 0,
+        }
+    );
+
+    useEffect(() => {
+        if (readFileQuery.data) {
+            setFileEditContent(readFileQuery.data.content);
+        }
+    }, [readFileQuery.data]);
+
+    const writeFileMutation = api.daytona.fs.write.useMutation({
+        onSuccess: () => {
+            addLog('success', `💾 Saved changes to ${selectedFilePath}`);
+            void readFileQuery.refetch();
+        },
+        onError: (err) => addLog('error', `❌ Failed to save file: ${err.message}`),
     });
 
     const listQuery = api.daytona.sandbox.list.useQuery(undefined, { refetchInterval: 15_000 });
@@ -666,6 +699,7 @@ export default function DaytonaTestPage() {
                             { key: 'create', label: '+ Create' },
                             { key: 'list', label: '◈ Sandboxes' },
                             { key: 'snapshots', label: '📸 Snapshots' },
+                            { key: 'files', label: '📁 Files' },
                             { key: 'exec', label: '$ Command' },
                             { key: 'code', label: '≫ Run Code' },
                         ] as { key: ActiveTab; label: string }[]
@@ -1255,6 +1289,108 @@ export default function DaytonaTestPage() {
                             <button id="btn-run-code" className={styles.btnPrimary} disabled={!selectedSandboxId || runCode.isPending} onClick={() => runCode.mutate({ sandboxId: selectedSandboxId, code })}>
                                 {runCode.isPending ? <><span className={styles.spinner} /> Executing…</> : '≫ Execute Code'}
                             </button>
+                        </div>
+                    )}
+
+                    {/* ── Files Panel ────────────────────────────────── */}
+                    {activeTab === 'files' && (
+                        <div className={styles.filesLayout}>
+                            {/* Left: Explorer */}
+                            <div className={styles.explorerPanel}>
+                                <div className={styles.explorerHeader}>
+                                    <div className={styles.pathBar}>
+                                        <button className={styles.pathPart} onClick={() => setCurrentPath('.')}>root</button>
+                                        {currentPath !== '.' && currentPath.split('/').filter(Boolean).map((part, i, arr) => (
+                                            <React.Fragment key={i}>
+                                                <span className={styles.pathSep}>/</span>
+                                                <button className={styles.pathPart} onClick={() => {
+                                                    const newPath = arr.slice(0, i + 1).join('/');
+                                                    setCurrentPath(newPath);
+                                                }}>{part}</button>
+                                            </React.Fragment>
+                                        ))}
+                                    </div>
+                                    <button className={styles.refreshBtn} onClick={() => void lsQuery.refetch()} disabled={lsQuery.isFetching}>↻</button>
+                                </div>
+
+                                <div className={styles.explorerList}>
+                                    {!selectedSandboxId ? (
+                                        <div className={styles.hint}>Please select a sandbox to explorer files.</div>
+                                    ) : lsQuery.isLoading ? (
+                                        <div className={styles.hint}><span className={styles.spinner} /> Loading files…</div>
+                                    ) : lsQuery.error ? (
+                                        <div className={`${styles.hint} ${styles.errorText}`}>Error: {lsQuery.error.message}</div>
+                                    ) : (
+                                        <>
+                                            {currentPath !== '.' && (
+                                                <div className={styles.fileItem} onClick={() => {
+                                                    const parts = currentPath.split('/');
+                                                    parts.pop();
+                                                    setCurrentPath(parts.join('/') || '.');
+                                                }}>
+                                                    <span className={styles.fileIcon}>📁</span>
+                                                    <span className={styles.fileName}>..</span>
+                                                </div>
+                                            )}
+                                            {(lsQuery.data ?? []).map(file => (
+                                                <div 
+                                                    key={file.name} 
+                                                    className={`${styles.fileItem} ${selectedFilePath === `${currentPath === '.' ? '' : currentPath + '/'}${file.name}` ? styles.fileItemActive : ''}`}
+                                                    onClick={() => {
+                                                        const fullPath = `${currentPath === '.' ? '' : currentPath + '/'}${file.name}`;
+                                                        if (file.type === 'directory') {
+                                                            setCurrentPath(fullPath);
+                                                        } else {
+                                                            setSelectedFilePath(fullPath);
+                                                        }
+                                                    }}
+                                                >
+                                                    <span className={styles.fileIcon}>{file.type === 'directory' ? '📁' : '📄'}</span>
+                                                    <span className={styles.fileName}>{file.name}</span>
+                                                </div>
+                                            ))}
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Right: Editor */}
+                            <div className={styles.editorPanel}>
+                                {!selectedFilePath ? (
+                                    <div className={styles.editorPlaceholder}>
+                                        <div style={{ fontSize: '2rem', marginBottom: '1rem', opacity: 0.5 }}>📝</div>
+                                        <p>Select a file to edit</p>
+                                    </div>
+                                ) : readFileQuery.isLoading ? (
+                                    <div className={styles.editorPlaceholder}>
+                                        <span className={styles.spinner} style={{ width: 30, height: 30 }} />
+                                        <p style={{ marginTop: '1rem' }}>Reading file content…</p>
+                                    </div>
+                                ) : (
+                                    <div className={styles.editorContainer}>
+                                        <div className={styles.editorHeader}>
+                                            <div className={styles.editorFilePath}>{selectedFilePath}</div>
+                                            <button 
+                                                className={styles.saveBtn} 
+                                                disabled={writeFileMutation.isPending || fileEditContent === readFileQuery.data?.content}
+                                                onClick={() => writeFileMutation.mutate({ 
+                                                    sandboxId: selectedSandboxId, 
+                                                    path: selectedFilePath, 
+                                                    content: fileEditContent 
+                                                })}
+                                            >
+                                                {writeFileMutation.isPending ? <span className={styles.spinner} /> : '💾 Save Changes'}
+                                            </button>
+                                        </div>
+                                        <textarea 
+                                            className={styles.fileTextArea} 
+                                            value={fileEditContent} 
+                                            onChange={(e) => setFileEditContent(e.target.value)}
+                                            spellCheck={false}
+                                        />
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
                 </div>
