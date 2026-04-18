@@ -210,7 +210,7 @@ function SandboxTerminal({ sandboxId }: { sandboxId: string }) {
         { sessionId: sessionIdRef.current ?? '' },
         { 
             enabled: !!sessionIdRef.current && status === 'connected',
-            refetchInterval: 100, // Poll every 100ms
+            refetchInterval: 50, // Poll every 50ms for snappier feedback
         }
     );
 
@@ -268,9 +268,22 @@ function SandboxTerminal({ sandboxId }: { sandboxId: string }) {
                 sessionIdRef.current = sessionId;
                 xtermRef.current = term;
 
-                // Handle terminal input
+                // Handle terminal input with buffering to prevent HTTP lag
+                let inputBuffer = '';
+                let inputTimeout: ReturnType<typeof setTimeout> | null = null;
+                
                 term.onData((data: string) => {
-                    writePty.mutate({ sessionId, input: data });
+                    inputBuffer += data;
+                    if (!inputTimeout) {
+                        inputTimeout = setTimeout(() => {
+                            const toSend = inputBuffer;
+                            inputBuffer = '';
+                            inputTimeout = null;
+                            if (toSend && sessionIdRef.current) {
+                                writePty.mutate({ sessionId: sessionIdRef.current, input: toSend });
+                            }
+                        }, 15); // 15ms batching groups keystrokes without human-perceptible delay
+                    }
                 });
 
                 // Handle window resize
