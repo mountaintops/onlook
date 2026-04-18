@@ -7,9 +7,7 @@ import styles from './daytona-test.module.css';
 import { DaytonaProvider } from '@onlook/code-provider';
 import { CodeProvider } from '@onlook/code-provider';
 import { createCodeProviderClient } from '@onlook/code-provider';
-import type { Terminal } from '@xterm/xterm';
-import type { FitAddon } from '@xterm/addon-fit';
-import '@xterm/xterm/css/xterm.css';
+
 
 declare global {
     interface Window {
@@ -140,7 +138,7 @@ function BypassedIframe({ url, title, className, allow, sandbox }: {
 }
 
 type Language = 'typescript' | 'javascript' | 'python';
-type ActiveTab = 'bootstrap' | 'create' | 'list' | 'snapshots' | 'files' | 'terminal' | 'exec' | 'code';
+type ActiveTab = 'bootstrap' | 'create' | 'list' | 'snapshots' | 'files' | 'exec' | 'code';
 
 interface SnapshotItem {
     id: string;
@@ -190,177 +188,6 @@ const BOOTSTRAP_STEPS: { key: BootstrapStep; label: string; desc: string }[] = [
     { key: 'starting-server', label: 'Start Server', desc: 'Launching Next.js dev server on port 3000' },
     { key: 'ready', label: 'Preview Ready', desc: 'App is live in the sandbox!' },
 ];
-
-/**
- * SandboxTerminal component provides a real-time interactive terminal 
- * for a Daytona sandbox using xterm.js and tRPC polling.
- */
-function SandboxTerminal({ sandboxId }: { sandboxId: string }) {
-    const terminalRef = useRef<HTMLDivElement>(null);
-    const xtermRef = useRef<Terminal | null>(null);
-    const sessionIdRef = useRef<string | null>(null);
-    const [status, setStatus] = useState<'connecting' | 'connected' | 'error' | 'idle'>('idle');
-
-    const createPty = api.daytona.sandbox.createPty.useMutation();
-    const resizePty = api.daytona.sandbox.resizePty.useMutation();
-    const closePty = api.daytona.sandbox.closePty.useMutation();
-
-    useEffect(() => {
-        if (!sandboxId || !terminalRef.current) return;
-
-        let isMounted = true;
-        let cleanupFn: (() => void) | undefined;
-        let pollTimer: ReturnType<typeof setInterval> | null = null;
-        let isPolling = false;
-
-        const initTerminal = async () => {
-            setStatus('connecting');
-            try {
-                // Dynamically import xterm classes only on client side
-                const { Terminal } = await import('@xterm/xterm');
-                const { FitAddon } = await import('@xterm/addon-fit');
-
-                // Initialize xterm.js
-                const term = new Terminal({
-                    cursorBlink: true,
-                    fontSize: 13,
-                    fontFamily: 'JetBrains Mono, Menlo, Monaco, Courier New, monospace',
-                    theme: {
-                        background: '#000000',
-                        foreground: '#ffffff',
-                        selectionBackground: 'rgba(99, 102, 241, 0.3)',
-                    },
-                    allowProposedApi: true,
-                });
-
-                const fitAddon = new FitAddon();
-                term.loadAddon(fitAddon);
-                term.open(terminalRef.current!);
-                fitAddon.fit();
-
-                // Create server-side PTY
-                const { sessionId } = await createPty.mutateAsync({
-                    sandboxId,
-                    cols: term.cols,
-                    rows: term.rows,
-                });
-
-                if (!isMounted) {
-                    await closePty.mutateAsync({ sessionId });
-                    term.dispose();
-                    return;
-                }
-
-                sessionIdRef.current = sessionId;
-                xtermRef.current = term;
-
-                // Strictly serialized async queue for input to prevent out-of-order execution
-                let isWriting = false;
-                let inputQueue: string[] = [];
-
-                const processQueue = async () => {
-                    if (isWriting || inputQueue.length === 0) return;
-                    isWriting = true;
-                    const combinedInput = inputQueue.join('');
-                    inputQueue = [];
-                    try {
-                        if (sessionIdRef.current) {
-                            await trpcClient.daytona.sandbox.writePty.mutate({ 
-                                sessionId: sessionIdRef.current, 
-                                input: combinedInput 
-                            });
-                        }
-                    } catch (e) {
-                         // gracefully ignore network errors, typing will just resume
-                    } finally {
-                        isWriting = false;
-                        if (inputQueue.length > 0) {
-                            processQueue();
-                        }
-                    }
-                };
-                
-                term.onData((data: string) => {
-                    inputQueue.push(data);
-                    processQueue();
-                });
-
-                // Fast vanilla polling bypassing React state
-                pollTimer = setInterval(async () => {
-                    if (!sessionIdRef.current || !isMounted || isPolling) return;
-                    isPolling = true;
-                    try {
-                        const res = await trpcClient.daytona.sandbox.pollPty.query({ 
-                            sessionId: sessionIdRef.current 
-                        });
-                        if (res.data && isMounted) {
-                            term.write(res.data);
-                        }
-                    } catch (e) {
-                        // ignore 
-                    } finally {
-                        isPolling = false;
-                    }
-                }, 40);
-
-                // Handle window resize
-                const handleResize = () => {
-                    fitAddon.fit();
-                    resizePty.mutate({ sessionId, cols: term.cols, rows: term.rows });
-                };
-
-                window.addEventListener('resize', handleResize);
-                setStatus('connected');
-
-                cleanupFn = () => {
-                    if (pollTimer) clearInterval(pollTimer);
-                    window.removeEventListener('resize', handleResize);
-                    closePty.mutate({ sessionId });
-                    term.dispose();
-                    sessionIdRef.current = null;
-                };
-            } catch (err) {
-                console.error('Failed to init terminal:', err);
-                if (isMounted) setStatus('error');
-            }
-        };
-
-        initTerminal();
-
-        return () => {
-            isMounted = false;
-            cleanupFn?.();
-        };
-    }, [sandboxId]);
-
-    return (
-        <div className={styles.terminalContainer}>
-            <div ref={terminalRef} style={{ height: '100%', width: '100%' }} />
-            {status === 'connecting' && (
-                <div className={styles.terminalOverlay}>
-                    <div className={styles.terminalLoading}>
-                        <span className={styles.spinner} />
-                        <div className={styles.terminalOverlayTitle}>Waking up Daytona Shell...</div>
-                    </div>
-                </div>
-            )}
-            {status === 'error' && (
-                <div className={styles.terminalOverlay}>
-                    <div style={{ color: '#f87171' }} className={styles.terminalOverlayTitle}>
-                        Failed to connect to terminal session.
-                    </div>
-                    <button 
-                        className={styles.btnXs} 
-                        onClick={() => window.location.reload()}
-                        style={{ marginTop: '12px' }}
-                    >
-                        Reload Page
-                    </button>
-                </div>
-            )}
-        </div>
-    );
-}
 
 export default function DaytonaTestPage() {
     const [language, setLanguage] = useState<Language>('typescript');
@@ -951,7 +778,6 @@ export default function DaytonaTestPage() {
                             { key: 'list', label: '◈ Sandboxes' },
                             { key: 'snapshots', label: '📸 Snapshots' },
                             { key: 'files', label: '📁 Files' },
-                            { key: 'terminal', label: '⌨ Terminal' },
                             { key: 'exec', label: '$ Command' },
                             { key: 'code', label: '≫ Run Code' },
                         ] as { key: ActiveTab; label: string }[]
@@ -1642,39 +1468,7 @@ export default function DaytonaTestPage() {
                         </div>
                     )}
                 </div>
-                {/* ── Terminal Panel ─────────────────────────────── */}
-                {activeTab === 'terminal' && (
-                    <div className={styles.panel}>
-                        <div className={styles.panelHeader}>
-                            <div>
-                                <h2 className={styles.panelTitle}>Interactive Terminal</h2>
-                                <p className={styles.panelDesc}>Direct shell access to your Daytona sandbox.</p>
-                            </div>
-                            {selectedSandboxId && (
-                                <button 
-                                    className={styles.btnSecondary}
-                                    onClick={() => {
-                                        setActiveTab('list');
-                                        setTimeout(() => setActiveTab('terminal'), 10);
-                                    }}
-                                >
-                                    🔄 Reconnect
-                                </button>
-                            )}
-                        </div>
-                        
-                        <div style={{ height: '600px' }}>
-                            {selectedSandboxId ? (
-                                <SandboxTerminal sandboxId={selectedSandboxId} />
-                            ) : (
-                                <div className={styles.terminalPlaceholder}>
-                                    <span style={{ fontSize: '2.5rem' }}>⌨</span>
-                                    <span>Please select a sandbox from the "Sandboxes" tab first.</span>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
+
             </main>
 
             {/* ── Log Console ──────────────────────────────────────────── */}
