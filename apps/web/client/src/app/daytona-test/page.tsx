@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { api } from '~/trpc/react';
+import { api as trpcClient } from '~/trpc/client';
 import styles from './daytona-test.module.css';
 import { DaytonaProvider } from '@onlook/code-provider';
 import { CodeProvider } from '@onlook/code-provider';
@@ -201,31 +202,16 @@ function SandboxTerminal({ sandboxId }: { sandboxId: string }) {
     const [status, setStatus] = useState<'connecting' | 'connected' | 'error' | 'idle'>('idle');
 
     const createPty = api.daytona.sandbox.createPty.useMutation();
-    const writePty = api.daytona.sandbox.writePty.useMutation();
     const resizePty = api.daytona.sandbox.resizePty.useMutation();
     const closePty = api.daytona.sandbox.closePty.useMutation();
-    
-    // Polling for output
-    const pollPty = api.daytona.sandbox.pollPty.useQuery(
-        { sessionId: sessionIdRef.current ?? '' },
-        { 
-            enabled: !!sessionIdRef.current && status === 'connected',
-            refetchInterval: 50, // Poll every 50ms for snappier feedback
-        }
-    );
-
-    // Write polled data to xterm
-    useEffect(() => {
-        if (pollPty.data?.data && xtermRef.current) {
-            xtermRef.current.write(pollPty.data.data);
-        }
-    }, [pollPty.data]);
 
     useEffect(() => {
         if (!sandboxId || !terminalRef.current) return;
 
         let isMounted = true;
         let cleanupFn: (() => void) | undefined;
+        let pollTimer: ReturnType<typeof setInterval> | null = null;
+        let isPolling = false;
 
         const initTerminal = async () => {
             setStatus('connecting');
@@ -268,23 +254,54 @@ function SandboxTerminal({ sandboxId }: { sandboxId: string }) {
                 sessionIdRef.current = sessionId;
                 xtermRef.current = term;
 
-                // Handle terminal input with buffering to prevent HTTP lag
-                let inputBuffer = '';
-                let inputTimeout: ReturnType<typeof setTimeout> | null = null;
+                // Strictly serialized async queue for input to prevent out-of-order execution
+                let isWriting = false;
+                let inputQueue: string[] = [];
+
+                const processQueue = async () => {
+                    if (isWriting || inputQueue.length === 0) return;
+                    isWriting = true;
+                    const combinedInput = inputQueue.join('');
+                    inputQueue = [];
+                    try {
+                        if (sessionIdRef.current) {
+                            await trpcClient.daytona.sandbox.writePty.mutate({ 
+                                sessionId: sessionIdRef.current, 
+                                input: combinedInput 
+                            });
+                        }
+                    } catch (e) {
+                         // gracefully ignore network errors, typing will just resume
+                    } finally {
+                        isWriting = false;
+                        if (inputQueue.length > 0) {
+                            processQueue();
+                        }
+                    }
+                };
                 
                 term.onData((data: string) => {
-                    inputBuffer += data;
-                    if (!inputTimeout) {
-                        inputTimeout = setTimeout(() => {
-                            const toSend = inputBuffer;
-                            inputBuffer = '';
-                            inputTimeout = null;
-                            if (toSend && sessionIdRef.current) {
-                                writePty.mutate({ sessionId: sessionIdRef.current, input: toSend });
-                            }
-                        }, 15); // 15ms batching groups keystrokes without human-perceptible delay
-                    }
+                    inputQueue.push(data);
+                    processQueue();
                 });
+
+                // Fast vanilla polling bypassing React state
+                pollTimer = setInterval(async () => {
+                    if (!sessionIdRef.current || !isMounted || isPolling) return;
+                    isPolling = true;
+                    try {
+                        const res = await trpcClient.daytona.sandbox.pollPty.query({ 
+                            sessionId: sessionIdRef.current 
+                        });
+                        if (res.data && isMounted) {
+                            term.write(res.data);
+                        }
+                    } catch (e) {
+                        // ignore 
+                    } finally {
+                        isPolling = false;
+                    }
+                }, 40);
 
                 // Handle window resize
                 const handleResize = () => {
@@ -296,6 +313,7 @@ function SandboxTerminal({ sandboxId }: { sandboxId: string }) {
                 setStatus('connected');
 
                 cleanupFn = () => {
+                    if (pollTimer) clearInterval(pollTimer);
                     window.removeEventListener('resize', handleResize);
                     closePty.mutate({ sessionId });
                     term.dispose();
