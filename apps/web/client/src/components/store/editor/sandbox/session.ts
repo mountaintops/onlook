@@ -4,6 +4,7 @@ import type { Branch } from '@onlook/models';
 import { makeAutoObservable } from 'mobx';
 import type { ErrorManager } from '../error';
 import { CLISessionImpl, CLISessionType, type CLISession, type TerminalSession } from './terminal';
+import { TRPCDaytonaProvider } from './daytona-trpc-provider';
 
 export class SessionManager {
     provider: Provider | null = null;
@@ -70,23 +71,34 @@ export class SessionManager {
         }, CONNECTION_TIMEOUT_MS);
 
         const attemptConnection = async () => {
-            const provider = await createCodeProviderClient(CodeProvider.CodeSandbox, {
-                providerOptions: {
-                    codesandbox: {
-                        sandboxId,
-                        userId,
-                        initClient: true,
-                        keepActiveWhileConnected: false,
-                        getSession: async (sandboxId, userId) => {
-                            const session = await api.sandbox.start.mutate({ sandboxId });
-                            if (session.signedPreviewUrl) {
-                                this.signedPreviewUrl = session.signedPreviewUrl;
-                            }
-                            return session;
+            const useFallback = process.env.NEXT_PUBLIC_USE_CODESANDBOX === 'true';
+            let provider: Provider;
+            
+            if (!useFallback) {
+                provider = new TRPCDaytonaProvider(sandboxId);
+                const session = await provider.createSession({ args: { id: sandboxId } });
+                if (session.signedPreviewUrl) {
+                    this.signedPreviewUrl = session.signedPreviewUrl;
+                }
+            } else {
+                provider = await createCodeProviderClient(CodeProvider.CodeSandbox, {
+                    providerOptions: {
+                        codesandbox: {
+                            sandboxId,
+                            userId,
+                            initClient: true,
+                            keepActiveWhileConnected: false,
+                            getSession: async (sandboxId, userId) => {
+                                const session = await api.sandbox.start.mutate({ sandboxId });
+                                if (session.signedPreviewUrl) {
+                                    this.signedPreviewUrl = session.signedPreviewUrl;
+                                }
+                                return session;
+                            },
                         },
                     },
-                },
-            });
+                });
+            }
 
             this.provider = provider;
             await this.createTerminalSessions(provider);

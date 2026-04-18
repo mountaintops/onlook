@@ -459,4 +459,27 @@ export const sandboxRouter = createTRPCRouter({
             await ptyManager.close(input.sessionId);
             return { success: true };
         }),
+
+    /**
+     * Run a non-interactive shell command
+     */
+    runCommand: publicProcedure
+        .input(z.object({
+            sandboxId: z.string(),
+            command: z.string(),
+        }))
+        .mutation(async ({ input }) => {
+            const provider = (await createCodeProviderClient(CodeProvider.Daytona, {
+                providerOptions: { daytona: { sandboxId: input.sandboxId } },
+            })) as DaytonaProvider;
+            try {
+                const res = await provider.runCommand({ args: { command: input.command } });
+                return { output: res.output, exitCode: res.exitCode };
+            } catch (error: any) {
+                throw new TRPCError({
+                    code: 'INTERNAL_SERVER_ERROR',
+                    message: `Failed to run command ${input.command}: ${error.message}`,
+                });
+            }
+        }),
 });
