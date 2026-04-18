@@ -484,7 +484,9 @@ export class DaytonaTerminal extends ProviderTerminal {
     async open(dimensions?: ProviderTerminalShellSize): Promise<string> {
         if (this.ptyHandle) return this.id;
 
+        const ptyId = `pty-${Math.random().toString(36).substring(2, 10)}`;
         this.ptyHandle = await this.sandbox.process.createPty({
+            id: ptyId,
             cols: dimensions?.cols || 80,
             rows: dimensions?.rows || 24,
             onData: (data: Uint8Array) => {
