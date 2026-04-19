@@ -4,7 +4,7 @@
  * On initial start, it pulls all files from the provider and stores them in the local file system.
  * After this, it watches for changes either in the local file system or the provider and syncs the changes back and forth.
  */
-import { type Provider, type ProviderFileWatcher } from '@onlook/code-provider';
+import { type Provider, type ProviderFileWatcher } from '@onlook/code-provider/client';
 
 import { normalizePath } from '@/components/store/editor/sandbox/helpers';
 import type { CodeFileSystem } from '@onlook/file-system';
@@ -40,6 +40,7 @@ export class CodeProviderSync {
     private readonly excludePatterns: string[];
     private fileHashes = new Map<string, string>();
     private instanceKey: string | null = null;
+    private writeCallbackUnregister: (() => void) | null = null;
 
     private constructor(
         private provider: Provider,

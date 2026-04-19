@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { CodeProvider, createCodeProviderClient, DaytonaProvider } from '@onlook/code-provider';
+import { CodeProvider, createCodeProviderClient } from '@onlook/code-provider';
+import type { DaytonaProvider } from '@onlook/code-provider/daytona';
 
 export async function POST(req: Request) {
     try {

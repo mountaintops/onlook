@@ -1,6 +1,8 @@
 "use client";
 
 import { useAuthContext } from '@/app/auth/auth-context';
+import { getSandboxBackend } from '@/config/sandbox-backend';
+import { api as trpcClient } from '@/trpc/client';
 import { api } from '@/trpc/react';
 import { LocalForageKeys, Routes } from '@/utils/constants';
 import { getSandboxPreviewUrl } from '@onlook/constants';
@@ -96,15 +98,40 @@ export function TemplateModal({
         }
     };
 
-    const handlePreviewTemplate = () => {
+    const handlePreviewTemplate = async () => {
         if (!branches || branches.length === 0 || !branches[0]?.sandbox.id) {
             toast.error('No branches found for this template');
             return;
         }
 
-        const sandboxUrl = getSandboxPreviewUrl(branches[0].sandbox.id, 3000);
+        const sandboxId = branches[0].sandbox.id;
+
+        if (getSandboxBackend() === 'daytona') {
+            try {
+                const preview = await trpcClient.daytona.preview.getPreviewUrl.query({
+                    sandboxId,
+                    port: 3000,
+                });
+                let sandboxUrl = preview.url ?? '';
+                if (preview.token) {
+                    sandboxUrl = sandboxUrl.includes('?')
+                        ? `${sandboxUrl}&token=${encodeURIComponent(preview.token)}`
+                        : `${sandboxUrl}?token=${encodeURIComponent(preview.token)}`;
+                }
+                if (!sandboxUrl) {
+                    toast.error('Preview URL unavailable for this sandbox');
+                    return;
+                }
+                window.open(sandboxUrl, '_blank');
+            } catch (e) {
+                toast.error('Failed to resolve Daytona preview URL');
+            }
+            return;
+        }
+
+        const sandboxUrl = getSandboxPreviewUrl(sandboxId, 3000);
         window.open(sandboxUrl, '_blank');
-    }
+    };
 
     const handleEditTemplate = () => {
         router.push(`${Routes.PROJECT}/${templateProject.id}`);

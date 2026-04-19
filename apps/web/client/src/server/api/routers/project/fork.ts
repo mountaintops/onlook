@@ -1,6 +1,7 @@
 import { protectedProcedure } from '@/server/api/trpc';
 import { trackEvent } from '@/utils/analytics/server';
-import { CodeProvider, getStaticCodeProvider } from '@onlook/code-provider';
+import { CodeProvider, createCodeProviderClient, getStaticCodeProvider } from '@onlook/code-provider';
+import { DaytonaProvider } from '@onlook/code-provider/daytona';
 import { getSandboxPreviewUrl, Tags } from '@onlook/constants';
 import {
     branches,
@@ -19,6 +20,8 @@ import {
     type Project
 } from '@onlook/db';
 import { ProjectRole } from '@onlook/models';
+import { getSandboxBackend } from '@/config/sandbox-backend';
+import { resolveFramePreviewUrl } from '@/server/sandbox/preview-url';
 import { eq } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
@@ -56,7 +59,6 @@ async function forkAllBranches(
     sourceBranches: Branch[],
     sourceProjectName: string
 ): Promise<Map<string, ForkedBranch>> {
-    const CodesandboxProvider = await getStaticCodeProvider(CodeProvider.CodeSandbox);
     const branchMapping = new Map<string, ForkedBranch>();
 
     for (const sourceBranch of sourceBranches) {
@@ -64,18 +66,36 @@ async function forkAllBranches(
             throw new Error(`Branch ${sourceBranch.name} has no sandbox ID`);
         }
 
-        const newSandbox = await CodesandboxProvider.createProject({
-            source: 'template',
-            id: sourceBranch.sandboxId,
-            title: `${sourceProjectName} (Fork) - ${sourceBranch.name}`,
-            tags: ['template-fork'],
-        });
+        let newSandboxId: string;
+        let newSandboxUrl: string;
 
-        const newSandboxUrl = getSandboxPreviewUrl(newSandbox.id, 3000);
+        if (getSandboxBackend() === 'daytona') {
+            const inst = (await createCodeProviderClient(CodeProvider.Daytona, {
+                providerOptions: { daytona: { sandboxId: sourceBranch.sandboxId } },
+            })) as DaytonaProvider;
+            try {
+                const forked = await inst.fork(`${sourceProjectName} (Fork) - ${sourceBranch.name}`);
+                newSandboxId = forked.id;
+            } finally {
+                await inst.destroy().catch(() => {});
+            }
+            newSandboxUrl = await resolveFramePreviewUrl(newSandboxId, 3000);
+        } else {
+            const CodesandboxProvider = await getStaticCodeProvider(CodeProvider.CodeSandbox);
+            const newSandbox = await CodesandboxProvider.createProject({
+                source: 'template',
+                id: sourceBranch.sandboxId,
+                title: `${sourceProjectName} (Fork) - ${sourceBranch.name}`,
+                tags: ['template-fork'],
+            });
+            newSandboxId = newSandbox.id;
+            newSandboxUrl = getSandboxPreviewUrl(newSandboxId, 3000);
+        }
+
         const newBranch: Branch = {
             ...sourceBranch,
             id: uuidv4(),
-            sandboxId: newSandbox.id,
+            sandboxId: newSandboxId,
             createdAt: new Date(),
             updatedAt: new Date(),
         };

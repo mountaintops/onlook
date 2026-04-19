@@ -40,8 +40,18 @@ export const fetchWithRetry = (async (
     }
     
     const lastErr = lastError[lastError.length - 1];
+    const errCode = (() => {
+        if (!lastErr || typeof lastErr !== 'object') return 'unknown';
+        const e = lastErr as { code?: unknown; cause?: { code?: unknown } };
+        if (typeof e.code === 'string' || typeof e.code === 'number') return String(e.code);
+        if (e.cause && typeof e.cause === 'object' && 'code' in e.cause) {
+            const c = (e.cause as { code?: unknown }).code;
+            if (typeof c === 'string' || typeof c === 'number') return String(c);
+        }
+        return 'unknown';
+    })();
     throw new Error(
-        `Failed after ${maxRetries} attempts. Last error: ${lastErr?.message || 'Internal error encountered'}. ` +
-        `Error details: ${lastErr?.code || lastErr?.cause?.code || 'unknown'}`
+        `Failed after ${maxRetries} attempts. Last error: ${lastErr instanceof Error ? lastErr.message : 'Internal error encountered'}. ` +
+        `Error details: ${errCode}`,
     );
 }) as typeof fetch;

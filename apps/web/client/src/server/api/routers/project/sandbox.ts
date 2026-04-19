@@ -1,26 +1,24 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
-import {
-    CodeProvider,
-    createCodeProviderClient,
-    getStaticCodeProvider,
-    Provider,
-    type ListFilesOutputFile,
-} from '@onlook/code-provider';
+import { CodeProvider, createCodeProviderClient, getStaticCodeProvider } from '@onlook/code-provider';
+import { DaytonaProvider } from '@onlook/code-provider/daytona';
 import { getSandboxPreviewUrl, SandboxTemplates, Templates } from '@onlook/constants';
 import { shortenUuid } from '@onlook/utility/src/id';
-import { projectSettings, fromDbProjectSettings } from '@onlook/db';
-import { eq } from 'drizzle-orm';
+import { getSandboxBackend } from '@/config/sandbox-backend';
+import { env } from '@/env';
+import { resolveFramePreviewUrl } from '@/server/sandbox/preview-url';
 
 import { createTRPCRouter, protectedProcedure, publicProcedure } from '../../trpc';
 
-
+export function getDefaultEditorSandboxProvider(): CodeProvider {
+    return getSandboxBackend() === 'daytona' ? CodeProvider.Daytona : CodeProvider.CodeSandbox;
+}
 
 export function getProvider({
     sandboxId,
     userId,
-    provider = CodeProvider.CodeSandbox,
+    provider,
     tier,
     initClient = true,
 }: {
@@ -30,7 +28,9 @@ export function getProvider({
     tier?: string;
     initClient?: boolean;
 }) {
-    if (provider === CodeProvider.CodeSandbox) {
+    const p = provider ?? getDefaultEditorSandboxProvider();
+
+    if (p === CodeProvider.CodeSandbox) {
         return createCodeProviderClient(CodeProvider.CodeSandbox, {
             providerOptions: {
                 codesandbox: {
@@ -41,13 +41,25 @@ export function getProvider({
                 },
             },
         });
-    } else {
-        return createCodeProviderClient(CodeProvider.NodeFs, {
+    }
+
+    if (p === CodeProvider.Daytona) {
+        return createCodeProviderClient(CodeProvider.Daytona, {
             providerOptions: {
-                nodefs: {},
+                daytona: { sandboxId },
             },
         });
     }
+
+    return createCodeProviderClient(CodeProvider.NodeFs, {
+        providerOptions: {
+            nodefs: {},
+        },
+    });
+}
+
+function escShell(s: string): string {
+    return s.replace(/'/g, `'\\''`);
 }
 
 export const sandboxRouter = createTRPCRouter({
@@ -57,11 +69,30 @@ export const sandboxRouter = createTRPCRouter({
                 title: z.string().optional(),
             }),
         )
-        .mutation(async ({ input, ctx }) => {
-            // Create a new sandbox using the static provider
-            const CodesandboxProvider = await getStaticCodeProvider(CodeProvider.CodeSandbox);
+        .mutation(async ({ input }) => {
+            if (getSandboxBackend() === 'daytona') {
+                const snapshot = env.SANDBOX_DAYTONA_EMPTY_SNAPSHOT;
+                const created = snapshot
+                    ? await DaytonaProvider.createProject({
+                          snapshotName: snapshot,
+                          id: '',
+                          title: input.title || 'Onlook Test Sandbox',
+                          labels: { 'onlook:framework': 'next' },
+                      })
+                    : await DaytonaProvider.createProject({
+                          source: 'typescript',
+                          id: '',
+                          title: input.title || 'Onlook Test Sandbox',
+                          labels: { 'onlook:framework': 'next' },
+                      });
+                const template = SandboxTemplates[Templates.EMPTY_NEXTJS];
+                return {
+                    sandboxId: created.id,
+                    previewUrl: await resolveFramePreviewUrl(created.id, template.port),
+                };
+            }
 
-            // Use the empty Next.js template
+            const CodesandboxProvider = await getStaticCodeProvider(CodeProvider.CodeSandbox);
             const template = SandboxTemplates[Templates.EMPTY_NEXTJS];
 
             const newSandbox = await CodesandboxProvider.createProject({
@@ -72,13 +103,6 @@ export const sandboxRouter = createTRPCRouter({
                 tags: ['onlook-test'],
                 tier: 'Pico',
             });
-
-            // Fire VM Creation Hook
-            if (input.title) { 
-                // Normally title is used as project name/indicator, try to get settings if projectId was provided. 
-                // Wait, create mutation here doesn't take projectId. The sandbox fork/createBlank mutations do.
-                // We will leave the trigger here just in case, but no projectId is available to fetch hooks.
-            }
 
             return {
                 sandboxId: newSandbox.id,
@@ -101,7 +125,7 @@ export const sandboxRouter = createTRPCRouter({
                     sandboxId,
                     userId,
                     tier: 'Pico',
-                    initClient: false, // Don't need WebSocket connection for session creation
+                    initClient: false,
                 });
 
                 const session = await provider.createSession({
@@ -110,8 +134,13 @@ export const sandboxRouter = createTRPCRouter({
                     },
                 });
 
+                let signedPreviewUrl: string | undefined;
+                if (getSandboxBackend() === 'daytona') {
+                    signedPreviewUrl = await resolveFramePreviewUrl(sandboxId, 3000);
+                }
+
                 await provider.destroy().catch(() => {});
-                return session;
+                return { ...session, signedPreviewUrl };
             } catch (error) {
                 console.error(`[Sandbox] Failed to start sandbox ${sandboxId}:`, error);
                 throw new TRPCError({
@@ -128,10 +157,10 @@ export const sandboxRouter = createTRPCRouter({
             }),
         )
         .mutation(async ({ input }) => {
-            const provider = await getProvider({ 
-                sandboxId: input.sandboxId, 
+            const provider = await getProvider({
+                sandboxId: input.sandboxId,
                 tier: 'Pico',
-                initClient: false // Only need to call hibernate API
+                initClient: false,
             });
             try {
                 await provider.pauseProject({});
@@ -140,10 +169,10 @@ export const sandboxRouter = createTRPCRouter({
             }
         }),
     list: publicProcedure.input(z.object({ sandboxId: z.string() })).query(async ({ input }) => {
-        const provider = await getProvider({ 
-            sandboxId: input.sandboxId, 
+        const provider = await getProvider({
+            sandboxId: input.sandboxId,
             tier: 'Pico',
-            initClient: false // Only need to call list API
+            initClient: false,
         });
         const res = await provider.listProjects({});
         if ('projects' in res) {
@@ -172,14 +201,35 @@ export const sandboxRouter = createTRPCRouter({
 
             for (let attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
                 try {
-                    const CodesandboxProvider = await getStaticCodeProvider(
-                        CodeProvider.CodeSandbox,
-                    );
+                    if (getSandboxBackend() === 'daytona') {
+                        const snapshot = env.SANDBOX_DAYTONA_EMPTY_SNAPSHOT;
+                        const created = snapshot
+                            ? await DaytonaProvider.createProject({
+                                  snapshotName: snapshot,
+                                  id: '',
+                                  title: input.config?.title,
+                                  tags: input.config?.tags,
+                                  labels: { 'onlook:framework': 'next' },
+                              })
+                            : await DaytonaProvider.createProject({
+                                  source: 'typescript',
+                                  id: '',
+                                  title: input.config?.title ?? 'Onlook project',
+                                  tags: input.config?.tags,
+                                  labels: { 'onlook:framework': 'next' },
+                              });
+
+                        const previewUrl = await resolveFramePreviewUrl(created.id, input.sandbox.port);
+                        return {
+                            sandboxId: created.id,
+                            previewUrl,
+                        };
+                    }
+
+                    const CodesandboxProvider = await getStaticCodeProvider(CodeProvider.CodeSandbox);
                     const sandbox = await CodesandboxProvider.createProject({
                         source: 'template',
                         id: input.sandbox.id,
-
-                        // Metadata
                         title: input.config?.title,
                         tags: input.config?.tags,
                         tier: 'Pico',
@@ -195,9 +245,7 @@ export const sandboxRouter = createTRPCRouter({
                     lastError = error instanceof Error ? error : new Error(String(error));
 
                     if (attempt < MAX_RETRY_ATTEMPTS) {
-                        await new Promise((resolve) =>
-                            setTimeout(resolve, Math.pow(2, attempt) * 1000),
-                        );
+                        await new Promise((resolve) => setTimeout(resolve, Math.pow(2, attempt) * 1000));
                     }
                 }
             }
@@ -215,10 +263,10 @@ export const sandboxRouter = createTRPCRouter({
             }),
         )
         .mutation(async ({ input }) => {
-            const provider = await getProvider({ 
-                sandboxId: input.sandboxId, 
+            const provider = await getProvider({
+                sandboxId: input.sandboxId,
                 tier: 'Pico',
-                initClient: false // Only need to call stop API
+                initClient: false,
             });
             try {
                 await provider.stopProject({});
@@ -240,9 +288,46 @@ export const sandboxRouter = createTRPCRouter({
 
             for (let attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
                 try {
-                    const CodesandboxProvider = await getStaticCodeProvider(
-                        CodeProvider.CodeSandbox,
-                    );
+                    if (getSandboxBackend() === 'daytona') {
+                        const created = await DaytonaProvider.createProject({
+                            source: 'typescript',
+                            id: '',
+                            title: 'GitHub import',
+                            labels: { 'onlook:framework': 'next' },
+                        });
+
+                        const prov = (await createCodeProviderClient(CodeProvider.Daytona, {
+                            providerOptions: { daytona: { sandboxId: created.id } },
+                        })) as DaytonaProvider;
+
+                        const repo = escShell(input.repoUrl);
+                        const branch = escShell(input.branch);
+
+                        try {
+                            await prov.runCommand({
+                                args: {
+                                    command: `cd /home/daytona && rm -rf onlook-starter && git clone --depth 1 --branch '${branch}' '${repo}' onlook-starter`,
+                                    timeout: 300,
+                                },
+                            });
+                            await prov.runCommand({
+                                args: {
+                                    command: `cd /home/daytona/onlook-starter && (bun install || npm install --no-audit --no-fund)`,
+                                    timeout: 420,
+                                },
+                            });
+                        } finally {
+                            await prov.destroy().catch(() => {});
+                        }
+
+                        const previewUrl = await resolveFramePreviewUrl(created.id, DEFAULT_PORT);
+                        return {
+                            sandboxId: created.id,
+                            previewUrl,
+                        };
+                    }
+
+                    const CodesandboxProvider = await getStaticCodeProvider(CodeProvider.CodeSandbox);
                     const sandbox = await CodesandboxProvider.createProjectFromGit({
                         repoUrl: input.repoUrl,
                         branch: input.branch,
@@ -272,7 +357,6 @@ export const sandboxRouter = createTRPCRouter({
                 cause: lastError,
             });
         }),
-
 
     getProjectFiles: protectedProcedure
         .input(z.object({ sandboxId: z.string() }))
@@ -319,7 +403,7 @@ export const sandboxRouter = createTRPCRouter({
                             console.error(`Failed to read file ${rawPath}:`, e);
                             return { path: rawPath, content: `Error reading file: ${e}` };
                         }
-                    })
+                    }),
                 );
                 return { files: results };
             } catch (error) {

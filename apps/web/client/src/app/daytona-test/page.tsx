@@ -4,10 +4,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { api } from '~/trpc/react';
 import { api as trpcClient } from '~/trpc/client';
 import styles from './daytona-test.module.css';
-import { DaytonaProvider } from '@onlook/code-provider';
-import { CodeProvider } from '@onlook/code-provider';
-import { createCodeProviderClient } from '@onlook/code-provider';
-
 
 declare global {
     interface Window {
@@ -441,9 +437,10 @@ export default function DaytonaTestPage() {
     );
 
     useEffect(() => {
-        if (readFileQuery.data) {
-            setFileEditContent(readFileQuery.data.content);
-        }
+        if (!readFileQuery.data) return;
+        const c = readFileQuery.data.content;
+        if (c == null) return;
+        setFileEditContent(typeof c === 'string' ? c : new TextDecoder().decode(c));
     }, [readFileQuery.data]);
 
     const writeFileMutation = api.daytona.fs.write.useMutation({

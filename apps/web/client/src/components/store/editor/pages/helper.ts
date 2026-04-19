@@ -1,4 +1,4 @@
-import type { Provider } from '@onlook/code-provider';
+import type { Provider } from '@onlook/code-provider/client';
 import type { FileEntry } from '@onlook/file-system';
 import type { PageMetadata, PageNode, RouterConfig } from '@onlook/models';
 import { RouterType } from '@onlook/models';
@@ -435,7 +435,27 @@ export const scanPagesFromSandbox = async (sandboxManager: SandboxManager): Prom
 // We should ensure it's initialized earlier during setup.
 export const detectRouterConfig = async (
     provider: Provider,
+    maxRetries = 5,
+    delayMs = 1200,
 ): Promise<RouterConfig | null> => {
+    let attempt = 0;
+    while (attempt < maxRetries) {
+        const config = await attemptDetectRouterConfig(provider);
+        if (config) {
+            return config;
+        }
+        attempt++;
+        if (attempt < maxRetries) {
+            console.log(`[detectRouterConfig] No router found, retrying in ${delayMs}ms... (attempt ${attempt}/${maxRetries})`);
+            await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
+    }
+    return null;
+};
+
+async function attemptDetectRouterConfig(
+    provider: Provider,
+): Promise<RouterConfig | null> {
     // 1. First check the common root paths
     for (const appPath of APP_ROUTER_PATHS) {
         if (await isAppRouterDir(provider, appPath)) {
@@ -484,7 +504,7 @@ export const detectRouterConfig = async (
     }
 
     return null;
-};
+}
 
 async function isAppRouterDir(provider: Provider, path: string): Promise<boolean> {
     try {

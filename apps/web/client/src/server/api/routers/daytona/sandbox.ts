@@ -1,4 +1,5 @@
-import { CodeProvider, createCodeProviderClient, DaytonaProvider } from '@onlook/code-provider';
+import { CodeProvider, createCodeProviderClient } from '@onlook/code-provider';
+import { DaytonaProvider } from '@onlook/code-provider/daytona';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { createTRPCRouter, publicProcedure } from '../../trpc';
@@ -118,8 +119,8 @@ export const sandboxRouter = createTRPCRouter({
                 providerOptions: { daytona: { sandboxId: input.sandboxId } },
             })) as DaytonaProvider;
             try {
-                const { output } = await provider.runCommand({ args: { command: input.command } });
-                return { exitCode: 0, output };
+                const { output, exitCode } = await provider.runCommand({ args: { command: input.command } });
+                return { exitCode: exitCode ?? 0, output };
             } catch (error: any) {
                 console.error(`[Daytona] Command execution failed for ${input.sandboxId}:`, error);
                 throw new TRPCError({

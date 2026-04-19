@@ -1,11 +1,13 @@
 import { CodeProvider } from './providers';
 import { CodesandboxProvider, type CodesandboxProviderOptions } from './providers/codesandbox';
 import { NodeFsProvider, type NodeFsProviderOptions } from './providers/nodefs';
-import { DaytonaProvider, type DaytonaProviderOptions } from './providers/daytona';
+import type { DaytonaProviderOptions } from './providers/daytona-options';
+import type { Provider } from './types';
+
 export * from './providers';
 export { CodesandboxProvider } from './providers/codesandbox';
 export { NodeFsProvider } from './providers/nodefs';
-export { DaytonaProvider } from './providers/daytona';
+export type { DaytonaProviderOptions } from './providers/daytona-options';
 export * from './types';
 
 export interface CreateClientOptions {
@@ -20,7 +22,7 @@ export async function createCodeProviderClient(
     codeProvider: CodeProvider,
     { providerOptions }: CreateClientOptions,
 ) {
-    const provider = newProviderInstance(codeProvider, providerOptions);
+    const provider = await newProviderInstance(codeProvider, providerOptions);
     await provider.initialize({});
     return provider;
 }
@@ -37,6 +39,7 @@ export async function getStaticCodeProvider(
     }
 
     if (codeProvider === CodeProvider.Daytona) {
+        const { DaytonaProvider } = await import('./providers/daytona');
         return DaytonaProvider as any;
     }
     throw new Error(`Unimplemented code provider: ${codeProvider}`);
@@ -48,7 +51,10 @@ export interface ProviderInstanceOptions {
     daytona?: DaytonaProviderOptions;
 }
 
-function newProviderInstance(codeProvider: CodeProvider, providerOptions: ProviderInstanceOptions) {
+async function newProviderInstance(
+    codeProvider: CodeProvider,
+    providerOptions: ProviderInstanceOptions,
+): Promise<Provider> {
     if (codeProvider === CodeProvider.CodeSandbox) {
         if (!providerOptions.codesandbox) {
             throw new Error('Codesandbox provider options are required.');
@@ -64,6 +70,7 @@ function newProviderInstance(codeProvider: CodeProvider, providerOptions: Provid
     }
 
     if (codeProvider === CodeProvider.Daytona) {
+        const { DaytonaProvider } = await import('./providers/daytona');
         return new DaytonaProvider(providerOptions.daytona || {});
     }
 

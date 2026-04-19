@@ -1,8 +1,10 @@
+import { getSandboxBackend } from '@/config/sandbox-backend';
 import { api } from '@/trpc/client';
-import { CodeProvider, createCodeProviderClient, type Provider } from '@onlook/code-provider';
+import { CodeProvider, createCodeProviderClient, type Provider } from '@onlook/code-provider/client';
 import type { Branch } from '@onlook/models';
 import { makeAutoObservable } from 'mobx';
 import type { ErrorManager } from '../error';
+import { DaytonaTrpcProvider } from './daytona-trpc-provider';
 import { CLISessionImpl, CLISessionType, type CLISession, type TerminalSession } from './terminal';
 
 export class SessionManager {
@@ -70,6 +72,33 @@ export class SessionManager {
         }, CONNECTION_TIMEOUT_MS);
 
         const attemptConnection = async () => {
+            if (getSandboxBackend() === 'daytona') {
+                await api.daytona.sandbox.start.mutate({ sandboxId }).catch(async () => {
+                    await api.daytona.sandbox.recover.mutate({ sandboxId }).catch(() => {});
+                    await api.daytona.sandbox.start.mutate({ sandboxId }).catch(() => {});
+                });
+
+                const preview = await api.daytona.preview.getPreviewUrl.query({
+                    sandboxId,
+                    port: 3000,
+                });
+                if (preview.url) {
+                    this.signedPreviewUrl = preview.token
+                        ? `${preview.url}${preview.url.includes('?') ? '&' : '?'}token=${encodeURIComponent(preview.token)}`
+                        : preview.url;
+                }
+
+                const provider = new DaytonaTrpcProvider({
+                    sandboxId,
+                    previewPort: 3000,
+                    trpc: api,
+                });
+                await provider.initialize({});
+                this.provider = provider;
+                await this.createTerminalSessions(provider);
+                return;
+            }
+
             const provider = await createCodeProviderClient(CodeProvider.CodeSandbox, {
                 providerOptions: {
                     codesandbox: {
@@ -153,6 +182,18 @@ export class SessionManager {
             this.errorManager,
         );
         this.terminalSessions.set(task.id, task);
+        this.activeTerminalSessionId = task.id;
+
+        const isDaytona = getSandboxBackend() === 'daytona';
+
+        if (isDaytona) {
+            try {
+                await task.initTask();
+            } catch (error) {
+                console.error('Failed to initialize task session:', error);
+            }
+            return;
+        }
 
         const terminal = new CLISessionImpl(
             'terminal',
@@ -162,7 +203,6 @@ export class SessionManager {
         );
 
         this.terminalSessions.set(terminal.id, terminal);
-        this.activeTerminalSessionId = task.id;
 
         // Initialize the sessions after creation
         try {
@@ -189,6 +229,10 @@ export class SessionManager {
     }
 
     async hibernate(sandboxId: string) {
+        if (getSandboxBackend() === 'daytona') {
+            await api.daytona.sandbox.stop.mutate({ sandboxId });
+            return;
+        }
         await api.sandbox.hibernate.mutate({ sandboxId });
     }
 

@@ -17,6 +17,14 @@ export function extractCsbPort(frames: Frame[]): number | null {
                     return port;
                 }
             }
+            // Daytona / local dev URLs often include :port
+            const portMatch = frame.url.match(/:(\d{2,5})(?:\/|$)/);
+            if (portMatch && portMatch[1]) {
+                const port = parseInt(portMatch[1], 10);
+                if (!isNaN(port) && port > 1) {
+                    return port;
+                }
+            }
         }
     }
     return null;

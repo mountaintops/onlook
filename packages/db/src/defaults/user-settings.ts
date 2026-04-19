@@ -1,9 +1,9 @@
 import { DefaultSettings } from '@onlook/constants';
-import type { UserSettings as DbUserSettings } from '@onlook/db';
-import { type UserSettings } from '@onlook/models';
+import type { UserSettings as DbUserSettings } from '../schema/user/settings';
 import { v4 as uuid } from 'uuid';
 
-export const createDefaultUserSettings = (userId: string): UserSettings => {
+/** DB row defaults (flat columns). Use with `fromDbUserSettings` after reads/inserts. */
+export const createDefaultUserSettings = (userId: string): DbUserSettings => {
     return {
         id: uuid(),
         userId,
@@ -12,6 +12,6 @@ export const createDefaultUserSettings = (userId: string): UserSettings => {
         showSuggestions: DefaultSettings.CHAT_SETTINGS.showSuggestions,
         showMiniChat: DefaultSettings.CHAT_SETTINGS.showMiniChat,
         shouldWarnDelete: DefaultSettings.EDITOR_SETTINGS.shouldWarnDelete,
-        mcpServers: [],
+        mcpServers: null,
     };
 };

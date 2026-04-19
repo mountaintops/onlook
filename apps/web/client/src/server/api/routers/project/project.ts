@@ -1,4 +1,6 @@
+import { getSandboxBackend } from '@/config/sandbox-backend';
 import { env } from '@/env';
+import { resolveFramePreviewUrl } from '@/server/sandbox/preview-url';
 import { createTRPCRouter, protectedProcedure } from '@/server/api/trpc';
 import { trackEvent } from '@/utils/analytics/server';
 import FirecrawlApp from '@mendable/firecrawl-js';
@@ -88,7 +90,10 @@ export const projectRouter = createTRPCRouter({
 
                 // Extract port from existing frame URL or fall back to 3000
                 const port = extractCsbPort(branch.frames) ?? 3000;
-                const url = getSandboxPreviewUrl(branch.sandboxId, port);
+                const url =
+                    getSandboxBackend() === 'daytona'
+                        ? await resolveFramePreviewUrl(branch.sandboxId, port)
+                        : getSandboxPreviewUrl(branch.sandboxId, port);
                 const app = new FirecrawlApp({ apiKey: env.FIRECRAWL_API_KEY });
 
                 // Optional: Add actions to click the button for CSB free tier

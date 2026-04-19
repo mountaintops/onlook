@@ -4,14 +4,17 @@ import { useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { createContext, useContext, useState } from 'react';
 
-import type { Provider } from '@onlook/code-provider';
-import { CodeProvider, createCodeProviderClient } from '@onlook/code-provider';
+import type { Provider } from '@onlook/code-provider/client';
+import { CodeProvider, createCodeProviderClient } from '@onlook/code-provider/client';
 import { NEXT_JS_FILE_EXTENSIONS, SandboxTemplates, Templates } from '@onlook/constants';
 import { RouterType } from '@onlook/models';
 import { isTargetFile } from '@onlook/utility';
 
 import type { NextJsProjectValidation, ProcessedFile } from '@/app/projects/types';
 import { ProcessedFileType } from '@/app/projects/types';
+import { DaytonaTrpcProvider } from '@/components/store/editor/sandbox/daytona-trpc-provider';
+import { getSandboxBackend } from '@/config/sandbox-backend';
+import { api as trpcVanilla } from '@/trpc/client';
 import { api } from '@/trpc/react';
 import { Routes } from '@/utils/constants';
 
@@ -136,22 +139,33 @@ export const ProjectCreationProvider = ({ children, totalSteps }: ProjectCreatio
                 },
             });
 
-            const provider = await createCodeProviderClient(CodeProvider.CodeSandbox, {
-                providerOptions: {
-                    codesandbox: {
-                        sandboxId: forkedSandbox.sandboxId,
-                        userId: user.id,
-                        initClient: true,
-                        keepActiveWhileConnected: false,
-                        getSession: async (sandboxId) => {
-                            return startSandbox({ sandboxId });
+            let provider: Provider;
+            if (getSandboxBackend() === 'daytona') {
+                provider = new DaytonaTrpcProvider({
+                    sandboxId: forkedSandbox.sandboxId,
+                    trpc: trpcVanilla,
+                });
+                await provider.initialize({});
+            } else {
+                provider = await createCodeProviderClient(CodeProvider.CodeSandbox, {
+                    providerOptions: {
+                        codesandbox: {
+                            sandboxId: forkedSandbox.sandboxId,
+                            userId: user.id,
+                            initClient: true,
+                            keepActiveWhileConnected: false,
+                            getSession: async (sandboxId) => {
+                                return startSandbox({ sandboxId });
+                            },
                         },
                     },
-                },
-            });
+                });
+            }
 
             await uploadToSandbox(projectData.files, provider);
-            await provider.setup({});
+            if (getSandboxBackend() !== 'daytona') {
+                await provider.setup({});
+            }
             await provider.destroy();
 
             const project = await createProject({

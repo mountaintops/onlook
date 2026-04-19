@@ -1,4 +1,5 @@
-import { CodeProvider, createCodeProviderClient, DaytonaProvider } from '@onlook/code-provider';
+import { CodeProvider, createCodeProviderClient } from '@onlook/code-provider';
+import { DaytonaProvider } from '@onlook/code-provider/daytona';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { createTRPCRouter, publicProcedure } from '../../trpc';
@@ -78,8 +79,10 @@ export const setupRouter = createTRPCRouter({
                 console.log(`[Daytona Setup] Writing configuration files...`);
                 
                 // Get framework-specific files
-                const files = getFrameworkFiles(input.framework, input.libraries);
-                
+                const files: Record<string, string> = {
+                    ...getFrameworkFiles(input.framework, input.libraries),
+                };
+
                 // Inject tRPC / oRPC boilerplate if selected
                 if (input.libraries.includes('trpc') || input.libraries.includes('orpc')) {
                     files['server/api.ts'] = `// [Boilerplate] Minimal API router\nexport const router = {\n  hello: async () => "World"\n};`;

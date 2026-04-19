@@ -30,7 +30,11 @@ export const userSettingsRouter = createTRPCRouter({
             });
 
             if (!existingSettings) {
-                const newSettings = { ...createDefaultUserSettings(user.id), ...input };
+                const newSettings = {
+                    ...createDefaultUserSettings(user.id),
+                    ...input,
+                    userId: user.id,
+                };
                 const [insertedSettings] = await ctx.db.insert(userSettings).values(newSettings).returning();
                 return fromDbUserSettings(insertedSettings ?? newSettings);
             }

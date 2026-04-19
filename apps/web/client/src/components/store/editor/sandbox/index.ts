@@ -1,5 +1,5 @@
 import { CodeProviderSync } from '@/services/sync-engine/sync-engine';
-import type { Provider } from '@onlook/code-provider';
+import type { Provider } from '@onlook/code-provider/client';
 import { EXCLUDED_SYNC_PATHS } from '@onlook/constants';
 import type { CodeFileSystem } from '@onlook/file-system';
 import { type FileEntry } from '@onlook/file-system';

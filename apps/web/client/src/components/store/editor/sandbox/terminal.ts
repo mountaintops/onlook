@@ -1,6 +1,6 @@
 'use client';
 
-import type { Provider, ProviderTask, ProviderTerminal } from '@onlook/code-provider';
+import type { Provider, ProviderTask, ProviderTerminal } from '@onlook/code-provider/client';
 import type { FitAddon } from '@xterm/addon-fit';
 import type { Terminal } from '@xterm/xterm';
 import { v4 as uuidv4 } from 'uuid';

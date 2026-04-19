@@ -139,7 +139,7 @@ export class ScreenshotWebTool extends ClientTool {
             // The prompt instructs the AI to include: "- STATUS: STABLE" or "- STATUS: BROKEN [reason]"
             let auditPassed = true;
             const statusMatch = auditFindings.match(/- STATUS:\s*(STABLE|BROKEN)/i);
-            if (statusMatch) {
+            if (statusMatch?.[1]) {
                 auditPassed = statusMatch[1].toUpperCase() === 'STABLE';
             } else {
                 // Fallback to heuristic detection if STATUS line is not found

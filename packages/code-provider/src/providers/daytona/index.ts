@@ -52,10 +52,9 @@ import {
     type WriteFileOutput,
 } from '../../types';
 
-export interface DaytonaProviderOptions {
-    apiKey?: string;
-    sandboxId?: string;
-}
+import type { DaytonaProviderOptions } from '../daytona-options';
+
+export type { DaytonaProviderOptions } from '../daytona-options';
 
 export class DaytonaProvider extends Provider {
     private client: any = null; // Daytona
@@ -244,8 +243,8 @@ export class DaytonaProvider extends Provider {
     }
 
     async createSession(input: CreateSessionInput): Promise<CreateSessionOutput> {
-        if (!this.sandbox) throw new Error('Sandbox not initialized');
-        // Just return success, Daytona doesn't have "Browser Sessions" in the same way CS does
+        await this.ensureSandbox();
+        // Daytona does not use CodeSandbox-style browser sessions; callers only need a live VM.
         return {};
     }
 
@@ -437,7 +436,7 @@ export class DaytonaProvider extends Provider {
                 createdAt: forkedSandbox.createdAt,
             };
         } else {
-            throw new Error(`Daytona SDK version ${require('@daytonaio/sdk/package.json').version} does not support cloning/forking from a running sandbox.`);
+            throw new Error('Daytona SDK version does not support cloning/forking from a running sandbox.');
         }
     }
 

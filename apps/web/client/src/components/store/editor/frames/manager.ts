@@ -1,5 +1,5 @@
 import type { IFrameView } from '@/app/project/[id]/_components/canvas/frame/view';
-import { api } from '@/trpc/client';
+import { api, type RouterInputs } from '@/trpc/client';
 import { toDbFrame, toDbPartialFrame } from '@onlook/db';
 import { type Frame } from '@onlook/models';
 import { calculateNonOverlappingPosition } from '@onlook/utility';
@@ -305,7 +305,7 @@ export class FramesManager {
             const success = await api.frame.update.mutate({
                 ...frameToUpdate,
                 id: frameId,
-            });
+            } as RouterInputs['frame']['update']);
 
             if (!success) {
                 console.error('Failed to update frame');

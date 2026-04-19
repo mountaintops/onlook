@@ -80,6 +80,8 @@ export const env = createEnv({
 
         // Sandbox providers
         SANDBOX_DAYTONA_API_KEY: z.string().optional(),
+        /** When using Daytona, optional snapshot name for empty Next.js–equivalent sandboxes (see daytona-test). */
+        SANDBOX_DAYTONA_EMPTY_SNAPSHOT: z.string().optional(),
         SANDBOX_E2B_API_KEY: z.string().optional(),
     },
     /**
@@ -101,6 +103,8 @@ export const env = createEnv({
         NEXT_PUBLIC_FEATURE_COLLABORATION: z.coerce.boolean().default(false),
         NEXT_PUBLIC_HOSTING_DOMAIN: z.string().optional(),
         NEXT_PUBLIC_RB2B_ID: z.string().optional(),
+        /** `codesandbox` forces CodeSandbox; any other value selects Daytona (see `getSandboxBackend`). */
+        NEXT_PUBLIC_SANDBOX_BACKEND: z.enum(['codesandbox', 'daytona']).optional(),
     },
 
     /**
@@ -131,6 +135,7 @@ export const env = createEnv({
 
         // RB2B
         NEXT_PUBLIC_RB2B_ID: process.env.NEXT_PUBLIC_RB2B_ID,
+        NEXT_PUBLIC_SANDBOX_BACKEND: process.env.NEXT_PUBLIC_SANDBOX_BACKEND,
 
         // Hosting
         FREESTYLE_API_KEY: process.env.FREESTYLE_API_KEY,
@@ -190,6 +195,7 @@ export const env = createEnv({
 
         // Sandbox providers
         SANDBOX_DAYTONA_API_KEY: process.env.SANDBOX_DAYTONA_API_KEY,
+        SANDBOX_DAYTONA_EMPTY_SNAPSHOT: process.env.SANDBOX_DAYTONA_EMPTY_SNAPSHOT,
         SANDBOX_E2B_API_KEY: process.env.SANDBOX_E2B_API_KEY,
     },
     /**

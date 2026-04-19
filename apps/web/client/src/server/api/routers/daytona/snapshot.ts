@@ -1,4 +1,5 @@
-import { CodeProvider, createCodeProviderClient, DaytonaProvider } from '@onlook/code-provider';
+import { CodeProvider, createCodeProviderClient } from '@onlook/code-provider';
+import { DaytonaProvider } from '@onlook/code-provider/daytona';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { createTRPCRouter, publicProcedure } from '../../trpc';
