@@ -8,10 +8,12 @@ import {
     FilterIcon, 
     LayersIcon,
     ChevronDownIcon,
-    Settings2Icon
+    Settings2Icon,
+    AlertCircleIcon,
+    CheckCircle2Icon
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
     Select,
     SelectContent,
@@ -39,7 +41,7 @@ export const TweaksTab = observer(() => {
             if (tweak.targetOid) {
                 if (!map.has(tweak.targetOid)) {
                     const node = editorEngine.ast.mappings.getLayerNodeByOid(tweak.targetOid);
-                    const name = node?.name || node?.tagName || "Element";
+                    const name = node?.component || node?.tagName || "Element";
                     map.set(tweak.targetOid, { oid: tweak.targetOid, name });
                 }
             } else {
@@ -143,42 +145,73 @@ export const TweaksTab = observer(() => {
                                         {category}
                                     </span>
                                     <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded-full text-muted-foreground font-mono">
-                                        {groupedByCategory[category].length}
+                                        {groupedByCategory[category]?.length || 0}
                                     </span>
                                 </div>
                             </AccordionTrigger>
                             <AccordionContent className="pt-2 pb-4 flex flex-col gap-6">
-                                {groupedByCategory[category].map((tweak) => (
-                                    <div key={tweak.id} className="flex flex-col gap-3 group/tweak">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex flex-col gap-0.5">
-                                                <label className="text-[11px] font-medium text-foreground/80 group-hover/tweak:text-foreground transition-colors">
-                                                    {tweak.name}
-                                                </label>
-                                                {selectedElementOid === 'all' && tweak.targetOid && (
-                                                    <span className="text-[9px] text-muted-foreground flex items-center gap-1">
-                                                        <LayersIcon className="w-2.5 h-2.5" />
-                                                        {editorEngine.ast.mappings.getLayerNodeByOid(tweak.targetOid)?.name || "Element"}
-                                                    </span>
+                                {groupedByCategory[category]?.map((tweak) => {
+                                    const [isValid, setIsValid] = useState<boolean | null>(null);
+
+                                    useEffect(() => {
+                                        const checkValidity = async () => {
+                                            if (!tweak.targetOid) {
+                                                setIsValid(true);
+                                                return;
+                                            }
+                                            const metadata = await editorEngine.ast.getJsxElementMetadata(tweak.targetOid);
+                                            setIsValid(metadata?.code?.includes(tweak.cssVariable) ?? false);
+                                        };
+                                        checkValidity();
+                                    }, [tweak.targetOid, tweak.cssVariable, editorEngine.ast]);
+
+                                    return (
+                                        <div key={tweak.id} className="flex flex-col gap-3 group/tweak">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex flex-col gap-0.5">
+                                                    <div className="flex items-center gap-2">
+                                                        <label className="text-[11px] font-medium text-foreground/80 group-hover/tweak:text-foreground transition-colors">
+                                                            {tweak.name}
+                                                        </label>
+                                                        {isValid === false && (
+                                                            <div className="flex items-center gap-1 px-1 py-0.5 rounded bg-destructive/10 text-destructive text-[8px] font-bold uppercase tracking-tighter">
+                                                                <AlertCircleIcon className="w-2 h-2" />
+                                                                Broken
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    {selectedElementOid === 'all' && tweak.targetOid && (
+                                                        <span className="text-[9px] text-muted-foreground flex items-center gap-1">
+                                                            <LayersIcon className="w-2.5 h-2.5" />
+                                                            {editorEngine.ast.mappings.getLayerNodeByOid(tweak.targetOid)?.component || 
+                                                             editorEngine.ast.mappings.getLayerNodeByOid(tweak.targetOid)?.tagName || 
+                                                             "Element"}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-muted/50 font-mono text-[10px] text-foreground border border-transparent group-hover/tweak:border-primary/20 transition-all">
+                                                    {tweak.value}
+                                                    <span className="text-muted-foreground opacity-60">{tweak.unit || ''}</span>
+                                                </div>
+                                            </div>
+                                            <div className="relative pt-1 px-1">
+                                                <Slider
+                                                    min={tweak.min}
+                                                    max={tweak.max}
+                                                    step={(tweak.max - tweak.min) > 10 ? 1 : ((tweak.max - tweak.min) / 100)}
+                                                    value={[tweak.value]}
+                                                    onValueChange={(val) => editorEngine.tweaks.updateTweakValue(tweak.id, val[0] ?? tweak.min)}
+                                                    className={cn("w-full", isValid === false && "opacity-50")}
+                                                />
+                                                {isValid === false && (
+                                                    <p className="text-[9px] text-destructive mt-1.5 leading-tight opacity-80 italic">
+                                                        Variable "{tweak.cssVariable}" not found in element code.
+                                                    </p>
                                                 )}
                                             </div>
-                                            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-muted/50 font-mono text-[10px] text-foreground border border-transparent group-hover/tweak:border-primary/20 transition-all">
-                                                {tweak.value}
-                                                <span className="text-muted-foreground opacity-60">{tweak.unit || ''}</span>
-                                            </div>
                                         </div>
-                                        <div className="relative pt-1 px-1">
-                                            <Slider
-                                                min={tweak.min}
-                                                max={tweak.max}
-                                                step={(tweak.max - tweak.min) > 10 ? 1 : ((tweak.max - tweak.min) / 100)}
-                                                value={[tweak.value]}
-                                                onValueChange={(val) => editorEngine.tweaks.updateTweakValue(tweak.id, val[0] ?? tweak.min)}
-                                                className="w-full"
-                                            />
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </AccordionContent>
                         </AccordionItem>
                     ))}

@@ -12,6 +12,7 @@ export class CreateTweaksTool extends ClientTool {
     static readonly parameters = z.object({
         tweaks: z.array(z.object({
             name: z.string().describe('Professional, Title Case name for the slider (e.g., "Layout Density", "Glow Intensity")'),
+            property: z.string().describe('The CSS property this tweak controls (e.g. "opacity", "padding", "transform")'),
             cssVariable: z.string().describe('The CSS variable to match the code change (e.g., "--spacing-unit", "--vibe-scale")'),
             min: z.number().describe('Minimum logical limit for the style'),
             max: z.number().describe('Maximum logical limit for the style'),
@@ -32,6 +33,24 @@ export class CreateTweaksTool extends ClientTool {
         message: string;
     }> {
         try {
+            // Validate that the variables exist in the code if OID is provided
+            for (const tweak of args.tweaks) {
+                if (tweak.targetOid) {
+                    const metadata = await editorEngine.ast.mappings.getLayerNodeByOid(tweak.targetOid);
+                    if (metadata && metadata.oid) {
+                        const elementMetadata = await editorEngine.ast.getJsxElementMetadata(metadata.oid);
+                        if (elementMetadata && elementMetadata.code) {
+                            if (!elementMetadata.code.includes(tweak.cssVariable)) {
+                                return {
+                                    success: false,
+                                    message: `Validation Error: The CSS variable "${tweak.cssVariable}" was not found in the source code of the target element. You MUST first edit the code to use this variable (e.g. style={{ ${tweak.property}: 'var(${tweak.cssVariable})' }}) before calling this tool.`,
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+
             editorEngine.tweaks.addTweaks(args.tweaks);
             editorEngine.state.leftPanelTab = LeftPanelTabValue.TWEAKS;
             editorEngine.state.leftPanelLocked = true;

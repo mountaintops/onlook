@@ -18,6 +18,25 @@ export class AstManager {
         return this.layersManager;
     }
 
+    async getJsxElementMetadata(oid: string) {
+        const node = this.layersManager.getLayerNodeByOid(oid);
+        if (!node) {
+            return undefined;
+        }
+
+        const frameData = this.editorEngine.frames.get(node.frameId);
+        if (!frameData) {
+            return undefined;
+        }
+
+        const branchData = this.editorEngine.branches.getBranchDataById(frameData.frame.branchId);
+        if (!branchData) {
+            return undefined;
+        }
+
+        return await branchData.codeEditor.getJsxElementMetadata(oid);
+    }
+
     setMapRoot(frameId: string, rootNode: LayerNode, layerMap: Map<string, LayerNode>) {
         this.mappings.setMetadata(frameId, rootNode, layerMap);
         this.processNode(frameId, rootNode);
