@@ -1,4 +1,4 @@
-import { makeAutoObservable } from 'mobx';
+import { makeAutoObservable, observable, action, computed } from 'mobx';
 import type { EditorEngine } from '../engine';
 import { v4 as uuidv4 } from 'uuid';
 import type { IFrameView } from '@/app/project/[id]/_components/canvas/frame/view';
@@ -14,7 +14,7 @@ export interface EditorTweak {
 }
 
 export class TweaksManager {
-    private _activeTweaks: EditorTweak[] | null = null;
+    _activeTweaks: EditorTweak[] | null = null;
 
     get activeTweaks(): EditorTweak[] {
         if (this._activeTweaks === null) {
@@ -23,17 +23,17 @@ export class TweaksManager {
         return this._activeTweaks || [];
     }
 
-    set activeTweaks(val: EditorTweak[]) {
-        this._activeTweaks = val;
-    }
-
     constructor(private editorEngine: EditorEngine) {
-        makeAutoObservable(this);
+        makeAutoObservable(this, {
+            _activeTweaks: observable,
+            activeTweaks: computed,
+        });
     }
 
     private get storageKey() {
         const projectId = this.editorEngine.projectId;
         if (!projectId) {
+            console.error('[TweaksManager] CRITICAL: No project ID found in editorEngine');
             return null;
         }
         return `onlook-tweaks-${projectId}`;
@@ -46,20 +46,26 @@ export class TweaksManager {
 
         const key = this.storageKey;
         if (!key) {
-            console.warn('[TweaksManager] Cannot initialize: No project ID available');
             return;
         }
 
-        const stored = localStorage.getItem(key);
-        if (stored) {
-            try {
-                this._activeTweaks = JSON.parse(stored);
-                console.log(`[TweaksManager] Loaded ${this._activeTweaks?.length} tweaks for project ${this.editorEngine.projectId}`);
-            } catch (e) {
-                console.error('[TweaksManager] Failed to parse stored tweaks', e);
+        try {
+            const stored = localStorage.getItem(key);
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                if (Array.isArray(parsed)) {
+                    this._activeTweaks = parsed;
+                    console.log(`[TweaksManager] Successfully restored ${parsed.length} tweaks for project: ${this.editorEngine.projectId}`);
+                } else {
+                    console.warn('[TweaksManager] Stored tweaks data is not an array, resetting');
+                    this._activeTweaks = [];
+                }
+            } else {
+                console.log(`[TweaksManager] No existing tweaks found for project: ${this.editorEngine.projectId}`);
                 this._activeTweaks = [];
             }
-        } else {
+        } catch (e) {
+            console.error('[TweaksManager] Failed to initialize from localStorage', e);
             this._activeTweaks = [];
         }
     }
@@ -71,32 +77,40 @@ export class TweaksManager {
 
         const key = this.storageKey;
         if (!key) {
-            console.warn('[TweaksManager] Cannot save: No project ID available');
             return;
         }
 
-        localStorage.setItem(key, JSON.stringify(this._activeTweaks));
+        try {
+            localStorage.setItem(key, JSON.stringify(this._activeTweaks));
+        } catch (e) {
+            console.error('[TweaksManager] Failed to save tweaks to localStorage', e);
+        }
     }
 
     addTweaks(tweaksInput: Omit<EditorTweak, 'id'>[]) {
+        // Ensure initialized before adding
+        if (this._activeTweaks === null) {
+            this.init();
+        }
+
         const newTweaks = tweaksInput.map(tweak => ({
             ...tweak,
             id: uuidv4(),
         }));
         
         // Merge with existing tweaks by css variable, to avoid duplication
-        const existingMap = new Map(this.activeTweaks.map(t => [t.cssVariable, t]));
+        const existingMap = new Map((this._activeTweaks || []).map(t => [t.cssVariable, t]));
         for (const newTweak of newTweaks) {
             existingMap.set(newTweak.cssVariable, newTweak);
         }
         
-        this.activeTweaks = Array.from(existingMap.values());
+        this._activeTweaks = Array.from(existingMap.values());
         this.save();
         
         // Apply values immediately
-        for (const tweak of this.activeTweaks) {
+        this._activeTweaks.forEach(tweak => {
             this.applyTweakVariableToFrames(tweak.cssVariable, tweak.value, tweak.unit || '');
-        }
+        });
     }
 
     updateTweakValue(id: string, value: number) {
@@ -109,37 +123,37 @@ export class TweaksManager {
     }
 
     removeTweak(id: string) {
-        this.activeTweaks = this.activeTweaks.filter(t => t.id !== id);
+        this._activeTweaks = (this._activeTweaks || []).filter(t => t.id !== id);
         this.save();
     }
 
     removeAll() {
-        this.activeTweaks = [];
+        this._activeTweaks = [];
         this.save();
     }
 
     clear() {
+        // Just clear memory, don't wipe storage
         this._activeTweaks = null;
     }
 
     applyTweaksToFrame(view: IFrameView) {
-        for (const tweak of this.activeTweaks) {
+        this.activeTweaks.forEach(tweak => {
             const valueStr = `${tweak.value}${tweak.unit || ''}`;
             view.updateCssVariable(tweak.cssVariable, valueStr).catch((err) => {
                 console.warn('[TweaksManager] Failed to apply tweak to frame', err);
             });
-        }
+        });
     }
 
     private applyTweakVariableToFrames(cssVariable: string, value: number, unit: string) {
         const valueStr = `${value}${unit || ''}`;
-
-        for (const frameData of this.editorEngine.frames.getAll()) {
+        this.editorEngine.frames.getAll().forEach(frameData => {
             if (frameData.view) {
                 frameData.view.updateCssVariable(cssVariable, valueStr).catch((err) => {
                     console.warn('[TweaksManager] Failed to apply tweak to frame', err);
                 });
             }
-        }
+        });
     }
 }

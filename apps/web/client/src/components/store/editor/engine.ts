@@ -34,49 +34,64 @@ import { TweaksManager } from './tweaks';
 export class EditorEngine {
     readonly projectId: string;
     readonly posthog: PostHog;
-    readonly branches: BranchManager = new BranchManager(this);
-
-    get activeSandbox(): SandboxManager {
-        return this.branches.activeSandbox;
-    }
-
-    get history() {
-        return this.branches.activeHistory;
-    }
-
-    get fileSystem(): CodeFileSystem {
-        return this.branches.activeCodeEditor;
-    }
-
-    readonly state: StateManager = new StateManager();
-    readonly canvas: CanvasManager = new CanvasManager(this);
-    readonly text: TextEditingManager = new TextEditingManager(this);
-    readonly elements: ElementsManager = new ElementsManager(this);
-    readonly overlay: OverlayManager = new OverlayManager(this);
-    readonly insert: InsertManager = new InsertManager(this);
-    readonly move: MoveManager = new MoveManager(this);
-    readonly copy: CopyManager = new CopyManager(this);
-    readonly group: GroupManager = new GroupManager(this);
-    readonly ast: AstManager = new AstManager(this);
-    readonly action: ActionManager = new ActionManager(this);
-    readonly style: StyleManager = new StyleManager(this);
-    readonly code: CodeManager = new CodeManager(this);
-    readonly chat: ChatManager = new ChatManager(this);
-    readonly image: ImageManager = new ImageManager(this);
-    readonly theme: ThemeManager = new ThemeManager(this);
-    readonly font: FontManager = new FontManager(this);
-    readonly pages: PagesManager = new PagesManager(this);
-    readonly frames: FramesManager = new FramesManager(this);
-    readonly frameEvent: FrameEventManager = new FrameEventManager(this);
-    readonly screenshot: ScreenshotManager = new ScreenshotManager(this);
-    readonly snap: SnapManager = new SnapManager(this);
-    readonly api: ApiManager = new ApiManager(this);
-    readonly ide: IdeManager = new IdeManager(this);
-    readonly tweaks: TweaksManager = new TweaksManager(this);
+    readonly branches: BranchManager;
+    readonly state: StateManager;
+    readonly canvas: CanvasManager;
+    readonly text: TextEditingManager;
+    readonly elements: ElementsManager;
+    readonly overlay: OverlayManager;
+    readonly insert: InsertManager;
+    readonly move: MoveManager;
+    readonly copy: CopyManager;
+    readonly group: GroupManager;
+    readonly ast: AstManager;
+    readonly action: ActionManager;
+    readonly style: StyleManager;
+    readonly code: CodeManager;
+    readonly chat: ChatManager;
+    readonly image: ImageManager;
+    readonly theme: ThemeManager;
+    readonly font: FontManager;
+    readonly pages: PagesManager;
+    readonly frames: FramesManager;
+    readonly frameEvent: FrameEventManager;
+    readonly screenshot: ScreenshotManager;
+    readonly snap: SnapManager;
+    readonly api: ApiManager;
+    readonly ide: IdeManager;
+    readonly tweaks: TweaksManager;
 
     constructor(projectId: string, posthog: PostHog) {
         this.projectId = projectId;
         this.posthog = posthog;
+
+        this.branches = new BranchManager(this);
+        this.state = new StateManager();
+        this.canvas = new CanvasManager(this);
+        this.text = new TextEditingManager(this);
+        this.elements = new ElementsManager(this);
+        this.overlay = new OverlayManager(this);
+        this.insert = new InsertManager(this);
+        this.move = new MoveManager(this);
+        this.copy = new CopyManager(this);
+        this.group = new GroupManager(this);
+        this.ast = new AstManager(this);
+        this.action = new ActionManager(this);
+        this.style = new StyleManager(this);
+        this.code = new CodeManager(this);
+        this.chat = new ChatManager(this);
+        this.image = new ImageManager(this);
+        this.theme = new ThemeManager(this);
+        this.font = new FontManager(this);
+        this.pages = new PagesManager(this);
+        this.frames = new FramesManager(this);
+        this.frameEvent = new FrameEventManager(this);
+        this.screenshot = new ScreenshotManager(this);
+        this.snap = new SnapManager(this);
+        this.api = new ApiManager(this);
+        this.ide = new IdeManager(this);
+        this.tweaks = new TweaksManager(this);
+
         makeAutoObservable(this);
     }
 
