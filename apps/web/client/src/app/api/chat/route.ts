@@ -184,8 +184,8 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
                 return errorHandler(err);
             },
             execute: async ({ writer }) => {
-                // Send an empty text part to start the stream immediately and end the 'submitted' state on client
-                writer.write({ type: 'text', text: '' });
+                // Send an empty text delta to start the stream immediately and end the 'submitted' state on client
+                writer.write({ type: 'text-delta', id: uuidv4(), delta: '' });
 
                 try {
                     // Combine MCP servers from three sources:
