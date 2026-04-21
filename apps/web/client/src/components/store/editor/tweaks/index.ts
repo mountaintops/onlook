@@ -15,7 +15,6 @@ export interface EditorTweak {
 
 export class TweaksManager {
     activeTweaks: EditorTweak[] = [];
-    isOpen: boolean = false;
 
     constructor(private editorEngine: EditorEngine) {
         makeAutoObservable(this);

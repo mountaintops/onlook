@@ -11,6 +11,7 @@ import { HelpButton } from './help-button';
 import { ImagesTab } from './image-tab';
 import { LayersTab } from './layers-tab';
 import { PagesTab } from './page-tab';
+import { TweaksTab } from './tweaks-tab';
 import { ZoomControls } from './zoom-controls';
 
 const tabs: {
@@ -44,6 +45,11 @@ const tabs: {
             value: LeftPanelTabValue.BRANCHES,
             icon: <Icons.Branch className="w-5 h-5" />,
             label: transKeys.editor.panels.layers.tabs.branches,
+        },
+        {
+            value: LeftPanelTabValue.TWEAKS,
+            icon: <Icons.MixerHorizontal className="w-5 h-5" />,
+            label: transKeys.editor.panels.layers.tabs.tweaks,
         },
     ];
 
@@ -139,6 +145,7 @@ export const DesignPanel = observer(() => {
                             {selectedTab === LeftPanelTabValue.PAGES && <PagesTab />}
                             {selectedTab === LeftPanelTabValue.IMAGES && <ImagesTab />}
                             {selectedTab === LeftPanelTabValue.BRANCHES && <BranchesTab />}
+                            {selectedTab === LeftPanelTabValue.TWEAKS && <TweaksTab />}
                         </div>
                     </div>
 

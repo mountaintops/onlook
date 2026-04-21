@@ -1,4 +1,5 @@
 import { Icons } from '@onlook/ui/icons';
+import { LeftPanelTabValue } from '@onlook/models';
 import type { EditorEngine } from '@onlook/web-client/src/components/store/editor/engine';
 import { z } from 'zod';
 import { ClientTool } from '../models/client';
@@ -19,7 +20,7 @@ export class CreateTweaksTool extends ClientTool {
         })).describe('Array of related style tweaks for the UI.'),
     });
 
-    static readonly icon = Icons.Slider;
+    static readonly icon = Icons.MixerHorizontal;
 
     async handle(
         args: z.infer<typeof CreateTweaksTool.parameters>,
@@ -30,7 +31,8 @@ export class CreateTweaksTool extends ClientTool {
     }> {
         try {
             editorEngine.tweaks.addTweaks(args.tweaks);
-            editorEngine.tweaks.isOpen = true;
+            editorEngine.state.leftPanelTab = LeftPanelTabValue.TWEAKS;
+            editorEngine.state.leftPanelLocked = true;
             return {
                 success: true,
                 message: `Successfully created ${args.tweaks.length} tweaks.`,
