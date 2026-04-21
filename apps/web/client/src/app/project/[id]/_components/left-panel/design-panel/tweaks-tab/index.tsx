@@ -46,6 +46,22 @@ const TweakItem = observer(({
         checkValidity();
     }, [tweak.targetOid, tweak.cssVariable, editorEngine.ast]);
 
+    const colorValue = useMemo(() => {
+        if (tweak.type !== 'color') return null;
+        try {
+            return Color.from(String(tweak.value));
+        } catch (e) {
+            return Color.transparent;
+        }
+    }, [tweak.value, tweak.type]);
+
+    const formattedColorLabel = useMemo(() => {
+        if (!colorValue) return String(tweak.value);
+        const hex = colorValue.toHex6();
+        const alpha = Math.round(colorValue.a * 100);
+        return alpha < 100 ? `${hex} ${alpha}%` : hex;
+    }, [colorValue, tweak.value]);
+
     return (
         <div className="group/tweak flex flex-col gap-3">
             <div className="flex items-center justify-between">
@@ -89,7 +105,7 @@ const TweakItem = observer(({
                                 style={{ backgroundColor: String(tweak.value) }}
                             />
                         ) : null}
-                        {tweak.value}
+                        {tweak.type === 'color' ? formattedColorLabel : tweak.value}
                         {tweak.type !== 'color' && (
                             <span className="text-muted-foreground opacity-60">
                                 {tweak.unit || ''}
@@ -98,33 +114,56 @@ const TweakItem = observer(({
                     </div>
                 </div>
             </div>
-            <div className="relative px-1 pt-1">
+            <div className="relative flex flex-col gap-2 px-1 pt-1">
                 {tweak.type === 'color' ? (
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <Button
-                                variant="outline"
-                                className={cn(
-                                    "w-full h-8 justify-start gap-2 text-xs font-normal border-muted-foreground/20 bg-background/50",
-                                    isValid === false && "opacity-50"
-                                )}
-                            >
-                                <div
-                                    className="w-3 h-3 rounded-sm border border-foreground/10 shrink-0"
-                                    style={{ backgroundColor: String(tweak.value) }}
+                    <>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    className={cn(
+                                        "w-full h-8 justify-start gap-2 text-xs font-normal border-muted-foreground/20 bg-background/50",
+                                        isValid === false && "opacity-50"
+                                    )}
+                                >
+                                    <div
+                                        className="w-3 h-3 rounded-sm border border-foreground/10 shrink-0"
+                                        style={{ backgroundColor: String(tweak.value) }}
+                                    />
+                                    <span className="truncate">{formattedColorLabel}</span>
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0 border-none shadow-xl" align="start">
+                                <ColorPicker
+                                    color={colorValue || Color.transparent}
+                                    onChange={(newColor) =>
+                                        editorEngine.tweaks.updateTweakValue(tweak.id, newColor.toHex())
+                                    }
                                 />
-                                <span className="truncate">{String(tweak.value)}</span>
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0 border-none shadow-xl" align="start">
-                            <ColorPicker
-                                color={Color.from(String(tweak.value))}
-                                onChange={(newColor) =>
-                                    editorEngine.tweaks.updateTweakValue(tweak.id, newColor.toHex())
-                                }
+                            </PopoverContent>
+                        </Popover>
+                        <div className="flex flex-col gap-1.5 px-0.5">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-tight">Opacity</span>
+                                <span className="text-[9px] font-mono">{Math.round((colorValue?.a ?? 1) * 100)}%</span>
+                            </div>
+                            <Slider
+                                min={0}
+                                max={1}
+                                step={0.01}
+                                value={[colorValue?.a ?? 1]}
+                                onValueChange={(val) => {
+                                    if (colorValue) {
+                                        editorEngine.tweaks.updateTweakValue(
+                                            tweak.id,
+                                            colorValue.withAlpha(val[0] ?? 1).toHex()
+                                        );
+                                    }
+                                }}
+                                className={cn('w-full', isValid === false && 'opacity-50')}
                             />
-                        </PopoverContent>
-                    </Popover>
+                        </div>
+                    </>
                 ) : (
                     <Slider
                         min={tweak.min}
@@ -145,7 +184,7 @@ const TweakItem = observer(({
                     />
                 )}
                 {isValid === false && (
-                    <p className="text-destructive mt-1.5 text-[9px] leading-tight italic opacity-80">
+                    <p className="text-destructive mt-1 text-[9px] leading-tight italic opacity-80">
                         Variable "{tweak.cssVariable}" not found in element code.
                     </p>
                 )}
