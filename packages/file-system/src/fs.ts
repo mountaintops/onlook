@@ -88,7 +88,13 @@ export class FileSystem {
         // Ensure parent directory exists
         const dir = path.dirname(fullPath);
         if (dir) {
-            await this.fs.promises.mkdir(dir, { recursive: true });
+            try {
+                await this.fs.promises.mkdir(dir, { recursive: true });
+            } catch (error) {
+                if ((error as any)?.code !== 'EEXIST') {
+                    throw error;
+                }
+            }
         }
 
         // Create the file
@@ -135,7 +141,13 @@ export class FileSystem {
         // Ensure parent directory exists
         const dir = path.dirname(fullPath);
         if (dir) {
-            await this.fs.promises.mkdir(dir, { recursive: true });
+            try {
+                await this.fs.promises.mkdir(dir, { recursive: true });
+            } catch (error) {
+                if ((error as any)?.code !== 'EEXIST') {
+                    throw error;
+                }
+            }
         }
 
         await this.fs.promises.writeFile(fullPath, content);
@@ -182,7 +194,13 @@ export class FileSystem {
         // Ensure destination directory exists
         const toDir = path.dirname(toPath);
         if (toDir) {
-            await this.fs.promises.mkdir(toDir, { recursive: true });
+            try {
+                await this.fs.promises.mkdir(toDir, { recursive: true });
+            } catch (error) {
+                if ((error as any)?.code !== 'EEXIST') {
+                    throw error;
+                }
+            }
         }
 
         await this.fs.promises.rename(fromPath, toPath);
@@ -199,7 +217,13 @@ export class FileSystem {
         if (!this.fs) throw new Error('File system not initialized');
 
         const fullPath = path.join(this.basePath, inputPath);
-        await this.fs.promises.mkdir(fullPath, { recursive: true });
+        try {
+            await this.fs.promises.mkdir(fullPath, { recursive: true });
+        } catch (error) {
+            if ((error as any)?.code !== 'EEXIST') {
+                throw error;
+            }
+        }
     }
 
     async readDirectory(inputPath = '/'): Promise<FileEntry[]> {
@@ -268,7 +292,13 @@ export class FileSystem {
         // Ensure destination parent exists
         const toDir = path.dirname(toPath);
         if (toDir) {
-            await this.fs.promises.mkdir(toDir, { recursive: true });
+            try {
+                await this.fs.promises.mkdir(toDir, { recursive: true });
+            } catch (error) {
+                if ((error as any)?.code !== 'EEXIST') {
+                    throw error;
+                }
+            }
         }
 
         await this.fs.promises.rename(fromPath, toPath);
@@ -284,7 +314,13 @@ export class FileSystem {
             const stats = await this.fs!.promises.stat(src);
 
             if (stats.isDirectory()) {
-                await this.fs!.promises.mkdir(dest, { recursive: true });
+                try {
+                    await this.fs!.promises.mkdir(dest, { recursive: true });
+                } catch (error) {
+                    if ((error as any)?.code !== 'EEXIST') {
+                        throw error;
+                    }
+                }
                 const entries = await this.fs!.promises.readdir(src);
 
                 for (const entry of entries) {

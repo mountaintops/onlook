@@ -23,6 +23,123 @@ import { cn } from '@onlook/ui/utils';
 
 import { useEditorEngine } from '@/components/store/editor';
 
+const TweakItem = observer(({ 
+    tweak, 
+    selectedElementOid 
+}: { 
+    tweak: any; 
+    selectedElementOid: string;
+}) => {
+    const editorEngine = useEditorEngine();
+    const [isValid, setIsValid] = useState<boolean | null>(null);
+
+    useEffect(() => {
+        const checkValidity = async () => {
+            if (!tweak.targetOid) {
+                setIsValid(true);
+                return;
+            }
+            const metadata = await editorEngine.ast.getJsxElementMetadata(tweak.targetOid);
+            setIsValid(metadata?.code?.includes(tweak.cssVariable) ?? false);
+        };
+        checkValidity();
+    }, [tweak.targetOid, tweak.cssVariable, editorEngine.ast]);
+
+    return (
+        <div className="group/tweak flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-0.5">
+                    <div className="flex items-center gap-2">
+                        <label className="text-foreground/80 group-hover/tweak:text-foreground text-[11px] font-medium transition-colors">
+                            {tweak.name}
+                        </label>
+                        {isValid === false && (
+                            <div className="bg-destructive/10 text-destructive flex items-center gap-1 rounded px-1 py-0.5 text-[8px] font-bold tracking-tighter uppercase">
+                                <AlertCircleIcon className="h-2 w-2" />
+                                Broken
+                            </div>
+                        )}
+                    </div>
+                    {selectedElementOid === 'all' && tweak.targetOid && (
+                        <span className="text-muted-foreground flex items-center gap-1 text-[9px]">
+                            <LayersIcon className="h-2.5 w-2.5" />
+                            {editorEngine.ast.mappings.getLayerNodeByOid(tweak.targetOid)?.component ||
+                                editorEngine.ast.mappings.getLayerNodeByOid(tweak.targetOid)?.tagName ||
+                                'Element'}
+                        </span>
+                    )}
+                </div>
+                <div className="bg-muted/50 text-foreground group-hover/tweak:border-primary/20 flex items-center gap-1.5 rounded border border-transparent px-2 py-0.5 font-mono text-[10px] transition-all">
+                    {tweak.type === 'color' ? (
+                        <div
+                            className="w-3 h-3 rounded-full border border-foreground/10"
+                            style={{ backgroundColor: String(tweak.value) }}
+                        />
+                    ) : null}
+                    {tweak.value}
+                    {tweak.type !== 'color' && (
+                        <span className="text-muted-foreground opacity-60">
+                            {tweak.unit || ''}
+                        </span>
+                    )}
+                </div>
+            </div>
+            <div className="relative px-1 pt-1">
+                {tweak.type === 'color' ? (
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button
+                                variant="outline"
+                                className={cn(
+                                    "w-full h-8 justify-start gap-2 text-xs font-normal border-muted-foreground/20 bg-background/50",
+                                    isValid === false && "opacity-50"
+                                )}
+                            >
+                                <div
+                                    className="w-3 h-3 rounded-sm border border-foreground/10 shrink-0"
+                                    style={{ backgroundColor: String(tweak.value) }}
+                                />
+                                <span className="truncate">{String(tweak.value)}</span>
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0 border-none shadow-xl" align="start">
+                            <ColorPicker
+                                color={Color.from(String(tweak.value))}
+                                onChange={(newColor) =>
+                                    editorEngine.tweaks.updateTweakValue(tweak.id, newColor.toHex())
+                                }
+                            />
+                        </PopoverContent>
+                    </Popover>
+                ) : (
+                    <Slider
+                        min={tweak.min}
+                        max={tweak.max}
+                        step={
+                            (tweak.max ?? 100) - (tweak.min ?? 0) > 10
+                                ? 1
+                                : ((tweak.max ?? 100) - (tweak.min ?? 0)) / 100
+                        }
+                        value={[Number(tweak.value)]}
+                        onValueChange={(val) =>
+                            editorEngine.tweaks.updateTweakValue(
+                                tweak.id,
+                                val[0] ?? tweak.min ?? 0,
+                            )
+                        }
+                        className={cn('w-full', isValid === false && 'opacity-50')}
+                    />
+                )}
+                {isValid === false && (
+                    <p className="text-destructive mt-1.5 text-[9px] leading-tight italic opacity-80">
+                        Variable "{tweak.cssVariable}" not found in element code.
+                    </p>
+                )}
+            </div>
+        </div>
+    );
+});
+
 export const TweaksTab = observer(() => {
     const editorEngine = useEditorEngine();
     const tweaks = editorEngine.tweaks.activeTweaks;
@@ -157,133 +274,13 @@ export const TweaksTab = observer(() => {
                                 </div>
                             </AccordionTrigger>
                             <AccordionContent className="flex flex-col gap-6 pt-2 pb-4">
-                                {groupedByCategory[category]?.map((tweak) => {
-                                    const [isValid, setIsValid] = useState<boolean | null>(null);
-
-                                    useEffect(() => {
-                                        const checkValidity = async () => {
-                                            if (!tweak.targetOid) {
-                                                setIsValid(true);
-                                                return;
-                                            }
-                                            const metadata =
-                                                await editorEngine.ast.getJsxElementMetadata(
-                                                    tweak.targetOid,
-                                                );
-                                            setIsValid(
-                                                metadata?.code?.includes(tweak.cssVariable) ??
-                                                    false,
-                                            );
-                                        };
-                                        checkValidity();
-                                    }, [tweak.targetOid, tweak.cssVariable, editorEngine.ast]);
-
-                                    return (
-                                        <div
-                                            key={tweak.id}
-                                            className="group/tweak flex flex-col gap-3"
-                                        >
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex flex-col gap-0.5">
-                                                    <div className="flex items-center gap-2">
-                                                        <label className="text-foreground/80 group-hover/tweak:text-foreground text-[11px] font-medium transition-colors">
-                                                            {tweak.name}
-                                                        </label>
-                                                        {isValid === false && (
-                                                            <div className="bg-destructive/10 text-destructive flex items-center gap-1 rounded px-1 py-0.5 text-[8px] font-bold tracking-tighter uppercase">
-                                                                <AlertCircleIcon className="h-2 w-2" />
-                                                                Broken
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    {selectedElementOid === 'all' &&
-                                                        tweak.targetOid && (
-                                                            <span className="text-muted-foreground flex items-center gap-1 text-[9px]">
-                                                                <LayersIcon className="h-2.5 w-2.5" />
-                                                                {editorEngine.ast.mappings.getLayerNodeByOid(
-                                                                    tweak.targetOid,
-                                                                )?.component ||
-                                                                    editorEngine.ast.mappings.getLayerNodeByOid(
-                                                                        tweak.targetOid,
-                                                                    )?.tagName ||
-                                                                    'Element'}
-                                                            </span>
-                                                        )}
-                                                </div>
-                                                <div className="bg-muted/50 text-foreground group-hover/tweak:border-primary/20 flex items-center gap-1.5 rounded border border-transparent px-2 py-0.5 font-mono text-[10px] transition-all">
-                                                    {tweak.type === 'color' ? (
-                                                        <div 
-                                                            className="w-3 h-3 rounded-full border border-foreground/10" 
-                                                            style={{ backgroundColor: String(tweak.value) }}
-                                                        />
-                                                    ) : null}
-                                                    {tweak.value}
-                                                    {tweak.type !== 'color' && (
-                                                        <span className="text-muted-foreground opacity-60">
-                                                            {tweak.unit || ''}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div className="relative px-1 pt-1">
-                                                {tweak.type === 'color' ? (
-                                                    <Popover>
-                                                        <PopoverTrigger asChild>
-                                                            <Button 
-                                                                variant="outline" 
-                                                                className={cn(
-                                                                    "w-full h-8 justify-start gap-2 text-xs font-normal border-muted-foreground/20 bg-background/50",
-                                                                    isValid === false && "opacity-50"
-                                                                )}
-                                                            >
-                                                                <div 
-                                                                    className="w-3 h-3 rounded-sm border border-foreground/10 shrink-0" 
-                                                                    style={{ backgroundColor: String(tweak.value) }}
-                                                                />
-                                                                <span className="truncate">{String(tweak.value)}</span>
-                                                            </Button>
-                                                        </PopoverTrigger>
-                                                        <PopoverContent className="w-auto p-0 border-none shadow-xl" align="start">
-                                                            <ColorPicker 
-                                                                color={Color.from(String(tweak.value))}
-                                                                onChange={(newColor) => 
-                                                                    editorEngine.tweaks.updateTweakValue(tweak.id, newColor.toHex())
-                                                                }
-                                                            />
-                                                        </PopoverContent>
-                                                    </Popover>
-                                                ) : (
-                                                    <Slider
-                                                        min={tweak.min}
-                                                        max={tweak.max}
-                                                        step={
-                                                            (tweak.max ?? 100) - (tweak.min ?? 0) > 10
-                                                                ? 1
-                                                                : ((tweak.max ?? 100) - (tweak.min ?? 0)) / 100
-                                                        }
-                                                        value={[Number(tweak.value)]}
-                                                        onValueChange={(val) =>
-                                                            editorEngine.tweaks.updateTweakValue(
-                                                                tweak.id,
-                                                                val[0] ?? tweak.min ?? 0,
-                                                            )
-                                                        }
-                                                        className={cn(
-                                                            'w-full',
-                                                            isValid === false && 'opacity-50',
-                                                        )}
-                                                    />
-                                                )}
-                                                {isValid === false && (
-                                                    <p className="text-destructive mt-1.5 text-[9px] leading-tight italic opacity-80">
-                                                        Variable "{tweak.cssVariable}" not found in
-                                                        element code.
-                                                    </p>
-                                                )}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
+                                {groupedByCategory[category]?.map((tweak) => (
+                                    <TweakItem 
+                                        key={tweak.id} 
+                                        tweak={tweak} 
+                                        selectedElementOid={selectedElementOid} 
+                                    />
+                                ))}
                             </AccordionContent>
                         </AccordionItem>
                     ))}
@@ -303,3 +300,4 @@ export const TweaksTab = observer(() => {
         </div>
     );
 });
+
