@@ -193,23 +193,21 @@ export const createRootAgentStream = async ({
     previewUrl?: string;
     updateMcpServer?: (serverId: string, patch: Partial<McpServerConfig>) => Promise<void>;
 }) => {
-    let finalChatModel = chatModel;
-    if (chatType === ChatType.ARCHITECT && !chatModel) {
-        finalChatModel = await runArchitectMode(messages);
-    }
+    const mcpManager = new McpClientManager();
+    const [modelResult, mcpToolSet] = await Promise.all([
+        chatType === ChatType.ARCHITECT && !chatModel ? runArchitectMode(messages) : Promise.resolve(chatModel),
+        mcpManager.loadTools(
+            projectId,
+            mcpServers ?? [],
+            updateMcpServer ?? (async () => {}),
+            previewUrl,
+        ),
+    ]);
+
+    const finalChatModel = modelResult;
     const modelConfig = getModelFromType(chatType, finalChatModel);
     const systemPrompt = getSystemPromptFromType(chatType);
     const builtInTools = getToolSetFromType(chatType);
-
-    // Load MCP tools — done once before the first stream attempt.
-    // Built-in tools win on name collision (MCP tools are spread first).
-    const mcpManager = new McpClientManager();
-    const mcpToolSet = await mcpManager.loadTools(
-        projectId,
-        mcpServers ?? [],
-        updateMcpServer ?? (async () => {}),
-        previewUrl,
-    );
 
     const mergedTools: ToolSet = { ...mcpToolSet, ...builtInTools };
 
@@ -228,7 +226,7 @@ export const createRootAgentStream = async ({
                 headers: config.headers,
                 stopWhen: stepCountIs(20),
                 experimental_repairToolCall: isGLM5 ? undefined : repairToolCall,
-                experimental_transform: isGLM5 ? undefined : smoothStream(),
+                experimental_transform: undefined,
                 onFinish: async () => {
                     await mcpManager.closeAll();
                 },

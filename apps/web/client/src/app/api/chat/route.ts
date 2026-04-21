@@ -184,6 +184,9 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
                 return errorHandler(err);
             },
             execute: async ({ writer }) => {
+                // Send an empty text part to start the stream immediately and end the 'submitted' state on client
+                writer.write({ type: 'text', text: '' });
+
                 try {
                     // Combine MCP servers from three sources:
                     // 1. Permanent (site-wide, from JSON config)
