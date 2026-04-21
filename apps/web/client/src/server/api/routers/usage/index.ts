@@ -10,6 +10,14 @@ import { createTRPCRouter, protectedProcedure } from '../../trpc';
 export const usageRouter = createTRPCRouter({
     get: protectedProcedure.query(async ({ ctx }): Promise<UsageResult> => {
         const user = ctx.user;
+        
+        if (user.id === 'demo-user') {
+            return {
+                daily: { period: 'day', usageCount: 0, limitCount: FREE_PRODUCT_CONFIG.dailyLimit },
+                monthly: { period: 'month', usageCount: 0, limitCount: FREE_PRODUCT_CONFIG.monthlyLimit },
+            };
+        }
+
         return ctx.db.transaction(async (tx) => {
             // Calculate date ranges
             const now = new Date();
@@ -31,6 +39,11 @@ export const usageRouter = createTRPCRouter({
         traceId: z.string().optional(),
     })).mutation(async ({ ctx, input }) => {
         const user = ctx.user;
+        
+        if (user.id === 'demo-user') {
+            return { rateLimitId: undefined, usageRecordId: undefined };
+        }
+
         // running a transaction helps with concurrency issues and ensures that
         // the usage is incremented atomically
         return ctx.db.transaction(async (tx) => {
