@@ -1,4 +1,5 @@
 import { rateLimits, subscriptions, usageRecords } from '@onlook/db';
+import { FREE_SEED_USER, SEED_USER } from '@onlook/db/src/seed/constants';
 import { UsageType, type UsageResult } from '@onlook/models';
 import { FREE_PRODUCT_CONFIG, SubscriptionStatus } from '@onlook/stripe';
 import { sub } from 'date-fns/sub';
@@ -11,7 +12,9 @@ export const usageRouter = createTRPCRouter({
     get: protectedProcedure.query(async ({ ctx }): Promise<UsageResult> => {
         const user = ctx.user;
         
-        if (user.id === 'demo-user') {
+        const isDemoUser = user.id === 'demo-user' || user.id === SEED_USER.ID || user.id === FREE_SEED_USER.ID;
+
+        if (isDemoUser) {
             return {
                 daily: { period: 'day', usageCount: 0, limitCount: FREE_PRODUCT_CONFIG.dailyLimit },
                 monthly: { period: 'month', usageCount: 0, limitCount: FREE_PRODUCT_CONFIG.monthlyLimit },
@@ -40,7 +43,9 @@ export const usageRouter = createTRPCRouter({
     })).mutation(async ({ ctx, input }) => {
         const user = ctx.user;
         
-        if (user.id === 'demo-user') {
+        const isDemoUser = user.id === 'demo-user' || user.id === SEED_USER.ID || user.id === FREE_SEED_USER.ID;
+
+        if (isDemoUser) {
             return { rateLimitId: undefined, usageRecordId: undefined };
         }
 
@@ -100,6 +105,13 @@ export const usageRouter = createTRPCRouter({
         usageRecordId: z.string().optional(),
         rateLimitId: z.string().optional(),
     })).mutation(async ({ ctx, input }) => {
+        const user = ctx.user;
+        const isDemoUser = user.id === 'demo-user' || user.id === SEED_USER.ID || user.id === FREE_SEED_USER.ID;
+
+        if (isDemoUser) {
+            return;
+        }
+
         return ctx.db.transaction(async (tx) => {
             if (input.rateLimitId) {
                 await tx.update(rateLimits).set({
