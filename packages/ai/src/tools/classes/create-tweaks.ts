@@ -6,17 +6,17 @@ import { ClientTool } from '../models/client';
 export class CreateTweaksTool extends ClientTool {
     static readonly toolName = 'create_tweaks';
     static readonly description =
-        'Propose a set of UI sliders (tweaks) to adjust CSS variables dynamically without modifying code directly. Use this when the user asks for vibe changes like "make it less cramped" or "more playful". Make sure the component uses these CSS variables so the tweaks apply.';
+        'Propose dynamic UI sliders (Tweaks) for CSS variables. Use this whenever the user asks for "vibe" shifts or stylistic fine-tuning (e.g. "make it more modern", "increase spacing"). MANDATORY: You must first edit the component code to use these CSS variables with fallbacks before calling this tool.';
     
     static readonly parameters = z.object({
         tweaks: z.array(z.object({
-            name: z.string().describe('Human readable name for the slider, e.g., "Layout Density"'),
-            cssVariable: z.string().describe('The CSS variable to update, e.g., "--layout-density"'),
-            min: z.number().describe('Minimum value of the slider'),
-            max: z.number().describe('Maximum value of the slider'),
-            value: z.number().describe('Default value of the slider, based on current CSS or default'),
-            unit: z.string().optional().describe('Unit for the value, e.g., "px", "rem", "%" or empty for unitless'),
-        })).describe('An array of tweaks to generate sliders for.'),
+            name: z.string().describe('Professional, Title Case name for the slider (e.g., "Layout Density", "Glow Intensity")'),
+            cssVariable: z.string().describe('The CSS variable to match the code change (e.g., "--spacing-unit", "--vibe-scale")'),
+            min: z.number().describe('Minimum logical limit for the style'),
+            max: z.number().describe('Maximum logical limit for the style'),
+            value: z.number().describe('Current baseline value in the app'),
+            unit: z.string().optional().describe('CSS unit (px, rem, %, s, ms). Leave empty for unitless variables like opacity.'),
+        })).describe('Array of related style tweaks for the UI.'),
     });
 
     static readonly icon = Icons.Slider;
