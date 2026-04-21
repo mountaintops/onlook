@@ -8,9 +8,9 @@ import {
     LayoutGridIcon,
     Settings2Icon,
     SparklesIcon,
+    Undo2Icon,
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { ChatType } from '@onlook/models';
 
 import { Color } from '@onlook/utility';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@onlook/ui/accordion';
@@ -20,7 +20,6 @@ import { Icons } from '@onlook/ui/icons';
 import { Popover, PopoverContent, PopoverTrigger } from '@onlook/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@onlook/ui/select';
 import { Slider } from '@onlook/ui/slider';
-import { toast } from '@onlook/ui/sonner';
 import { cn } from '@onlook/ui/utils';
 
 import { useEditorEngine } from '@/components/store/editor';
@@ -71,19 +70,32 @@ const TweakItem = observer(({
                         </span>
                     )}
                 </div>
-                <div className="bg-muted/50 text-foreground group-hover/tweak:border-primary/20 flex items-center gap-1.5 rounded border border-transparent px-2 py-0.5 font-mono text-[10px] transition-all">
-                    {tweak.type === 'color' ? (
-                        <div
-                            className="w-3 h-3 rounded-full border border-foreground/10"
-                            style={{ backgroundColor: String(tweak.value) }}
-                        />
-                    ) : null}
-                    {tweak.value}
-                    {tweak.type !== 'color' && (
-                        <span className="text-muted-foreground opacity-60">
-                            {tweak.unit || ''}
-                        </span>
+                <div className="flex items-center gap-1">
+                    {tweak.initialValue !== undefined && tweak.value !== tweak.initialValue && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                            onClick={() => editorEngine.tweaks.undoTweak(tweak.id)}
+                            title="Undo changes"
+                        >
+                            <Undo2Icon className="h-3 w-3" />
+                        </Button>
                     )}
+                    <div className="bg-muted/50 text-foreground group-hover/tweak:border-primary/20 flex items-center gap-1.5 rounded border border-transparent px-2 py-0.5 font-mono text-[10px] transition-all">
+                        {tweak.type === 'color' ? (
+                            <div
+                                className="w-3 h-3 rounded-full border border-foreground/10"
+                                style={{ backgroundColor: String(tweak.value) }}
+                            />
+                        ) : null}
+                        {tweak.value}
+                        {tweak.type !== 'color' && (
+                            <span className="text-muted-foreground opacity-60">
+                                {tweak.unit || ''}
+                            </span>
+                        )}
+                    </div>
                 </div>
             </div>
             <div className="relative px-1 pt-1">
@@ -146,30 +158,6 @@ export const TweaksTab = observer(() => {
     const editorEngine = useEditorEngine();
     const tweaks = editorEngine.tweaks.activeTweaks;
     const [selectedElementOid, setSelectedElementOid] = useState<string>('all');
-    const [isSaving, setIsSaving] = useState(false);
-
-    const handleSaveToCode = async () => {
-        if (tweaks.length === 0) return;
-        
-        setIsSaving(true);
-        try {
-            const tweakSummary = tweaks.map(t => {
-                const element = t.targetOid ? editorEngine.ast.mappings.getLayerNodeByOid(t.targetOid) : null;
-                const elementName = element ? (element.component || element.tagName) : 'Global';
-                return `- ${t.name}: ${t.value}${t.unit || ''} (Target: ${elementName}, Variable: ${t.cssVariable})`;
-            }).join('\n');
-
-            const prompt = `I've tuned the styles using the tweaks panel. Please apply these final values to the source code permanently by updating the CSS variables or hardcoding the values where appropriate:\n\n${tweakSummary}`;
-            
-            await editorEngine.chat.sendMessage(prompt, ChatType.EDIT);
-            toast.success('Applying tweaks to code...');
-        } catch (error) {
-            console.error('Failed to send save request', error);
-            toast.error('Failed to initiate save');
-        } finally {
-            setIsSaving(false);
-        }
-    };
 
     // Extract unique elements that have tweaks
     const elementsWithTweaks = useMemo(() => {
@@ -243,34 +231,6 @@ export const TweaksTab = observer(() => {
                             <Settings2Icon className="h-4 w-4" />
                         </div>
                         <h3 className="text-foreground text-sm font-semibold">Active Tweaks</h3>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                        {tweaks.length > 0 && (
-                            <>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-7 px-2 text-[10px] text-muted-foreground hover:text-destructive transition-colors"
-                                    onClick={() => editorEngine.tweaks.removeAll()}
-                                >
-                                    Clear All
-                                </Button>
-                                <Button 
-                                    variant="outline" 
-                                    size="sm" 
-                                    disabled={isSaving}
-                                    className="h-7 text-[10px] px-2.5 gap-1.5 border-primary/20 hover:bg-primary/5 hover:border-primary/40 bg-background/50 shadow-sm"
-                                    onClick={handleSaveToCode}
-                                >
-                                    {isSaving ? (
-                                        <Icons.Spinner className="h-3 w-3 animate-spin" />
-                                    ) : (
-                                        <CheckCircle2Icon className="h-3 w-3 text-primary" />
-                                    )}
-                                    Save to Code
-                                </Button>
-                            </>
-                        )}
                     </div>
                 </div>
 
@@ -346,8 +306,8 @@ export const TweaksTab = observer(() => {
                 <div className="text-muted-foreground flex items-start gap-2 text-[10px] leading-relaxed">
                     <SparklesIcon className="text-primary mt-0.5 h-3 w-3 shrink-0" />
                     <span>
-                        Tweaks are non-destructive sandbox experiments. Click "Save to Code"
-                        to have the AI permanently apply these values to your source files.
+                        Tweaks are non-destructive and only apply in the editor. Save your changes
+                        to apply them to your code.
                     </span>
                 </div>
             </div>

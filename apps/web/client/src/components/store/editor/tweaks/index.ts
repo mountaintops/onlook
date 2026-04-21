@@ -1,6 +1,7 @@
 import { makeAutoObservable, observable, action, computed } from 'mobx';
 import type { EditorEngine } from '../engine';
 import { v4 as uuidv4 } from 'uuid';
+import { debounce } from 'lodash';
 import type { IFrameView } from '@/app/project/[id]/_components/canvas/frame/view';
 
 export interface EditorTweak {
@@ -11,6 +12,7 @@ export interface EditorTweak {
     min?: number;
     max?: number;
     value: number | string;
+    initialValue?: number | string;
     unit?: string;
     category?: string;
     targetOid?: string;
@@ -99,29 +101,87 @@ export class TweaksManager {
         const newTweaks = tweaksInput.map(tweak => ({
             ...tweak,
             id: uuidv4(),
+            initialValue: tweak.value, // Capture initial value for undo
         }));
         
         // Merge with existing tweaks by css variable, to avoid duplication
         const existingMap = new Map((this._activeTweaks || []).map(t => [t.cssVariable, t]));
         for (const newTweak of newTweaks) {
+            // Keep existing initialValue if we already have this tweak
+            const existing = existingMap.get(newTweak.cssVariable);
+            if (existing && existing.initialValue !== undefined) {
+                newTweak.initialValue = existing.initialValue;
+            }
             existingMap.set(newTweak.cssVariable, newTweak);
         }
         
         this._activeTweaks = Array.from(existingMap.values());
         this.save();
         
-        // Apply values immediately
+        // Apply values immediately to webview
         this._activeTweaks.forEach(tweak => {
             this.applyTweakVariableToFrames(tweak.cssVariable, tweak.value, tweak.unit || '');
         });
     }
 
-    updateTweakValue(id: string, value: number | string) {
+    updateTweakValue(id: string, value: number | string, autoSave = true) {
         const tweak = this.activeTweaks.find(t => t.id === id);
         if (tweak) {
             tweak.value = value;
             this.save();
             this.applyTweakVariableToFrames(tweak.cssVariable, value, tweak.unit || '');
+            
+            if (autoSave) {
+                this.debouncedSaveToCode(id);
+            }
+        }
+    }
+
+    private debouncedSaveToCode = debounce((id: string) => {
+        this.saveTweakToCode(id);
+    }, 1000);
+
+    async saveTweakToCode(id: string) {
+        const tweak = this.activeTweaks.find(t => t.id === id);
+        if (!tweak || !tweak.targetOid) {
+            return;
+        }
+
+        const valueStr = tweak.type === 'color' ? String(tweak.value) : `${tweak.value}${tweak.unit || ''}`;
+        
+        try {
+            const metadata = await this.editorEngine.ast.getJsxElementMetadata(tweak.targetOid);
+            if (!metadata) {
+                console.warn('[TweaksManager] No metadata found for target OID', tweak.targetOid);
+                return;
+            }
+
+            const fileContent = await this.editorEngine.fileSystem.readFile(metadata.path);
+            if (typeof fileContent !== 'string') {
+                return;
+            }
+
+            // Surgical replacement of the fallback value in the var() function
+            // Pattern: var(--variable-name, fallback)
+            const regex = new RegExp(`var\\(${tweak.cssVariable},\\s*[^)]+\\)`, 'g');
+            const replacement = `var(${tweak.cssVariable}, ${valueStr})`;
+            
+            if (regex.test(fileContent)) {
+                const newContent = fileContent.replace(regex, replacement);
+                await this.editorEngine.fileSystem.writeFile(metadata.path, newContent);
+                console.log(`[TweaksManager] Successfully auto-saved tweak ${tweak.name} to code.`);
+            } else {
+                console.warn(`[TweaksManager] Could not find CSS variable ${tweak.cssVariable} in code for auto-save.`);
+            }
+        } catch (err) {
+            console.error('[TweaksManager] Failed to auto-save tweak to code', err);
+        }
+    }
+
+    undoTweak(id: string) {
+        const tweak = this.activeTweaks.find(t => t.id === id);
+        if (tweak && tweak.initialValue !== undefined) {
+            this.updateTweakValue(id, tweak.initialValue, true);
         }
     }
 
