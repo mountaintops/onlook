@@ -58,17 +58,12 @@ export class TweaksManager {
 
     private applyTweakVariableToFrames(cssVariable: string, value: number, unit: string) {
         const valueStr = `${value}${unit || ''}`;
-        
+
         for (const frameData of this.editorEngine.frames.getAll()) {
             if (frameData.view) {
-                try {
-                    const doc = frameData.view.contentDocument;
-                    if (doc) {
-                        doc.documentElement.style.setProperty(cssVariable, valueStr);
-                    }
-                } catch (err) {
+                frameData.view.updateCssVariable(cssVariable, valueStr).catch((err) => {
                     console.warn('[TweaksManager] Failed to apply tweak to frame', err);
-                }
+                });
             }
         }
     }

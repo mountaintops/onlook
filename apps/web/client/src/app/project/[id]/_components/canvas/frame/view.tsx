@@ -24,7 +24,9 @@ export type IFrameView = HTMLIFrameElement & {
     supportsOpenDevTools: () => boolean;
     reload: () => void;
     isLoading: () => boolean;
+    updateCssVariable: (name: string, value: string) => Promise<void>;
 } & PromisifiedPendpalChildMethods;
+
 
 // Creates a proxy that provides safe fallback methods for any property access
 const createSafeFallbackMethods = (): PromisifiedPendpalChildMethods => {
@@ -270,7 +272,9 @@ export const FrameComponent = observer(
                     handleBodyReady: promisify('handleBodyReady'),
                     captureScreenshot: promisify('captureScreenshot'),
                     buildLayerTree: promisify('buildLayerTree'),
+                    updateCssVariable: promisify('updateCssVariable'),
                 };
+
             }, [penpalChild]);
 
             useImperativeHandle(ref, (): IFrameView => {

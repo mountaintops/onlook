@@ -26,7 +26,9 @@ import { handleBodyReady } from './ready';
 import { captureScreenshot } from './screenshot';
 import { setFrameId, setBranchId } from './state';
 import { updateStyle } from './style';
+import { updateCssVariable } from './style/tweak';
 import { getTheme, setTheme } from './theme';
+
 
 function withTryCatch<T extends (...args: any[]) => any>(fn: T): T {
     return ((...args: any[]) => {
@@ -94,7 +96,9 @@ const rawMethods = {
     insertImage,
     removeImage,
     handleBodyReady,
+    updateCssVariable,
 }
+
 
 // Wrap all methods in a try/catch to prevent the preload script from crashing
 export const preloadMethods = Object.fromEntries(
