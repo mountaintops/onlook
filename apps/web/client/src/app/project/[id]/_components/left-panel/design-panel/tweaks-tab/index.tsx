@@ -8,8 +8,7 @@ import {
     FilterIcon, 
     LayersIcon,
     ChevronDownIcon,
-    Settings2Icon,
-    Trash2Icon
+    Settings2Icon
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState, useMemo } from 'react';
@@ -102,15 +101,6 @@ export const TweaksTab = observer(() => {
                         </div>
                         <h3 className="font-semibold text-sm text-foreground">Active Tweaks</h3>
                     </div>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive transition-colors"
-                        onClick={() => editorEngine.tweaks.removeAll()}
-                        title="Clear all tweaks"
-                    >
-                        <Trash2Icon className="w-4 h-4" />
-                    </Button>
                 </div>
 
                 {/* Element Filter Dropdown */}
