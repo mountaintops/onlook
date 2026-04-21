@@ -80,6 +80,7 @@ export class FramesManager {
 
         const framePathname = new URL(view.src).pathname;
         this._navigation.registerFrame(frame.id, framePathname);
+        this.editorEngine.tweaks.applyTweaksToFrame(view);
     }
 
     deregister(frame: Frame) {
