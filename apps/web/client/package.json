@@ -155,6 +155,7 @@
   },
   "overrides": {
     "@types/react": "19.2.2",
-    "@types/react-dom": "19.2.2"
+    "@types/react-dom": "19.2.2",
+    "require-in-the-middle": "8.0.1"
   }
 }

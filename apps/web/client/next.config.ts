@@ -22,7 +22,7 @@ const nextConfig: NextConfig = {
             },
         ];
     },
-    transpilePackages: ['@onlook/ai'],
+    transpilePackages: ['@onlook/ai', '@onlook/code-provider'],
     experimental: {
         optimizeCss: true,
         optimizePackageImports: [

@@ -5,6 +5,9 @@
     "type": "module",
     "module": "src/index.ts",
     "types": "src/index.ts",
+    "browser": {
+        "./src/providers/daytona/index.ts": "./src/providers/daytona/index.browser.ts"
+    },
     "version": "0.0.0",
     "private": true,
     "repository": {
