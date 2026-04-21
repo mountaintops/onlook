@@ -68,6 +68,17 @@ export class LayersManager {
         return this.getMapping(frameId)?.get(domId);
     }
 
+    getLayerNodeByOid(oid: string): LayerNode | undefined {
+        for (const metadata of this.frameIdToLayerMetadata.values()) {
+            for (const node of metadata.domIdToLayerNode.values()) {
+                if (node.oid === oid) {
+                    return node;
+                }
+            }
+        }
+        return undefined;
+    }
+
     remove(frameId: string) {
         this.frameIdToLayerMetadata.delete(frameId);
     }

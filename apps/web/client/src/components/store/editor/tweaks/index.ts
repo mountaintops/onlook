@@ -11,6 +11,8 @@ export interface EditorTweak {
     max: number;
     value: number;
     unit?: string;
+    category?: string;
+    targetOid?: string;
 }
 
 export class TweaksManager {

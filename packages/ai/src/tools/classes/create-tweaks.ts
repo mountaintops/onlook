@@ -17,6 +17,8 @@ export class CreateTweaksTool extends ClientTool {
             max: z.number().describe('Maximum logical limit for the style'),
             value: z.number().describe('Current baseline value in the app'),
             unit: z.string().optional().describe('CSS unit (px, rem, %, s, ms). Leave empty for unitless variables like opacity.'),
+            category: z.string().optional().describe('Group related tweaks together (e.g. "Layout", "Effects", "Typography")'),
+            targetOid: z.string().optional().describe('The Onlook OID of the element these tweaks primarily affect.'),
         })).describe('Array of related style tweaks for the UI.'),
     });
 
