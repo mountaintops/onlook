@@ -76,9 +76,101 @@ export class CodeFileSystem extends FileSystem {
     }
 
     async writeFiles(files: Array<{ path: string; content: string | Uint8Array }>): Promise<void> {
-        // Write files sequentially to avoid race conditions to metadata file
-        for (const { path, content } of files) {
-            await this.writeFile(path, content);
+        await this.writeBatch(files.map(f => ({ type: 'file', path: f.path, content: f.content })));
+    }
+
+    async writeBatch(actions: Array<{ type: 'file' | 'folder'; path: string; content?: string | Uint8Array }>): Promise<void> {
+        const index = await this.loadIndex();
+        let hasIndexChanges = false;
+
+        // Process files in batches for better performance but manageable concurrency
+        const BATCH_SIZE = 5;
+        for (let i = 0; i < actions.length; i += BATCH_SIZE) {
+            const batch = actions.slice(i, i + BATCH_SIZE);
+
+            await Promise.all(batch.map(async (action) => {
+                try {
+                    if (action.type === 'folder') {
+                        await this.createDirectory(action.path);
+                        return;
+                    }
+
+                    const { path, content } = action;
+                    if (this.isJsxFile(path) && typeof content === 'string') {
+                        // For JSX files, we process and update metadata
+                        const processedContent = await this.processJsxBatch(path, content, index);
+                        await super.writeFile(path, processedContent);
+                        hasIndexChanges = true;
+                    } else {
+                        // For non-JSX files, just write normally
+                        await super.writeFile(path, content || '');
+                    }
+
+                    // Notify listeners
+                    for (const callback of this.writeCallbacks) {
+                        try {
+                            callback(path, content || '');
+                        } catch (error) {
+                            console.error('[CodeFileSystem] Error in write callback:', error);
+                        }
+                    }
+                } catch (error) {
+                    console.error(`[CodeFileSystem] Error processing batch action for ${action.path}:`, error);
+                }
+            }));
+        }
+
+        if (hasIndexChanges) {
+            await this.saveIndex(index);
+        }
+    }
+
+    private async processJsxBatch(path: string, content: string, index: Record<string, JsxElementMetadata>): Promise<string> {
+        let processedContent = content;
+
+        const ast = getAstFromContent(content);
+        if (ast) {
+            if (isRootLayoutFile(path, this.options.routerType)) {
+                injectPreloadScript(ast);
+            }
+
+            // Get existing OIDs from the provided index instead of reloading it
+            const existingOids = new Set<string>();
+            for (const [oid, metadata] of Object.entries(index)) {
+                if (pathsEqual(metadata.path, path)) {
+                    existingOids.add(oid);
+                    delete index[oid]; // Clear existing metadata for this file
+                }
+            }
+
+            const { ast: processedAst } = addOidsToAst(ast, existingOids);
+            processedContent = await getContentFromAst(processedAst, content);
+
+            const formattedContent = await formatContent(path, processedContent);
+
+            // Re-parse formatted content to get accurate positions for template nodes
+            const finalAst = getAstFromContent(formattedContent);
+            if (finalAst) {
+                const templateNodeMap = createTemplateNodeMap({
+                    ast: finalAst,
+                    filename: path,
+                    branchId: this.branchId,
+                });
+
+                for (const [oid, node] of templateNodeMap.entries()) {
+                    const code = await getContentFromTemplateNode(node, formattedContent);
+                    index[oid] = {
+                        ...node,
+                        oid,
+                        code: code || '',
+                    };
+                }
+            }
+
+            return formattedContent;
+        } else {
+            console.warn(`Failed to parse ${path}, skipping OID injection but will still format`);
+            return formatContent(path, content);
         }
     }
 

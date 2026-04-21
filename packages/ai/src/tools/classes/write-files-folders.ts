@@ -23,20 +23,13 @@ export class WriteFilesFoldersTool extends ClientTool {
     async handle(args: z.infer<typeof WriteFilesFoldersTool.parameters>, editorEngine: EditorEngine): Promise<string> {
         try {
             const fileSystem = await getFileSystem(args.branchId, editorEngine);
-            const results: string[] = [];
+            
+            // Use the optimized writeBatch method
+            await fileSystem.writeBatch(args.actions);
 
-            for (const action of args.actions) {
-                if (action.type === 'file') {
-                    await fileSystem.writeFile(action.path, action.content || '');
-                    results.push(`file: ${action.path}`);
-                } else if (action.type === 'folder') {
-                    await fileSystem.createDirectory(action.path);
-                    results.push(`folder: ${action.path}`);
-                }
-            }
-
-            return `Successfully created ${args.actions.length} items: ${results.join(', ')}`;
+            return `Successfully created ${args.actions.length} items.`;
         } catch (error) {
+            console.error(`[WriteFilesFoldersTool] Failed to complete multi-write operation:`, error);
             throw new Error(`Failed to complete multi-write operation: ${error}`);
         }
     }
