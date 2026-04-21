@@ -38,39 +38,43 @@ export class SearchReplaceMultiEditFileTool extends ClientTool {
             const originalContent = file;
             let content = originalContent;
 
-            // Validate only the first non-replace_all edit against original content
-            // Sequential edits will be validated during application
-            let tempContent = originalContent;
+            const normalize = (str: string) => str.replace(/\s+/g, ' ').trim();
+
+            // Validate edits
             for (const edit of args.edits) {
                 if (!edit.replace_all) {
-                    const firstIndex = tempContent.indexOf(edit.old_string);
-                    if (firstIndex === -1) {
-                        throw new Error(`String not found in file: ${edit.old_string}`);
-                    }
-
-                    const secondIndex = tempContent.indexOf(edit.old_string, firstIndex + edit.old_string.length);
-                    if (secondIndex !== -1) {
-                        throw new Error(`Multiple occurrences found for "${edit.old_string}". Use replace_all=true or provide more context.`);
-                    }
-
-                    // Simulate the edit for next validation
-                    tempContent = tempContent.replace(edit.old_string, edit.new_string);
-                } else {
-                    tempContent = tempContent.replaceAll(edit.old_string, edit.new_string);
-                }
-            }
-
-            // Apply edits sequentially in the order provided
-            // Each edit operates on the result of the previous edit
-            for (const edit of args.edits) {
-                if (edit.replace_all) {
-                    content = content.replaceAll(edit.old_string, edit.new_string);
-                } else {
-                    const index = content.indexOf(edit.old_string);
+                    // Try exact match first
+                    let index = content.indexOf(edit.old_string);
+                    
+                    // If no exact match, try whitespace-normalized match
                     if (index === -1) {
-                        throw new Error(`String not found in file after previous edits: ${edit.old_string}`);
+                        const normalizedContent = normalize(content);
+                        const normalizedOld = normalize(edit.old_string);
+                        
+                        if (normalizedContent.includes(normalizedOld)) {
+                            // Find the actual substring in the original content that matches the normalized version
+                            // This is a bit complex, but for now we'll throw a more descriptive error 
+                            // or try a regex-based fallback.
+                            const escapedSearch = edit.old_string
+                                .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                                .replace(/\s+/g, '\\s+');
+                            const regex = new RegExp(escapedSearch);
+                            const match = content.match(regex);
+                            
+                            if (match) {
+                                content = content.replace(regex, edit.new_string);
+                            } else {
+                                throw new Error(`String not found (even with whitespace tolerance): ${edit.old_string}`);
+                            }
+                        } else {
+                            throw new Error(`String not found in file: ${edit.old_string}`);
+                        }
+                    } else {
+                        // Exact match found
+                        content = content.replace(edit.old_string, edit.new_string);
                     }
-                    content = content.replace(edit.old_string, edit.new_string);
+                } else {
+                    content = content.replaceAll(edit.old_string, edit.new_string);
                 }
             }
 

@@ -1,7 +1,7 @@
 import { makeAutoObservable, observable, action, computed } from 'mobx';
 import type { EditorEngine } from '../engine';
 import { v4 as uuidv4 } from 'uuid';
-import { debounce } from 'lodash';
+import debounce from 'lodash/debounce';
 import type { IFrameView } from '@/app/project/[id]/_components/canvas/frame/view';
 
 export interface EditorTweak {
@@ -143,7 +143,13 @@ export class TweaksManager {
 
     async saveTweakToCode(id: string) {
         const tweak = this.activeTweaks.find(t => t.id === id);
-        if (!tweak || !tweak.targetOid) {
+        if (!tweak) {
+            console.warn(`[TweaksManager] Cannot auto-save: Tweak ${id} not found.`);
+            return;
+        }
+
+        if (!tweak.targetOid) {
+            console.warn(`[TweaksManager] Cannot auto-save tweak ${tweak.name}: No targetOid.`);
             return;
         }
 
@@ -151,13 +157,14 @@ export class TweaksManager {
         
         try {
             const metadata = await this.editorEngine.ast.getJsxElementMetadata(tweak.targetOid);
-            if (!metadata) {
-                console.warn('[TweaksManager] No metadata found for target OID', tweak.targetOid);
+            if (!metadata || !metadata.path) {
+                console.warn('[TweaksManager] No metadata or path found for target OID', tweak.targetOid);
                 return;
             }
 
             const fileContent = await this.editorEngine.fileSystem.readFile(metadata.path);
             if (typeof fileContent !== 'string') {
+                console.warn('[TweaksManager] Could not read file content for auto-save', metadata.path);
                 return;
             }
 
@@ -169,12 +176,12 @@ export class TweaksManager {
             if (regex.test(fileContent)) {
                 const newContent = fileContent.replace(regex, replacement);
                 await this.editorEngine.fileSystem.writeFile(metadata.path, newContent);
-                console.log(`[TweaksManager] Successfully auto-saved tweak ${tweak.name} to code.`);
+                console.log(`[TweaksManager] Successfully auto-saved tweak "${tweak.name}" (${tweak.cssVariable}) to ${metadata.path}`);
             } else {
-                console.warn(`[TweaksManager] Could not find CSS variable ${tweak.cssVariable} in code for auto-save.`);
+                console.warn(`[TweaksManager] Auto-save skipped: CSS variable ${tweak.cssVariable} not found in ${metadata.path}. Ensure code uses var(${tweak.cssVariable}, fallback).`);
             }
         } catch (err) {
-            console.error('[TweaksManager] Failed to auto-save tweak to code', err);
+            console.error('[TweaksManager] Error during auto-save to code', err);
         }
     }
 

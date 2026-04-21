@@ -82,7 +82,9 @@ export class CreateTweaksTool extends ClientTool {
                             if (!elementMetadata.code.includes(tweak.cssVariable)) {
                                 return {
                                     success: false,
-                                    message: `Validation Error: The CSS variable "${tweak.cssVariable}" was not found in the source code of the target element. You MUST first edit the code to use this variable (e.g. style={{ ${tweak.property}: 'var(${tweak.cssVariable})' }}) before calling this tool.`,
+                                    message: `Validation Error: The CSS variable "${tweak.cssVariable}" was not found in the source code of the target element. 
+You MUST first edit the component code to use this variable with a fallback (e.g. style={{ ${tweak.property}: 'var(${tweak.cssVariable}, ${tweak.value})' }}). 
+If search_replace_multi_edit_file failed due to "String not found", please use write_files_folders to overwrite the entire file with the correct code including the CSS variable.`,
                                 };
                             }
                         }
