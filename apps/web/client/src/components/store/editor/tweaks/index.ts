@@ -6,10 +6,11 @@ import type { IFrameView } from '@/app/project/[id]/_components/canvas/frame/vie
 export interface EditorTweak {
     id: string;
     name: string;
+    type: 'number' | 'color';
     cssVariable: string;
-    min: number;
-    max: number;
-    value: number;
+    min?: number;
+    max?: number;
+    value: number | string;
     unit?: string;
     category?: string;
     targetOid?: string;
@@ -115,7 +116,7 @@ export class TweaksManager {
         });
     }
 
-    updateTweakValue(id: string, value: number) {
+    updateTweakValue(id: string, value: number | string) {
         const tweak = this.activeTweaks.find(t => t.id === id);
         if (tweak) {
             tweak.value = value;
@@ -141,15 +142,17 @@ export class TweaksManager {
 
     applyTweaksToFrame(view: IFrameView) {
         this.activeTweaks.forEach(tweak => {
-            const valueStr = `${tweak.value}${tweak.unit || ''}`;
+            const valueStr = tweak.type === 'color' ? String(tweak.value) : `${tweak.value}${tweak.unit || ''}`;
             view.updateCssVariable(tweak.cssVariable, valueStr).catch((err) => {
                 console.warn('[TweaksManager] Failed to apply tweak to frame', err);
             });
         });
     }
 
-    private applyTweakVariableToFrames(cssVariable: string, value: number, unit: string) {
-        const valueStr = `${value}${unit || ''}`;
+    private applyTweakVariableToFrames(cssVariable: string, value: number | string, unit: string) {
+        const tweak = this.activeTweaks.find(t => t.cssVariable === cssVariable);
+        const valueStr = tweak?.type === 'color' ? String(value) : `${value}${unit || ''}`;
+        
         this.editorEngine.frames.getAll().forEach(frameData => {
             if (frameData.view) {
                 frameData.view.updateCssVariable(cssVariable, valueStr).catch((err) => {

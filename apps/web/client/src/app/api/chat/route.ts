@@ -1,18 +1,27 @@
+import { type NextRequest } from 'next/server';
 import { createUIMessageStream, createUIMessageStreamResponse } from 'ai';
-import { trackEvent } from '@/utils/analytics/server';
-import { createClient as createTRPCClient } from '@/trpc/request-server';
+import { v4 as uuidv4 } from 'uuid';
+
+import type { ChatMessage } from '@onlook/models';
 import { createRootAgentStream } from '@onlook/ai/src/server';
 import { toDbMessage } from '@onlook/db';
-import { ChatType, LLMProvider, type ChatMessage } from '@onlook/models';
+import { ChatType, LLMProvider } from '@onlook/models';
 import { getProjectMcpServers } from '@onlook/utility/src/mcp.server';
-import { type NextRequest } from 'next/server';
-import { v4 as uuidv4 } from 'uuid';
-import { checkMessageLimit, decrementUsage, errorHandler, getSupabaseUser, incrementUsage } from './helpers';
-import { MODAL_GLM5_LOCK_KEY, tryAcquireLock, releaseLock } from './locks';
+
+import { createClient as createTRPCClient } from '@/trpc/request-server';
+import { trackEvent } from '@/utils/analytics/server';
+import {
+    checkMessageLimit,
+    decrementUsage,
+    errorHandler,
+    getSupabaseUser,
+    incrementUsage,
+} from './helpers';
+import { MODAL_GLM5_LOCK_KEY, releaseLock, tryAcquireLock } from './locks';
 
 export async function POST(req: NextRequest) {
     try {
-        const body = await req.json().catch(err => {
+        const body = await req.json().catch((err) => {
             const errorMessage = err instanceof Error ? err.message : String(err);
             const errorStack = err instanceof Error ? err.stack : undefined;
             console.error('[Chat Route] Failed to parse JSON body:', {
@@ -27,17 +36,20 @@ export async function POST(req: NextRequest) {
             console.error('[Chat Route] Invalid or missing JSON body', {
                 timestamp: new Date().toISOString(),
             });
-            return new Response(JSON.stringify({
-                error: 'Invalid or missing JSON body',
-                code: 400,
-            }), {
-                status: 400,
-                headers: { 'Content-Type': 'application/json' }
-            });
+            return new Response(
+                JSON.stringify({
+                    error: 'Invalid or missing JSON body',
+                    code: 400,
+                }),
+                {
+                    status: 400,
+                    headers: { 'Content-Type': 'application/json' },
+                },
+            );
         }
 
         const { projectId } = body as {
-            projectId: string,
+            projectId: string;
         };
 
         if (!projectId) {
@@ -45,13 +57,16 @@ export async function POST(req: NextRequest) {
                 body,
                 timestamp: new Date().toISOString(),
             });
-            return new Response(JSON.stringify({
-                error: 'Missing projectId in request body',
-                code: 400,
-            }), {
-                status: 400,
-                headers: { 'Content-Type': 'application/json' }
-            });
+            return new Response(
+                JSON.stringify({
+                    error: 'Missing projectId in request body',
+                    code: 400,
+                }),
+                {
+                    status: 400,
+                    headers: { 'Content-Type': 'application/json' },
+                },
+            );
         }
 
         const user = await getSupabaseUser(req);
@@ -59,13 +74,16 @@ export async function POST(req: NextRequest) {
             console.error('[Chat Route] Unauthorized - no user found', {
                 timestamp: new Date().toISOString(),
             });
-            return new Response(JSON.stringify({
-                error: 'Unauthorized, no user found. Please login again.',
-                code: 401
-            }), {
-                status: 401,
-                headers: { 'Content-Type': 'application/json' }
-            });
+            return new Response(
+                JSON.stringify({
+                    error: 'Unauthorized, no user found. Please login again.',
+                    code: 401,
+                }),
+                {
+                    status: 401,
+                    headers: { 'Content-Type': 'application/json' },
+                },
+            );
         }
 
         const usageCheckResult = await checkMessageLimit(req);
@@ -81,14 +99,17 @@ export async function POST(req: NextRequest) {
                 usage: usageCheckResult.usage,
                 timestamp: new Date().toISOString(),
             });
-            return new Response(JSON.stringify({
-                error: 'Message limit exceeded. Please upgrade to a paid plan.',
-                code: 402,
-                usage: usageCheckResult.usage,
-            }), {
-                status: 402,
-                headers: { 'Content-Type': 'application/json' }
-            });
+            return new Response(
+                JSON.stringify({
+                    error: 'Message limit exceeded. Please upgrade to a paid plan.',
+                    code: 402,
+                    usage: usageCheckResult.usage,
+                }),
+                {
+                    status: 402,
+                    headers: { 'Content-Type': 'application/json' },
+                },
+            );
         }
 
         return streamResponse(req, user.id, body);
@@ -100,24 +121,27 @@ export async function POST(req: NextRequest) {
             stack: errorStack,
             timestamp: new Date().toISOString(),
         });
-        return new Response(JSON.stringify({
-            error: error instanceof Error ? error.message : String(error),
-            code: 500,
-        }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' }
-        });
+        return new Response(
+            JSON.stringify({
+                error: error instanceof Error ? error.message : String(error),
+                code: 500,
+            }),
+            {
+                status: 500,
+                headers: { 'Content-Type': 'application/json' },
+            },
+        );
     }
 }
 
 export const streamResponse = async (req: NextRequest, userId: string, body: any) => {
     const { messages, chatType, conversationId, projectId, chatModel, previewUrl } = body as {
-        messages: ChatMessage[],
-        chatType: ChatType,
-        conversationId: string,
-        projectId: string,
-        chatModel?: any,
-        previewUrl?: string,
+        messages: ChatMessage[];
+        chatType: ChatType;
+        conversationId: string;
+        projectId: string;
+        chatModel?: any;
+        previewUrl?: string;
     };
 
     let usageRecord: {
@@ -145,13 +169,16 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
                     projectId,
                     timestamp: new Date().toISOString(),
                 });
-                return new Response(JSON.stringify({
-                    error: 'GLM-5 is already processing another request. Please wait and try again.',
-                    code: 429,
-                }), {
-                    status: 429,
-                    headers: { 'Content-Type': 'application/json', 'Retry-After': '5' },
-                });
+                return new Response(
+                    JSON.stringify({
+                        error: 'GLM-5 is already processing another request. Please wait and try again.',
+                        code: 429,
+                    }),
+                    {
+                        status: 429,
+                        headers: { 'Content-Type': 'application/json', 'Retry-After': '5' },
+                    },
+                );
             }
         }
 
@@ -161,18 +188,23 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
             generateId: () => uuidv4(),
             onFinish: async ({ messages: finalMessages }: { messages: ChatMessage[] }) => {
                 if (isGLM5) releaseLock(MODAL_GLM5_LOCK_KEY);
-                
+
                 const messagesToStore = finalMessages
-                    .filter(msg => (msg.role === 'user' || msg.role === 'assistant'))
-                    .map(msg => toDbMessage({
-                        ...msg,
-                        metadata: {
-                            ...msg.metadata,
-                            createdAt: new Date(),
+                    .filter((msg) => msg.role === 'user' || msg.role === 'assistant')
+                    .map((msg) =>
+                        toDbMessage(
+                            {
+                                ...msg,
+                                metadata: {
+                                    ...msg.metadata,
+                                    createdAt: new Date(),
+                                    conversationId,
+                                    chatModel: selectedModel,
+                                },
+                            } as any,
                             conversationId,
-                            chatModel: selectedModel,
-                        }
-                    } as any, conversationId));
+                        ),
+                    );
 
                 await api.chat.message.replaceConversationMessages({
                     conversationId,
@@ -210,11 +242,16 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
                         updateMcpServer: async (serverId, patch) => {
                             const currentData = await api.settings.get({ projectId });
                             const servers = currentData?.mcpServers ?? [];
-                            const updated = servers.map((s: any) => s.id === serverId ? { ...s, ...patch } : s);
-                            await api.settings.upsert({ projectId, settings: { mcpServers: updated } });
-                        }
+                            const updated = servers.map((s: any) =>
+                                s.id === serverId ? { ...s, ...patch } : s,
+                            );
+                            await api.settings.upsert({
+                                projectId,
+                                settings: { mcpServers: updated },
+                            });
+                        },
                     });
-                    
+
                     selectedModel = model;
                     if (streamResult) {
                         writer.merge(streamResult.toUIMessageStream());
@@ -226,7 +263,7 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
                         errorText: err instanceof Error ? err.message : String(err),
                     });
                 }
-            }
+            },
         });
 
         return createUIMessageStreamResponse({ stream });
