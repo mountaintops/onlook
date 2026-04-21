@@ -61,6 +61,18 @@ export class EditorEngine {
     readonly ide: IdeManager;
     readonly tweaks: TweaksManager;
 
+    get activeSandbox(): SandboxManager {
+        return this.branches.activeSandbox;
+    }
+
+    get history() {
+        return this.branches.activeHistory;
+    }
+
+    get fileSystem(): CodeFileSystem {
+        return this.branches.activeCodeEditor;
+    }
+
     constructor(projectId: string, posthog: PostHog) {
         this.projectId = projectId;
         this.posthog = posthog;
