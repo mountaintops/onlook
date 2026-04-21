@@ -148,6 +148,7 @@ export class SessionManager {
     async createTerminalSessions(provider: Provider) {
         const task = new CLISessionImpl(
             'server',
+            'Server',
             CLISessionType.TASK,
             provider,
             this.errorManager,
@@ -156,6 +157,7 @@ export class SessionManager {
 
         const terminal = new CLISessionImpl(
             'terminal',
+            'Terminal',
             CLISessionType.TERMINAL,
             provider,
             this.errorManager,
@@ -270,7 +272,12 @@ export class SessionManager {
             await provider.runCommand({ args: { command: 'echo "ping"' } });
             return true;
         } catch (error) {
-            console.error('Failed to connect to sandbox', error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            if (errorMessage.includes('Shell with id') && errorMessage.includes('does not exist')) {
+                console.warn('[SessionManager] Ping failed: Shell does not exist. This is expected during reconnection.');
+            } else {
+                console.error('Failed to connect to sandbox', error);
+            }
             return false;
         }
     }
@@ -305,14 +312,17 @@ export class SessionManager {
             const errorMessage = error instanceof Error ? error.message : String(error);
 
             // Handle "Shell does not exist" error by attempting to reconnect
-            if (errorMessage.includes('Shell with id') && errorMessage.includes('does not exist') && retryCount < 1) {
+            if (errorMessage.includes('Shell with id') && errorMessage.includes('does not exist') && retryCount < 2) {
                 console.warn(`[SessionManager] Shell expired, attempting to reconnect... (retry ${retryCount + 1})`);
 
                 try {
                     // Attempt to reconnect/restart provider to get a fresh shell
                     await this.reconnect(this.branch.sandbox.id);
 
-                    // Retry the command once with fresh session
+                    // Wait a bit for the provider to stabilize
+                    await new Promise(resolve => setTimeout(resolve, 500));
+
+                    // Retry the command with fresh session
                     return this.runCommand(command, streamCallback, ignoreError, retryCount + 1);
                 } catch (reconnectError) {
                     console.error('[SessionManager] Failed to reconnect after shell expiry:', reconnectError);
@@ -320,7 +330,9 @@ export class SessionManager {
             }
 
 
-            console.error('Error running command:', error);
+            if (!ignoreError) {
+                console.error('Error running command:', error);
+            }
             return {
                 output: '',
                 success: false,

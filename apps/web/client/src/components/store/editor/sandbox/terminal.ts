@@ -36,19 +36,18 @@ export interface TerminalSession extends CLISession {
 }
 
 export class CLISessionImpl implements CLISession {
-    id: string;
     terminal: ProviderTerminal | null;
     task: ProviderTask | null;
     xterm: Terminal | null;
     fitAddon: FitAddon | null;
 
     constructor(
+        public readonly id: string,
         public readonly name: string,
         public readonly type: CLISessionType,
         private readonly provider: Provider,
         private readonly errorManager: ErrorManager,
     ) {
-        this.id = uuidv4();
         this.terminal = null;
         this.task = null;
         // Initialize xterm and fitAddon lazily
@@ -118,7 +117,12 @@ export class CLISessionImpl implements CLISession {
             }
 
         } catch (error) {
-            console.error('Failed to initialize terminal:', error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            if (errorMessage.includes('Shell with id') && errorMessage.includes('does not exist')) {
+                console.warn('[Terminal] Shell expired during initialization, this is expected during reconnection.');
+            } else {
+                console.error('Failed to initialize terminal:', error);
+            }
             this.terminal = null;
         }
     }
@@ -146,7 +150,12 @@ export class CLISessionImpl implements CLISession {
                 this.errorManager.processMessage(data);
             });
         } catch (error) {
-            console.error('Failed to initialize task:', error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            if (errorMessage.includes('Shell with id') && errorMessage.includes('does not exist')) {
+                console.warn('[Task] Shell expired during initialization, this is expected during reconnection.');
+            } else {
+                console.error('Failed to initialize task:', error);
+            }
         }
     }
 
