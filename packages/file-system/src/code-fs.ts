@@ -59,20 +59,7 @@ export class CodeFileSystem extends FileSystem {
     }
 
     async writeFile(path: string, content: string | Uint8Array): Promise<void> {
-        if (this.isJsxFile(path) && typeof content === 'string') {
-            const processedContent = await this.processJsxFile(path, content);
-            await super.writeFile(path, processedContent);
-        } else {
-            await super.writeFile(path, content);
-        }
-        // Notify listeners that a file was written
-        for (const callback of this.writeCallbacks) {
-            try {
-                callback(path, content);
-            } catch (error) {
-                console.error('[CodeFileSystem] Error in write callback:', error);
-            }
-        }
+        await this.writeBatch([{ type: 'file', path, content }]);
     }
 
     async writeFiles(files: Array<{ path: string; content: string | Uint8Array }>): Promise<void> {
@@ -172,72 +159,6 @@ export class CodeFileSystem extends FileSystem {
             console.warn(`Failed to parse ${path}, skipping OID injection but will still format`);
             return formatContent(path, content);
         }
-    }
-
-    private async processJsxFile(path: string, content: string): Promise<string> {
-        let processedContent = content;
-
-        const ast = getAstFromContent(content);
-        if (ast) {
-            if (isRootLayoutFile(path, this.options.routerType)) {
-                injectPreloadScript(ast);
-            }
-
-            const existingOids = await this.getFileOids(path);
-            const { ast: processedAst } = addOidsToAst(ast, existingOids);
-
-            processedContent = await getContentFromAst(processedAst, content);
-        } else {
-            console.warn(`Failed to parse ${path}, skipping OID injection but will still format`);
-        }
-
-        const formattedContent = await formatContent(path, processedContent);
-        await this.updateMetadataForFile(path, formattedContent);
-
-        return formattedContent;
-    }
-
-    private async getFileOids(path: string): Promise<Set<string>> {
-        const index = await this.loadIndex();
-
-        const oids = new Set<string>();
-        for (const [oid, metadata] of Object.entries(index)) {
-            if (pathsEqual(metadata.path, path)) {
-                oids.add(oid);
-            }
-        }
-        return oids;
-    }
-
-    private async updateMetadataForFile(path: string, content: string): Promise<void> {
-        const index = await this.loadIndex();
-
-        for (const [oid, metadata] of Object.entries(index)) {
-            if (pathsEqual(metadata.path, path)) {
-                delete index[oid];
-            }
-        }
-
-        const ast = getAstFromContent(content);
-        if (!ast) return;
-
-        const templateNodeMap = createTemplateNodeMap({
-            ast,
-            filename: path,
-            branchId: this.branchId,
-        });
-
-        for (const [oid, node] of templateNodeMap.entries()) {
-            const code = await getContentFromTemplateNode(node, content);
-            const metadata: JsxElementMetadata = {
-                ...node,
-                oid,
-                code: code || '',
-            };
-            index[oid] = metadata;
-        }
-
-        await this.saveIndex(index);
     }
 
     async getJsxElementMetadata(oid: string): Promise<JsxElementMetadata | undefined> {
