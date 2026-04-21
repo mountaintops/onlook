@@ -16,7 +16,7 @@ export const createTRPCContext = async (req: NextRequest, opts: { headers: Heade
     const user = data?.user ?? null;
 
     if (error) {
-        throw new TRPCError({ code: 'UNAUTHORIZED', message: error.message });
+        console.warn('[TRPC Server] Supabase auth error:', error.message);
     }
 
     // Mock "demo user" if not authenticated

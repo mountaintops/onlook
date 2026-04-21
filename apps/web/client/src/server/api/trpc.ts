@@ -40,19 +40,19 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
         console.warn('[TRPC] Supabase auth error:', error.message);
     }
 
-    // Authenticate with seed user if not authenticated
+    // Mock "demo user" if not authenticated
     let finalUser = user;
     if (!user) {
-        const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
-            email: SEED_USER.EMAIL,
-            password: SEED_USER.PASSWORD,
-        });
-
-        if (signInError) {
-            console.error('[TRPC] Failed to sign in with seed user:', signInError.message);
-        } else {
-            finalUser = authData.user;
-        }
+        finalUser = {
+            id: 'demo-user',
+            email: 'demo@onlook.com',
+            app_metadata: {},
+            user_metadata: {
+                full_name: 'Demo User',
+            },
+            aud: 'authenticated',
+            created_at: new Date().toISOString(),
+        } as User;
     }
 
     return {
