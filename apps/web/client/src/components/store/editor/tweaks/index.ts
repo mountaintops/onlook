@@ -14,35 +14,68 @@ export interface EditorTweak {
 }
 
 export class TweaksManager {
-    activeTweaks: EditorTweak[] = [];
+    private _activeTweaks: EditorTweak[] | null = null;
+
+    get activeTweaks(): EditorTweak[] {
+        if (this._activeTweaks === null) {
+            this.init();
+        }
+        return this._activeTweaks || [];
+    }
+
+    set activeTweaks(val: EditorTweak[]) {
+        this._activeTweaks = val;
+    }
 
     constructor(private editorEngine: EditorEngine) {
         makeAutoObservable(this);
     }
 
     private get storageKey() {
-        return `onlook-tweaks-${this.editorEngine.projectId}`;
+        const projectId = this.editorEngine.projectId;
+        if (!projectId) {
+            return null;
+        }
+        return `onlook-tweaks-${projectId}`;
     }
 
     init() {
-        if (typeof window === 'undefined') {
+        if (typeof window === 'undefined' || this._activeTweaks !== null) {
             return;
         }
-        const stored = localStorage.getItem(this.storageKey);
+
+        const key = this.storageKey;
+        if (!key) {
+            console.warn('[TweaksManager] Cannot initialize: No project ID available');
+            return;
+        }
+
+        const stored = localStorage.getItem(key);
         if (stored) {
             try {
-                this.activeTweaks = JSON.parse(stored);
+                this._activeTweaks = JSON.parse(stored);
+                console.log(`[TweaksManager] Loaded ${this._activeTweaks?.length} tweaks for project ${this.editorEngine.projectId}`);
             } catch (e) {
                 console.error('[TweaksManager] Failed to parse stored tweaks', e);
+                this._activeTweaks = [];
             }
+        } else {
+            this._activeTweaks = [];
         }
     }
 
     private save() {
-        if (typeof window === 'undefined') {
+        if (typeof window === 'undefined' || this._activeTweaks === null) {
             return;
         }
-        localStorage.setItem(this.storageKey, JSON.stringify(this.activeTweaks));
+
+        const key = this.storageKey;
+        if (!key) {
+            console.warn('[TweaksManager] Cannot save: No project ID available');
+            return;
+        }
+
+        localStorage.setItem(key, JSON.stringify(this._activeTweaks));
     }
 
     addTweaks(tweaksInput: Omit<EditorTweak, 'id'>[]) {
@@ -86,7 +119,7 @@ export class TweaksManager {
     }
 
     clear() {
-        this.activeTweaks = [];
+        this._activeTweaks = null;
     }
 
     applyTweaksToFrame(view: IFrameView) {

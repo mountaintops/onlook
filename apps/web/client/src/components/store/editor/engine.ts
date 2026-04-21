@@ -86,7 +86,6 @@ export class EditorEngine {
         this.frameEvent.init();
         this.chat.init();
         this.style.init();
-        this.tweaks.init();
     }
 
     async initBranches(branches: Branch[]) {
