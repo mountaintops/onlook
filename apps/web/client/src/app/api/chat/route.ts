@@ -184,8 +184,8 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
                 return errorHandler(err);
             },
             execute: async ({ writer }) => {
-                // Send an empty text delta to start the stream immediately and end the 'submitted' state on client
-                writer.write({ type: 'text-delta', id: uuidv4(), delta: '' });
+                // Send an empty text start to start the stream immediately and end the 'submitted' state on client
+                writer.write({ type: 'text-start', id: uuidv4() });
 
                 try {
                     // Combine MCP servers from three sources:
@@ -223,7 +223,7 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
                     if (isGLM5) releaseLock(MODAL_GLM5_LOCK_KEY);
                     writer.write({
                         type: 'error',
-                        error: err instanceof Error ? err.message : String(err),
+                        errorText: err instanceof Error ? err.message : String(err),
                     });
                 }
             }
