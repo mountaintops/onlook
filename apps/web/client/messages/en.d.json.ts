@@ -306,6 +306,7 @@ declare const messages: {
                     },
                     "brand": "Brand",
                     "branches": "Branches",
+                    "tweaks": "Tweaks",
                     "apps": "Apps"
                 }
             }
