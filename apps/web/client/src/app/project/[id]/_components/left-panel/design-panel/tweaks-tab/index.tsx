@@ -15,13 +15,12 @@ import { observer } from 'mobx-react-lite';
 import { Color } from '@onlook/utility';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@onlook/ui/accordion';
 import { Button } from '@onlook/ui/button';
-import { ColorPicker } from '@onlook/ui/color-picker';
 import { Icons } from '@onlook/ui/icons';
 import { Popover, PopoverContent, PopoverTrigger } from '@onlook/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@onlook/ui/select';
 import { Slider } from '@onlook/ui/slider';
 import { cn } from '@onlook/ui/utils';
-
+import { ColorPickerContent } from '@/app/project/[id]/_components/editor-bar/inputs/color-picker';
 import { useEditorEngine } from '@/components/store/editor';
 
 const TweakItem = observer(({ 
@@ -33,18 +32,6 @@ const TweakItem = observer(({
 }) => {
     const editorEngine = useEditorEngine();
     const [isValid, setIsValid] = useState<boolean | null>(null);
-
-    useEffect(() => {
-        const checkValidity = async () => {
-            if (!tweak.targetOid) {
-                setIsValid(true);
-                return;
-            }
-            const metadata = await editorEngine.ast.getJsxElementMetadata(tweak.targetOid);
-            setIsValid(metadata?.code?.includes(tweak.cssVariable) ?? false);
-        };
-        checkValidity();
-    }, [tweak.targetOid, tweak.cssVariable, editorEngine.ast]);
 
     const colorValue = useMemo(() => {
         if (tweak.type !== 'color') return null;
@@ -61,6 +48,18 @@ const TweakItem = observer(({
         const alpha = Math.round(colorValue.a * 100);
         return alpha < 100 ? `${hex} ${alpha}%` : hex;
     }, [colorValue, tweak.value]);
+
+    useEffect(() => {
+        const checkValidity = async () => {
+            if (!tweak.targetOid) {
+                setIsValid(true);
+                return;
+            }
+            const metadata = await editorEngine.ast.getJsxElementMetadata(tweak.targetOid);
+            setIsValid(metadata?.code?.includes(tweak.cssVariable) ?? false);
+        };
+        checkValidity();
+    }, [tweak.targetOid, tweak.cssVariable, editorEngine.ast]);
 
     return (
         <div className="group/tweak flex flex-col gap-3">
@@ -133,11 +132,14 @@ const TweakItem = observer(({
                                     <span className="truncate">{formattedColorLabel}</span>
                                 </Button>
                             </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0 border-none shadow-xl" align="start">
-                                <ColorPicker
+                            <PopoverContent className="w-auto p-0 border shadow-xl" align="start">
+                                <ColorPickerContent
                                     color={colorValue || Color.transparent}
                                     onChange={(newColor) =>
-                                        editorEngine.tweaks.updateTweakValue(tweak.id, newColor.toHex())
+                                        editorEngine.tweaks.updateTweakValue(tweak.id, (newColor as Color).toHex())
+                                    }
+                                    onChangeEnd={(newColor) =>
+                                        editorEngine.tweaks.updateTweakValue(tweak.id, (newColor as Color).toHex())
                                     }
                                 />
                             </PopoverContent>
