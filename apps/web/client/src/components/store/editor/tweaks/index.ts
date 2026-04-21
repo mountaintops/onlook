@@ -80,9 +80,13 @@ export class TweaksManager {
         this.save();
     }
 
-    clear() {
+    removeAll() {
         this.activeTweaks = [];
         this.save();
+    }
+
+    clear() {
+        this.activeTweaks = [];
     }
 
     applyTweaksToFrame(view: IFrameView) {

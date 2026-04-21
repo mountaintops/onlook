@@ -1,6 +1,7 @@
 import { useEditorEngine } from '@/components/store/editor';
 import { Slider } from '@onlook/ui/slider';
 import { Icons } from '@onlook/ui/icons';
+import { Button } from '@onlook/ui/button';
 import { SparklesIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 
@@ -10,9 +11,21 @@ export const TweaksTab = observer(() => {
 
     return (
         <div className="flex flex-col h-full w-full p-3 overflow-y-auto gap-6 text-xs">
-            <div className="flex items-center gap-2 mb-2">
-                <Icons.MixerHorizontal className="w-4 h-4" />
-                <h3 className="font-semibold text-foreground uppercase tracking-wider">Active Tweaks</h3>
+            <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                    <Icons.MixerHorizontal className="w-4 h-4" />
+                    <h3 className="font-semibold text-foreground uppercase tracking-wider">Active Tweaks</h3>
+                </div>
+                {tweaks.length > 0 && (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground"
+                        onClick={() => editorEngine.tweaks.removeAll()}
+                    >
+                        Clear All
+                    </Button>
+                )}
             </div>
             
             {tweaks.length === 0 ? (
