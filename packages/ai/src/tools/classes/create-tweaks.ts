@@ -6,7 +6,7 @@ import { ClientTool } from '../models/client';
 export class CreateTweaksTool extends ClientTool {
     static readonly toolName = 'create_tweaks';
     static readonly description =
-        'Propose dynamic UI sliders (Tweaks) for CSS variables. Use this whenever the user asks for "vibe" shifts or stylistic fine-tuning (e.g. "make it more modern", "increase spacing"). MANDATORY: You must first edit the component code to use these CSS variables with fallbacks before calling this tool.';
+        'Propose dynamic UI sliders (Tweaks) for CSS variables. Use this whenever the user asks for "vibe" shifts or stylistic fine-tuning (e.g. "make it more modern", "I want it to be more bouncy"). DO NOT create tweaks for standard layout/typography properties (padding, margin, fonts, colors, roundness, etc.) as these are handled by the main style panel. MANDATORY: You must first edit the component code to use these CSS variables with fallbacks before calling this tool.';
     
     static readonly parameters = z.object({
         tweaks: z.array(z.object({
