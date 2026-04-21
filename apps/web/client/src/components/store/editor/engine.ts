@@ -29,6 +29,7 @@ import { StateManager } from './state';
 import { StyleManager } from './style';
 import { TextEditingManager } from './text';
 import { ThemeManager } from './theme';
+import { TweaksManager } from './tweaks';
 
 export class EditorEngine {
     readonly projectId: string;
@@ -71,6 +72,7 @@ export class EditorEngine {
     readonly snap: SnapManager = new SnapManager(this);
     readonly api: ApiManager = new ApiManager(this);
     readonly ide: IdeManager = new IdeManager(this);
+    readonly tweaks: TweaksManager = new TweaksManager(this);
 
     constructor(projectId: string, posthog: PostHog) {
         this.projectId = projectId;
@@ -110,6 +112,7 @@ export class EditorEngine {
         this.pages.clear();
         this.chat.clear();
         this.code.clear();
+        this.tweaks.clear();
         this.branches.clear();
         this.frameEvent.clear();
         this.screenshot.clear();

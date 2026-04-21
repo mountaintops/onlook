@@ -11,6 +11,10 @@ import { ChatTab } from './chat-tab';
 import { ChatControls } from './chat-tab/controls';
 import { ChatHistory } from './chat-tab/history';
 import { ChatPanelDropdown } from './chat-tab/panel-dropdown';
+import { TweaksTab } from './tweaks-tab';
+import { MixerHorizontalIcon } from '@radix-ui/react-icons';
+import { Button } from '@onlook/ui/button';
+import { cn } from '@onlook/ui/utils';
 
 export const RightPanel = observer(() => {
     const editorEngine = useEditorEngine();
@@ -44,20 +48,41 @@ export const RightPanel = observer(() => {
                                 <Icons.ChevronDown className="ml-0.5 h-3 w-3 text-muted-foreground group-hover:text-foreground-primary" />
                             </div>
                         </ChatPanelDropdown>
-                        <div className='ml-auto'>
-                            <ChatControls />
+                        <div className='ml-auto flex items-center'>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className={cn(
+                                    "h-7 w-7 mr-1 transition-colors",
+                                    editorEngine.tweaks.isOpen
+                                        ? "bg-secondary text-foreground"
+                                        : "text-muted-foreground hover:text-foreground hover:bg-transparent bg-transparent"
+                                )}
+                                onClick={() => editorEngine.tweaks.isOpen = !editorEngine.tweaks.isOpen}
+                                title="Tweaks Panel"
+                            >
+                                <MixerHorizontalIcon className="w-4 h-4" />
+                            </Button>
+                            {!editorEngine.tweaks.isOpen && <ChatControls />}
                         </div>
                     </div>
-                    <ChatHistory isOpen={isChatHistoryOpen} onOpenChange={setIsChatHistoryOpen} />
+                    
+                    {editorEngine.tweaks.isOpen ? (
+                        <TweaksTab />
+                    ) : (
+                        <>
+                            <ChatHistory isOpen={isChatHistoryOpen} onOpenChange={setIsChatHistoryOpen} />
 
-                    <div className='flex-1 overflow-y-auto'>
-                        {currentConversation && (
-                            <ChatTab
-                                conversationId={currentConversation.id}
-                                projectId={editorEngine.projectId}
-                            />
-                        )}
-                    </div>
+                            <div className='flex-1 overflow-y-auto'>
+                                {currentConversation && (
+                                    <ChatTab
+                                        conversationId={currentConversation.id}
+                                        projectId={editorEngine.projectId}
+                                    />
+                                )}
+                            </div>
+                        </>
+                    )}
                 </div>
             </ResizablePanel >
         </div >

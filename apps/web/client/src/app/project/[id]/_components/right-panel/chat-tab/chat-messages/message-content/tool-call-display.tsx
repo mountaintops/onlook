@@ -1,4 +1,4 @@
-import { FuzzyEditFileTool, SearchReplaceEditTool, SearchReplaceMultiEditFileTool, TerminalCommandTool, TypecheckTool, WebSearchTool, WriteFileTool } from '@onlook/ai';
+import { FuzzyEditFileTool, SearchReplaceEditTool, SearchReplaceMultiEditFileTool, TerminalCommandTool, TypecheckTool, WebSearchTool, WriteFileTool, CreateTweaksTool } from '@onlook/ai';
 import type { WebSearchResult } from '@onlook/models';
 import type { ToolUIPart } from 'ai';
 import { observer } from 'mobx-react-lite';
@@ -218,6 +218,26 @@ const ToolCallDisplayComponent = ({
         );
     }
 
+    if (toolName === CreateTweaksTool.toolName) {
+        const args = toolPart.input as z.infer<typeof CreateTweaksTool.parameters> | null;
+        return (
+            <div className="flex flex-col gap-2 p-3 bg-secondary/50 rounded-lg text-sm border border-border">
+                <div className="flex items-center gap-2 pb-1">
+                    <div className="text-foreground font-medium">Style Tweaks Ready</div>
+                </div>
+                <div className="text-muted-foreground text-xs leading-relaxed">
+                    Added {args?.tweaks?.length || 0} sliders to the tweaks panel. Switch to the tweaks tab above to tune them visually.
+                </div>
+                <div className="flex flex-col gap-1 mt-1">
+                    {(args?.tweaks || []).map((t: any) => (
+                        <div key={t.cssVariable} className="text-xs flex items-center gap-2 w-full">
+                            <span className="font-mono bg-background border border-border px-1 rounded truncate flex-1">{t.cssVariable}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
 
     return (
         <ToolCallSimple

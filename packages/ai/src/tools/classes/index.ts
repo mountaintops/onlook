@@ -23,3 +23,4 @@ export { WriteFileTool } from './write-file';
 export { WriteFilesFoldersTool } from './write-files-folders';
 export { Base64Tool } from './base64';
 export { UploaderTool } from './uploader';
+export { CreateTweaksTool } from './create-tweaks';

@@ -26,6 +26,7 @@ import {
     WriteFileTool,
     WriteFilesFoldersTool,
     Base64Tool,
+    CreateTweaksTool,
 } from './classes';
 import { tool } from 'ai';
 import type { BaseTool } from './models/base';
@@ -66,6 +67,7 @@ const editOnlyToolClasses = [
     UploadImageTool,
     Base64Tool,
     UploaderTool,
+    CreateTweaksTool,
 ];
 const allToolClasses = [...readOnlyToolClasses, ...editOnlyToolClasses];
 

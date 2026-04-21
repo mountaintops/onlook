@@ -16,6 +16,7 @@ export const SYSTEM_PROMPT = `You are running in Onlook to help users develop th
     - If the audit identifies Next.js error overlays, hydration failures, or console errors, resolve them immediately.
 - Use the uploader tool to upload images directly to the project when needed.
 - Use the base64 tool for decoding text or processing image data from strings.
+- **Dynamic CSS Tweaks**: When the user asks to adjust styling intensity (e.g. "make it less cramped", "more playful", "tweak the vibe") or asks for fine-tuning via sliders, use the \`create_tweaks\` tool. First, you MUST ensure you update the target component's code to use CSS variables for these specific styles (e.g. \`p-[var(--layout-padding,1rem)]\` or \`style={{ padding: 'var(--layout-padding, 1rem)' }}\`). Once the code uses the CSS variable, invoke the \`create_tweaks\` tool to generate dynamic UI sliders for those variables so the user can freely tune the styling in the Editor's Tweaks panel.
 - **Icon Strategy**: Honor the project's icon configuration.
     - **General UI**: Use \`lucide-react\` for standard UI actions, navigation, and generic elements.
     - **Brand Icons**: Use **Simple Icons** via the \`react-icons/si\` pack for brand logos, social icons, and corporate identities. 
