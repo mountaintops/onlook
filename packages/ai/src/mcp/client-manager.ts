@@ -15,6 +15,7 @@ export class McpClientManager {
     ): Promise<ToolSet> {
         if (!servers.length) return {};
 
+        const MCP_TIMEOUT = 5000;
         const results = await Promise.allSettled(
             servers.map(async (srv) => {
                 // Validate URL - data URIs are not supported for MCP connections
@@ -32,17 +33,32 @@ export class McpClientManager {
 
                 console.log(`[MCP] Connecting to ${srv.name} at ${srv.url} with auth: ${srv.authType} (headers: ${Object.keys(headers).join(', ')})`);
 
-                const client = await createMCPClient({
+                const clientPromise = createMCPClient({
                     transport: {
                         type: srv.transportType ?? 'http',
                         url: srv.url,
                         headers,
                     },
                 });
+
+                const client = await Promise.race([
+                    clientPromise,
+                    new Promise<never>((_, reject) =>
+                        setTimeout(() => reject(new Error(`Connection timeout for ${srv.name}`)), MCP_TIMEOUT)
+                    )
+                ]);
+
                 this.clients.push(client);
 
                 try {
-                    const tools = await client.tools();
+                    const toolsPromise = client.tools();
+                    const tools = await Promise.race([
+                        toolsPromise,
+                        new Promise<Record<string, any>>((_, reject) =>
+                            setTimeout(() => reject(new Error(`Tool discovery timeout for ${srv.name}`)), MCP_TIMEOUT)
+                        )
+                    ]);
+
                     console.log(
                         `[MCP] Connected to "${srv.name}" (${srv.url}) — ${Object.keys(tools).length} tools loaded`,
                     );

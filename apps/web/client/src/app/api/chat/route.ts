@@ -155,42 +155,7 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
             }
         }
 
-        let streamResult;
-        let selectedModel;
-        try {
-            // Combine MCP servers from three sources:
-            // 1. Permanent (site-wide, from JSON config)
-            // 2. Global (per user, from user settings)
-            // 3. Project-specific (per project, from project settings)
-            const mcpServers = getProjectMcpServers(
-                projectSettingsData?.mcpServers ?? [],
-                userData?.mcpServers ?? [],
-            );
-
-            const result = await createRootAgentStream({
-                chatType,
-                conversationId,
-                projectId,
-                userId,
-                traceId,
-                messages,
-                chatModel,
-                mcpServers,
-                previewUrl,
-                updateMcpServer: async (serverId, patch) => {
-                    const currentData = await api.settings.get({ projectId });
-                    const servers = currentData?.mcpServers ?? [];
-                    const updated = servers.map((s: any) => s.id === serverId ? { ...s, ...patch } : s);
-                    await api.settings.upsert({ projectId, settings: { mcpServers: updated } });
-                }
-            });
-            streamResult = result.streamResult;
-            selectedModel = result.model;
-        } catch (err: any) {
-            if (isGLM5) releaseLock(MODAL_GLM5_LOCK_KEY);
-            throw err;
-        }
-
+        let selectedModel = chatModel;
         const stream = createUIMessageStream({
             originalMessages: messages,
             generateId: () => uuidv4(),
@@ -219,8 +184,44 @@ export const streamResponse = async (req: NextRequest, userId: string, body: any
                 return errorHandler(err);
             },
             execute: async ({ writer }) => {
-                if (streamResult) {
-                    writer.merge(streamResult.toUIMessageStream());
+                try {
+                    // Combine MCP servers from three sources:
+                    // 1. Permanent (site-wide, from JSON config)
+                    // 2. Global (per user, from user settings)
+                    // 3. Project-specific (per project, from project settings)
+                    const mcpServers = getProjectMcpServers(
+                        projectSettingsData?.mcpServers ?? [],
+                        userData?.mcpServers ?? [],
+                    );
+
+                    const { streamResult, model } = await createRootAgentStream({
+                        chatType,
+                        conversationId,
+                        projectId,
+                        userId,
+                        traceId,
+                        messages,
+                        chatModel,
+                        mcpServers,
+                        previewUrl,
+                        updateMcpServer: async (serverId, patch) => {
+                            const currentData = await api.settings.get({ projectId });
+                            const servers = currentData?.mcpServers ?? [];
+                            const updated = servers.map((s: any) => s.id === serverId ? { ...s, ...patch } : s);
+                            await api.settings.upsert({ projectId, settings: { mcpServers: updated } });
+                        }
+                    });
+                    
+                    selectedModel = model;
+                    if (streamResult) {
+                        writer.merge(streamResult.toUIMessageStream());
+                    }
+                } catch (err) {
+                    if (isGLM5) releaseLock(MODAL_GLM5_LOCK_KEY);
+                    writer.write({
+                        type: 'error',
+                        error: err instanceof Error ? err.message : String(err),
+                    });
                 }
             }
         });
