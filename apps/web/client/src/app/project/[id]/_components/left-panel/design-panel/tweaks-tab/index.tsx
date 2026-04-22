@@ -141,6 +141,7 @@ const TweakItem = observer(({
                                     onChangeEnd={(newColor) =>
                                         editorEngine.tweaks.updateTweakValue(tweak.id, (newColor as Color).toHex())
                                     }
+                                    disableAutoUpdate={true}
                                 />
                             </PopoverContent>
                         </Popover>

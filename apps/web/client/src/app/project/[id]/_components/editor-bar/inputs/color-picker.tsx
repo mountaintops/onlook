@@ -105,6 +105,7 @@ interface ColorPickerProps {
     backgroundImage?: string;
     isCreatingNewColor?: boolean;
     hideGradient?: boolean;
+    disableAutoUpdate?: boolean;
 }
 
 export const ColorPickerContent: React.FC<ColorPickerProps> = ({
@@ -114,6 +115,7 @@ export const ColorPickerContent: React.FC<ColorPickerProps> = ({
     backgroundImage,
     isCreatingNewColor,
     hideGradient = false,
+    disableAutoUpdate = false,
 }) => {
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const [palette, setPalette] = useState<Palette>(color.palette);
@@ -422,14 +424,14 @@ export const ColorPickerContent: React.FC<ColorPickerProps> = ({
     });
 
     const handleColorSelect = (colorItem: TailwindColor) => {
-        if (hasGradient(backgroundImage)) {
+        if (!disableAutoUpdate && hasGradient(backgroundImage)) {
             editorEngine.style.update('backgroundImage', 'none');
         }
         onChangeEnd(colorItem);
     };
 
     const handleRemoveColor = () => {
-        if (hasGradient(backgroundImage)) {
+        if (!disableAutoUpdate && hasGradient(backgroundImage)) {
             editorEngine.style.update('backgroundImage', 'none');
             return;
         }
@@ -446,9 +448,11 @@ export const ColorPickerContent: React.FC<ColorPickerProps> = ({
         (newGradient: GradientState) => {
             setGradientState(newGradient);
             setActiveTab(TabValue.GRADIENT);
-            handleGradientUpdateEnd(newGradient);
+            if (!disableAutoUpdate) {
+                handleGradientUpdateEnd(newGradient);
+            }
         },
-        [handleGradientUpdateEnd],
+        [handleGradientUpdateEnd, disableAutoUpdate],
     );
 
     const handleStopColorChange = useCallback(
@@ -524,7 +528,7 @@ export const ColorPickerContent: React.FC<ColorPickerProps> = ({
                                 className="w-6 h-6 content-center cursor-pointer rounded border-[0.5px] border-foreground-tertiary/50"
                                 style={{ backgroundColor: palette.colors[Number.parseInt(level)] }}
                                 onClick={() => {
-                                    if (hasGradient(backgroundImage)) {
+                                    if (!disableAutoUpdate && hasGradient(backgroundImage)) {
                                         editorEngine.style.update('backgroundImage', 'none');
                                     }
                                     onChangeEnd(
@@ -543,7 +547,7 @@ export const ColorPickerContent: React.FC<ColorPickerProps> = ({
                                 className="gap-2 hover:bg-background-secondary p-1 flex align-center cursor-pointer rounded-md group"
                                 key={level}
                                 onClick={() => {
-                                    if (hasGradient(backgroundImage)) {
+                                    if (!disableAutoUpdate && hasGradient(backgroundImage)) {
                                         editorEngine.style.update('backgroundImage', 'none');
                                     }
                                     onChangeEnd(
@@ -727,7 +731,7 @@ export const ColorPickerContent: React.FC<ColorPickerProps> = ({
                         color={color}
                         onChange={onChange}
                         onChangeEnd={(val) => {
-                            if (hasGradient(backgroundImage)) {
+                            if (!disableAutoUpdate && hasGradient(backgroundImage)) {
                                 editorEngine.style.update('backgroundImage', 'none');
                             }
                             onChangeEnd?.(val);
