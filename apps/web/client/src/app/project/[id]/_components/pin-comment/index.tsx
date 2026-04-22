@@ -16,24 +16,33 @@ export const PinCommentPanel = observer(({ isSidebar = false }: { isSidebar?: bo
 
     if (isSidebar) {
         return (
-            <div className="flex flex-col gap-3 px-4 py-6 border-t bg-muted/5 max-h-[400px] overflow-y-auto custom-scrollbar">
-                <div className="flex items-center gap-2 mb-1">
-                    <Icons.Sparkles className="w-4 h-4 text-primary" />
-                    <h4 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">AI Sub-agents</h4>
+            <div className="bg-background flex h-full w-full flex-col overflow-hidden">
+                <div className="bg-muted/30 flex flex-col gap-3 border-b p-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <div className="bg-primary/10 text-primary rounded-md p-1.5">
+                                <Icons.Sparkles className="h-4 w-4" />
+                            </div>
+                            <h3 className="text-foreground text-sm font-semibold">AI Sub-agents</h3>
+                        </div>
+                    </div>
                 </div>
-                {comments.length > 0 ? (
-                    <div className="flex flex-col gap-3">
+
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-4 flex flex-col gap-4">
+                    {comments.length > 0 ? (
                         <AnimatePresence mode="popLayout">
                             {comments.map((comment) => (
                                 <PinCommentCard key={comment.id} comment={comment} />
                             ))}
                         </AnimatePresence>
-                    </div>
-                ) : (
-                    <div className="text-[10px] text-muted-foreground italic px-1">
-                        No active sub-agents. Pin a comment to start one.
-                    </div>
-                )}
+                    ) : (
+                        <div className="flex flex-col items-center justify-center h-64 text-center p-6 text-muted-foreground">
+                            <Icons.Sparkles className="h-10 w-10 mb-4 opacity-10" />
+                            <p className="text-sm font-medium text-foreground mb-1">No Active Sub-agents</p>
+                            <p className="text-xs">Pin a comment to an element to spawn a parallel AI agent.</p>
+                        </div>
+                    )}
+                </div>
             </div>
         );
     }

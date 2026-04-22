@@ -52,6 +52,11 @@ const tabs: {
             icon: <Icons.MixerHorizontal className="w-5 h-5" />,
             label: transKeys.editor.panels.layers.tabs.tweaks,
         },
+        {
+            value: LeftPanelTabValue.AI,
+            icon: <Icons.Sparkles className="w-5 h-5" />,
+            label: transKeys.editor.panels.layers.tabs.ai,
+        },
     ];
 
 export const DesignPanel = observer(() => {
@@ -146,14 +151,8 @@ export const DesignPanel = observer(() => {
                             {selectedTab === LeftPanelTabValue.PAGES && <PagesTab />}
                             {selectedTab === LeftPanelTabValue.IMAGES && <ImagesTab />}
                             {selectedTab === LeftPanelTabValue.BRANCHES && <BranchesTab />}
-                            {selectedTab === LeftPanelTabValue.TWEAKS && (
-                                <div className="flex flex-col h-full overflow-hidden">
-                                    <div className="flex-1 overflow-auto">
-                                        <TweaksTab />
-                                    </div>
-                                    <PinCommentPanel isSidebar />
-                                </div>
-                            )}
+                            {selectedTab === LeftPanelTabValue.TWEAKS && <TweaksTab />}
+                            {selectedTab === LeftPanelTabValue.AI && <PinCommentPanel isSidebar />}
                         </div>
                     </div>
 
