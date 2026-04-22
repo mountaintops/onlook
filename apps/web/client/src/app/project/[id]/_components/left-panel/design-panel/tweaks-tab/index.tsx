@@ -136,6 +136,7 @@ const TweakItem = observer(({
                             <PopoverContent className="w-auto p-0 border shadow-xl" align="start">
                                 <ColorPickerContent
                                     color={colorValue || Color.transparent}
+                                    backgroundImage={String(tweak.value)}
                                     onChange={(newColor) =>
                                         editorEngine.tweaks.updateTweakValue(
                                             tweak.id,
