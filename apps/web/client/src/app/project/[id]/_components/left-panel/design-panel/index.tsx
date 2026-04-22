@@ -13,6 +13,7 @@ import { LayersTab } from './layers-tab';
 import { PagesTab } from './page-tab';
 import { TweaksTab } from './tweaks-tab';
 import { ZoomControls } from './zoom-controls';
+import { PinCommentPanel } from '../../pin-comment';
 
 const tabs: {
     value: LeftPanelTabValue;
@@ -145,7 +146,14 @@ export const DesignPanel = observer(() => {
                             {selectedTab === LeftPanelTabValue.PAGES && <PagesTab />}
                             {selectedTab === LeftPanelTabValue.IMAGES && <ImagesTab />}
                             {selectedTab === LeftPanelTabValue.BRANCHES && <BranchesTab />}
-                            {selectedTab === LeftPanelTabValue.TWEAKS && <TweaksTab />}
+                            {selectedTab === LeftPanelTabValue.TWEAKS && (
+                                <div className="flex flex-col h-full overflow-hidden">
+                                    <div className="flex-1 overflow-auto">
+                                        <TweaksTab />
+                                    </div>
+                                    <PinCommentPanel isSidebar />
+                                </div>
+                            )}
                         </div>
                     </div>
 

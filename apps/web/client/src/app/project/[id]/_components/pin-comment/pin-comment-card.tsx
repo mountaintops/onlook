@@ -13,6 +13,7 @@ import { useChat as useAiChat } from '@ai-sdk/react';
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls } from 'ai';
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
+import { MessageContent } from '@/app/project/[id]/_components/right-panel/chat-tab/chat-messages/message-content';
 import { jsonClone } from '@onlook/utility';
 
 interface PinCommentCardProps {
@@ -29,6 +30,7 @@ interface PinCommentCardProps {
 export function PinCommentCard({ comment }: PinCommentCardProps) {
     const editorEngine = useEditorEngine();
     const [isExpanded, setIsExpanded] = useState(false);
+    const [showLogs, setShowLogs] = useState(false);
     const [isExecutingToolCall, setIsExecutingToolCall] = useState(false);
     const hasFiredRef = useRef(false);
 
@@ -82,19 +84,21 @@ export function PinCommentCard({ comment }: PinCommentCardProps) {
             editorEngine.pinComments.setStatus(comment.id, 'error');
             setIsExecutingToolCall(false);
         },
-        onFinish: () => {
-            editorEngine.pinComments.setStatus(comment.id, 'done');
-        },
     });
 
     const isStreaming = status === 'streaming' || status === 'submitted' || isExecutingToolCall;
 
-    // Sync streaming → store
+    // Sync status → store
     useEffect(() => {
         if (isStreaming) {
             editorEngine.pinComments.setStatus(comment.id, 'streaming');
+        } else if (status === 'ready' || status === 'idle') {
+            // Only set to done if we've actually fired and finished
+            if (hasFiredRef.current) {
+                editorEngine.pinComments.setStatus(comment.id, 'done');
+            }
         }
-    }, [isStreaming, editorEngine.pinComments, comment.id]);
+    }, [isStreaming, status, editorEngine.pinComments, comment.id]);
 
     // Create the backend conversation record and fire the AI request exactly once
     useEffect(() => {
@@ -169,7 +173,7 @@ export function PinCommentCard({ comment }: PinCommentCardProps) {
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: 40, scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 260, damping: 22 }}
-            className="flex flex-col rounded-xl border border-border bg-background/90 backdrop-blur-xl shadow-xl w-72 overflow-hidden"
+            className="flex flex-col rounded-xl border border-border bg-background/90 backdrop-blur-xl shadow-sm w-full overflow-hidden"
         >
             {/* ── Header ── */}
             <div className="flex items-center gap-2 px-3 py-2 bg-background-secondary/40 border-b border-border/60">
@@ -186,6 +190,22 @@ export function PinCommentCard({ comment }: PinCommentCardProps) {
                 {/* Controls */}
                 <div className="flex items-center gap-0.5 shrink-0">
                     <StatusIcon />
+                    <Button
+                        size="icon"
+                        variant="ghost"
+                        title={showLogs ? 'Hide Logs' : 'Show Logs'}
+                        className={cn(
+                            "h-5 w-5 rounded-md transition-colors",
+                            showLogs ? "text-primary bg-primary/10" : "text-foreground-secondary/60 hover:text-foreground-secondary"
+                        )}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowLogs((v) => !v);
+                            if (!isExpanded) setIsExpanded(true);
+                        }}
+                    >
+                        <Icons.FileText className="h-3 w-3" />
+                    </Button>
                     <Button
                         size="icon"
                         variant="ghost"
@@ -241,8 +261,34 @@ export function PinCommentCard({ comment }: PinCommentCardProps) {
                                 </span>
                             </div>
 
-                            {/* AI response text */}
-                            {lastAssistantText ? (
+                            {/* AI response text or Chat Logs */}
+                            {showLogs ? (
+                                <div className="flex flex-col gap-4 mt-2">
+                                    {messages.map((msg, i) => (
+                                        <div key={msg.id || i} className={cn(
+                                            "flex flex-col gap-1 p-2 rounded-lg border",
+                                            msg.role === 'user' ? "bg-primary/5 border-primary/10" : "bg-muted/30 border-border/40"
+                                        )}>
+                                            <div className="flex items-center gap-1.5 mb-1 opacity-60">
+                                                {msg.role === 'user' ? (
+                                                    <Icons.Person className="h-3 w-3" />
+                                                ) : (
+                                                    <Icons.Sparkles className="h-3 w-3" />
+                                                )}
+                                                <span className="text-[10px] font-bold uppercase tracking-wider">
+                                                    {msg.role === 'user' ? 'You' : 'AI Assistant'}
+                                                </span>
+                                            </div>
+                                            <MessageContent
+                                                messageId={msg.id}
+                                                parts={msg.parts}
+                                                applied={comment.status === 'done'}
+                                                isStream={isStreaming && i === messages.length - 1}
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : lastAssistantText ? (
                                 <p className="text-xs text-foreground-secondary leading-relaxed whitespace-pre-wrap">
                                     {lastAssistantText.length > 400
                                         ? lastAssistantText.slice(0, 400) + '…'

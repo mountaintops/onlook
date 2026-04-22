@@ -20,7 +20,6 @@ import { EditorBar } from './editor-bar';
 import { LeftPanel } from './left-panel';
 import { RightPanel } from './right-panel';
 import { TopBar } from './top-bar';
-import { PinCommentPanel } from './pin-comment';
 
 export const Main = observer(() => {
     const router = useRouter();
@@ -128,7 +127,6 @@ export const Main = observer(() => {
 
                 <BottomBar />
                 {/* Floating pin comment cards – rendered outside all panels so they persist */}
-                <PinCommentPanel />
             </div>
             <SettingsModalWithProjects />
             <SubscriptionModal />
