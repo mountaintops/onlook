@@ -136,10 +136,16 @@ const TweakItem = observer(({
                                 <ColorPickerContent
                                     color={colorValue || Color.transparent}
                                     onChange={(newColor) =>
-                                        editorEngine.tweaks.updateTweakValue(tweak.id, (newColor as Color).toHex())
+                                        editorEngine.tweaks.updateTweakValue(
+                                            tweak.id,
+                                            newColor instanceof Color ? newColor.toHex() : newColor.lightColor,
+                                        )
                                     }
                                     onChangeEnd={(newColor) =>
-                                        editorEngine.tweaks.updateTweakValue(tweak.id, (newColor as Color).toHex())
+                                        editorEngine.tweaks.updateTweakValue(
+                                            tweak.id,
+                                            newColor instanceof Color ? newColor.toHex() : newColor.lightColor,
+                                        )
                                     }
                                     disableAutoUpdate={true}
                                 />
