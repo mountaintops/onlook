@@ -14,8 +14,6 @@ export const PinCommentPanel = observer(({ isSidebar = false }: { isSidebar?: bo
     const editorEngine = useEditorEngine();
     const comments = editorEngine.pinComments.all;
 
-    if (comments.length === 0) return null;
-
     if (isSidebar) {
         return (
             <div className="flex flex-col gap-3 px-4 py-6 border-t bg-muted/5 max-h-[400px] overflow-y-auto custom-scrollbar">
@@ -23,16 +21,24 @@ export const PinCommentPanel = observer(({ isSidebar = false }: { isSidebar?: bo
                     <Icons.Sparkles className="w-4 h-4 text-primary" />
                     <h4 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">AI Sub-agents</h4>
                 </div>
-                <div className="flex flex-col gap-3">
-                    <AnimatePresence mode="popLayout">
-                        {comments.map((comment) => (
-                            <PinCommentCard key={comment.id} comment={comment} />
-                        ))}
-                    </AnimatePresence>
-                </div>
+                {comments.length > 0 ? (
+                    <div className="flex flex-col gap-3">
+                        <AnimatePresence mode="popLayout">
+                            {comments.map((comment) => (
+                                <PinCommentCard key={comment.id} comment={comment} />
+                            ))}
+                        </AnimatePresence>
+                    </div>
+                ) : (
+                    <div className="text-[10px] text-muted-foreground italic px-1">
+                        No active sub-agents. Pin a comment to start one.
+                    </div>
+                )}
             </div>
         );
     }
+
+    if (comments.length === 0) return null;
 
     return (
         <div

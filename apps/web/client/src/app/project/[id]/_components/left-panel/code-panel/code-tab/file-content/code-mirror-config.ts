@@ -279,11 +279,15 @@ const elementHighlightField = StateField.define<DecorationSet>({
                 const validStartPos = Math.max(0, Math.min(startPos, doc.length));
                 const validEndPos = Math.max(validStartPos, Math.min(endPos, doc.length));
 
-                decorations = Decoration.set([
-                    Decoration.mark({
-                        class: 'cm-element-highlight'
-                    }).range(validStartPos, validEndPos)
-                ]);
+                if (validStartPos < validEndPos) {
+                    decorations = Decoration.set([
+                        Decoration.mark({
+                            class: 'cm-element-highlight'
+                        }).range(validStartPos, validEndPos)
+                    ]);
+                } else {
+                    decorations = Decoration.none;
+                }
             } else if (effect.is(clearElementHighlightEffect)) {
                 decorations = Decoration.none;
             }
