@@ -5,6 +5,7 @@ import { LeftPanelTabValue } from '@onlook/models';
 import { Icons } from '@onlook/ui/icons';
 
 import { ClientTool } from '../models/client';
+import { getFileSystem } from '../shared/helpers/files';
 
 export class CreateTweaksTool extends ClientTool {
     static readonly toolName = 'create_tweaks';
@@ -78,8 +79,23 @@ export class CreateTweaksTool extends ClientTool {
                         const elementMetadata = await editorEngine.ast.getJsxElementMetadata(
                             metadata.oid,
                         );
-                        if (elementMetadata?.code) {
-                            if (!elementMetadata.code.includes(tweak.cssVariable)) {
+                        if (elementMetadata?.path) {
+                            let fileContent = elementMetadata.code || '';
+                            const branchId = editorEngine.frames.selected[0]?.frame.branchId;
+                            
+                            if (branchId) {
+                                try {
+                                    const fs = await getFileSystem(branchId, editorEngine);
+                                    const content = await fs.readFile(elementMetadata.path);
+                                    if (typeof content === 'string') {
+                                        fileContent = content;
+                                    }
+                                } catch (e) {
+                                    console.error('Failed to read file content for tweaks validation', e);
+                                }
+                            }
+
+                            if (!fileContent.includes(tweak.cssVariable)) {
                                 return {
                                     success: false,
                                     message: `Validation Error: The CSS variable "${tweak.cssVariable}" was not found in the source code of the target element. 
