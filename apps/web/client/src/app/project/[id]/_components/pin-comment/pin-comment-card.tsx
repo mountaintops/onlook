@@ -204,7 +204,7 @@ export function PinCommentCard({ comment }: PinCommentCardProps) {
                             if (!isExpanded) setIsExpanded(true);
                         }}
                     >
-                        <Icons.FileText className="h-3 w-3" />
+                        <Icons.File className="h-3 w-3" />
                     </Button>
                     <Button
                         size="icon"
