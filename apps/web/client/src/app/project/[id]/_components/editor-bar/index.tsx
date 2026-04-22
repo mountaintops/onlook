@@ -9,6 +9,7 @@ import { DivSelected } from './div-selected';
 import { FrameSelected } from './frame-selected';
 import { DropdownManagerProvider } from './hooks/use-dropdown-manager';
 import { TextSelected } from './text-selected';
+import { PinCommentInput } from '../pin-comment/pin-comment-input';
 
 enum TAG_CATEGORIES {
     TEXT = 'text',
@@ -109,6 +110,13 @@ export const EditorBar = observer(({ availableWidth }: { availableWidth?: number
                 }}
             >
                 {getTopBar()}
+                {/* Pin comment input – only for element selections, not frame/window */}
+                {selectedElement && !windowSelected && (
+                    <PinCommentInput
+                        elementDomId={selectedElement.domId}
+                        elementTagName={selectedElement.tagName}
+                    />
+                )}
             </motion.div>
         </DropdownManagerProvider>
     );

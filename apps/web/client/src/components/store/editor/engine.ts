@@ -30,6 +30,7 @@ import { StyleManager } from './style';
 import { TextEditingManager } from './text';
 import { ThemeManager } from './theme';
 import { TweaksManager } from './tweaks';
+import { PinCommentsManager } from './pin-comments';
 
 export class EditorEngine {
     readonly projectId: string;
@@ -60,6 +61,7 @@ export class EditorEngine {
     readonly api: ApiManager;
     readonly ide: IdeManager;
     readonly tweaks: TweaksManager;
+    readonly pinComments: PinCommentsManager;
 
     get activeSandbox(): SandboxManager {
         return this.branches.activeSandbox;
@@ -103,6 +105,7 @@ export class EditorEngine {
         this.api = new ApiManager(this);
         this.ide = new IdeManager(this);
         this.tweaks = new TweaksManager(this);
+        this.pinComments = new PinCommentsManager();
 
         makeAutoObservable(this);
     }
@@ -141,6 +144,7 @@ export class EditorEngine {
         this.chat.clear();
         this.code.clear();
         this.tweaks.clear();
+        this.pinComments.clear();
         this.branches.clear();
         this.frameEvent.clear();
         this.screenshot.clear();
