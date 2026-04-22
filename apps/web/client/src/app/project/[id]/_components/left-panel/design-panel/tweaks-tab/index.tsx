@@ -43,6 +43,7 @@ const TweakItem = observer(({
     }, [tweak.value, tweak.type]);
 
     const formattedColorLabel = useMemo(() => {
+        if (String(tweak.value).includes('gradient')) return 'Gradient';
         if (!colorValue) return String(tweak.value);
         const hex = colorValue.toHex6();
         const alpha = Math.round(colorValue.a * 100);
@@ -101,7 +102,7 @@ const TweakItem = observer(({
                         {tweak.type === 'color' ? (
                             <div
                                 className="w-3 h-3 rounded-full border border-foreground/10"
-                                style={{ backgroundColor: String(tweak.value) }}
+                                style={{ background: String(tweak.value) }}
                             />
                         ) : null}
                         {tweak.type === 'color' ? formattedColorLabel : tweak.value}
@@ -127,7 +128,7 @@ const TweakItem = observer(({
                                 >
                                     <div
                                         className="w-3 h-3 rounded-sm border border-foreground/10 shrink-0"
-                                        style={{ backgroundColor: String(tweak.value) }}
+                                        style={{ background: String(tweak.value) }}
                                     />
                                     <span className="truncate">{formattedColorLabel}</span>
                                 </Button>
@@ -138,13 +139,13 @@ const TweakItem = observer(({
                                     onChange={(newColor) =>
                                         editorEngine.tweaks.updateTweakValue(
                                             tweak.id,
-                                            newColor instanceof Color ? newColor.toHex() : newColor.lightColor,
+                                            typeof newColor === 'string' ? newColor : newColor instanceof Color ? newColor.toHex() : newColor.lightColor,
                                         )
                                     }
                                     onChangeEnd={(newColor) =>
                                         editorEngine.tweaks.updateTweakValue(
                                             tweak.id,
-                                            newColor instanceof Color ? newColor.toHex() : newColor.lightColor,
+                                            typeof newColor === 'string' ? newColor : newColor instanceof Color ? newColor.toHex() : newColor.lightColor,
                                         )
                                     }
                                     disableAutoUpdate={true}

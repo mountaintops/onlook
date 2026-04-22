@@ -4,6 +4,7 @@ import type { TailwindColor } from '@onlook/models/style';
 import {
     ColorPicker,
     Gradient,
+    generateGradientCSS,
     type GradientState
 } from '@onlook/ui/color-picker';
 import { parseGradientFromCSS } from '@onlook/ui/color-picker/Gradient';
@@ -100,8 +101,8 @@ enum TabValue {
 
 interface ColorPickerProps {
     color: Color;
-    onChange: (color: Color | TailwindColor) => void;
-    onChangeEnd: (color: Color | TailwindColor) => void;
+    onChange: (color: Color | TailwindColor | string) => void;
+    onChangeEnd: (color: Color | TailwindColor | string) => void;
     backgroundImage?: string;
     isCreatingNewColor?: boolean;
     hideGradient?: boolean;
@@ -450,9 +451,12 @@ export const ColorPickerContent: React.FC<ColorPickerProps> = ({
             setActiveTab(TabValue.GRADIENT);
             if (!disableAutoUpdate) {
                 handleGradientUpdateEnd(newGradient);
+            } else {
+                const cssValue = generateGradientCSS(newGradient);
+                onChangeEnd(cssValue);
             }
         },
-        [handleGradientUpdateEnd, disableAutoUpdate],
+        [handleGradientUpdateEnd, disableAutoUpdate, onChangeEnd],
     );
 
     const handleStopColorChange = useCallback(

@@ -9,7 +9,7 @@ import { ClientTool } from '../models/client';
 export class CreateTweaksTool extends ClientTool {
     static readonly toolName = 'create_tweaks';
     static readonly description =
-        'Propose dynamic UI controls (Tweaks) for CSS variables. Supports sliders (number) and color pickers (color). Use this whenever the user asks for "vibe" shifts or stylistic fine-tuning (e.g. "make it more modern", "change the accent colors"). DO NOT create tweaks for standard layout/typography properties unless they are exposed as theme-level CSS variables. MANDATORY: You must first edit the component code to use these CSS variables with fallbacks before calling this tool.';
+        'Propose dynamic UI controls (Tweaks) for CSS variables. Supports sliders (number) and color pickers (color). Use this whenever the user asks for "vibe" shifts or stylistic fine-tuning (e.g. "make it more modern", "change the accent colors"). DO NOT create tweaks for standard layout/typography properties unless they are exposed as theme-level CSS variables. MANDATORY: You must first edit the component code to use these CSS variables with fallbacks before calling this tool. IMPORTANT STANDARD: For color tweaks, always use shorthand properties that support BOTH hex colors and gradients (e.g., use "background" instead of "backgroundColor" or "background-color") so the user can apply either solid colors or gradient images.';
 
     static readonly parameters = z.object({
         tweaks: z
@@ -27,7 +27,7 @@ export class CreateTweaksTool extends ClientTool {
                     property: z
                         .string()
                         .describe(
-                            'The CSS property this tweak controls (e.g. "opacity", "background-color", "transform")',
+                            'The CSS property this tweak controls (e.g. "opacity", "background", "transform"). IMPORTANT: For backgrounds, always use "background" instead of "backgroundColor" to support both solid colors and gradients.',
                         ),
                     cssVariable: z
                         .string()
@@ -83,7 +83,7 @@ export class CreateTweaksTool extends ClientTool {
                                 return {
                                     success: false,
                                     message: `Validation Error: The CSS variable "${tweak.cssVariable}" was not found in the source code of the target element. 
-You MUST first edit the component code to use this variable with a fallback (e.g. style={{ ${tweak.property}: 'var(${tweak.cssVariable}, ${tweak.value})' }}). 
+You MUST first edit the component code to use this variable with a fallback (e.g. style={{ ${tweak.property}: 'var(${tweak.cssVariable}, ${tweak.value})' }}). For backgrounds, ensure you use the "background" property rather than "backgroundColor" to support gradients.
 If search_replace_multi_edit_file failed due to "String not found", please use write_files_folders to overwrite the entire file with the correct code including the CSS variable.`,
                                 };
                             }
